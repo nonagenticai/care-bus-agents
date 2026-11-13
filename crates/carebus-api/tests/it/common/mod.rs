@@ -147,12 +147,19 @@ pub const APP_ROLE_PASSWORD: &str = "carebus_app";
 
 /// Once per server, before any database is migrated: `carebus_app` exists, may log in, and has the test password.
 /// A server reused through `TEST_DATABASE_URL` may hold it NOLOGIN from an earlier 0007 run, hence the ALTER.
+///
+/// The advisory lock is load-bearing: under nextest every test is its own process, so a shared
+/// `TEST_DATABASE_URL` server sees one of these blocks per test, concurrently. Two `ALTER ROLE`s on
+/// the same `pg_authid` row raise `XX000 tuple concurrently updated`, which the exception list below
+/// deliberately does not swallow. Serialising on a transaction-scoped lock makes the second caller
+/// wait, then run its (now harmless) `ALTER`.
 async fn ensure_app_role(base: &str) {
     let admin = PgPool::connect(base)
         .await
         .expect("connect to the test postgres server");
     sqlx::query(
         "DO $$ BEGIN
+             PERFORM pg_advisory_xact_lock(hashtext('carebus_app_role'));
              IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'carebus_app') THEN
                  CREATE ROLE carebus_app LOGIN PASSWORD 'carebus_app' NOSUPERUSER NOBYPASSRLS;
              ELSE
