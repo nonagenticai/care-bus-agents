@@ -1,0 +1,33 @@
+{
+  "items": [
+    {
+      "name": "order_get_order",
+      "description": "Get one order with lines, status and shipment id.",
+      "input_schema": {
+        "type": "object",
+        "required": [
+          "order_id"
+        ],
+        "properties": {
+          "order_id": {
+            "type": "string"
+          }
+        }
+      },
+      "calls_24h": 1,
+      "error_rate": 0.0,
+      "p95_ms": 240.0
+    },
+    {
+      "name": "faq_ask",
+      "description": "Answer a customer question from the knowledge base.",
+      "input_schema": {
+        "type": "object"
+      },
+      "calls_24h": 0,
+      "error_rate": null,
+      "p95_ms": null
+    }
+  ],
+  "next": null
+}

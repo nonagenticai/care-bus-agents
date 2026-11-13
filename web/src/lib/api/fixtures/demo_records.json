@@ -1,0 +1,20 @@
+{
+  "table": "orders",
+  "primary_key": "order_id",
+  "editable": [
+    "status"
+  ],
+  "columns": [
+    "order_id",
+    "customer_id",
+    "status"
+  ],
+  "rows": [
+    {
+      "order_id": "ORD-58790",
+      "customer_id": "C-10482",
+      "status": "in_transit"
+    }
+  ],
+  "total": 1
+}

@@ -1,0 +1,62 @@
+{
+  "today": {
+    "open": 1,
+    "cases": 2,
+    "failed": 0,
+    "completed": 1,
+    "median_ms": 4200,
+    "not_eligible": 0
+  },
+  "week_ago": {
+    "open": 0,
+    "cases": 0,
+    "failed": 0,
+    "completed": 0,
+    "median_ms": null,
+    "not_eligible": 0
+  },
+  "health": [
+    {
+      "name": "redis",
+      "status": "ok",
+      "detail": null
+    },
+    {
+      "name": "postgres",
+      "status": "ok",
+      "detail": null
+    },
+    {
+      "name": "strata_rag",
+      "status": "ok",
+      "detail": null
+    },
+    {
+      "name": "demo-backends",
+      "status": "ok",
+      "detail": null
+    },
+    {
+      "name": "mcp",
+      "status": "ok",
+      "detail": null
+    }
+  ],
+  "attention": [
+    {
+      "severity": "err",
+      "title": "1 messages in the dead-letter stream",
+      "page": "buses"
+    },
+    {
+      "severity": "warn",
+      "title": "return@1.4.0-beta is CANARY and needs review",
+      "page": "procedures"
+    },
+    {
+      "severity": "warn",
+      "title": "The vision backend is switched off",
+      "page": "models"
+    }
+  ]
+}

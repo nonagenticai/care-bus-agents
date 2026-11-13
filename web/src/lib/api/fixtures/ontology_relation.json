@@ -1,0 +1,6 @@
+{
+  "subject": "Customer",
+  "predicate": "files",
+  "object": "WarrantyClaim",
+  "cardinality": "1:n"
+}

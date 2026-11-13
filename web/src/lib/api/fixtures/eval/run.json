@@ -1,0 +1,98 @@
+{
+  "id": "7f1c9a2e-0000-4000-8000-000000000e03",
+  "source": "tenant",
+  "root_id": "7f1c9a2e-0000-4000-8000-0000000000a0",
+  "modes": [
+    "embed",
+    "hybrid"
+  ],
+  "beam": 3,
+  "min_score": 0.35,
+  "status": "completed",
+  "error": null,
+  "progress": {
+    "done": 4,
+    "total": 4
+  },
+  "verdict": "PASS",
+  "started_by": "7f1c9a2e-0000-4000-8000-00000000ac70",
+  "started_at": "2026-10-19T09:00:00.000000Z",
+  "finished_at": "2026-10-19T09:00:04.250000Z",
+  "took_ms": 4250,
+  "questions": [
+    {
+      "id": "7f1c9a2e-0000-4000-8000-000000000e01",
+      "query": "How long does a refund take?",
+      "expected_document": "Returns policy",
+      "expected_leaf": "help-centre",
+      "expected_document_ids": [
+        "7f1c9a2e-0000-4000-8000-0000000000d1"
+      ],
+      "expected_chunk_ids": [
+        "7f1c9a2e-0000-4000-8000-0000000000c1"
+      ],
+      "expected_text": "within 5 working days"
+    },
+    {
+      "id": "7f1c9a2e-0000-4000-8000-000000000e02",
+      "query": "Where is my parcel?",
+      "expected_document": null,
+      "expected_leaf": null,
+      "expected_document_ids": [],
+      "expected_chunk_ids": [],
+      "expected_text": "tracking link"
+    }
+  ],
+  "reports": [
+    {
+      "mode": "embed",
+      "n": 2,
+      "recall_at_1": 0.5,
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "leaf_accuracy": 1.0,
+      "laya_consulted": 0,
+      "laya_fallbacks": 0
+    },
+    {
+      "mode": "hybrid",
+      "n": 2,
+      "recall_at_1": 0.5,
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "leaf_accuracy": 1.0,
+      "laya_consulted": 2,
+      "laya_fallbacks": 0
+    }
+  ],
+  "results": [
+    {
+      "index": 0,
+      "question_id": "7f1c9a2e-0000-4000-8000-000000000e01",
+      "mode": "embed",
+      "rank": 1,
+      "leaf_hit": true
+    },
+    {
+      "index": 1,
+      "question_id": "7f1c9a2e-0000-4000-8000-000000000e02",
+      "mode": "embed",
+      "rank": 2,
+      "leaf_hit": null
+    },
+    {
+      "index": 0,
+      "question_id": "7f1c9a2e-0000-4000-8000-000000000e01",
+      "mode": "hybrid",
+      "rank": 1,
+      "leaf_hit": true
+    },
+    {
+      "index": 1,
+      "question_id": "7f1c9a2e-0000-4000-8000-000000000e02",
+      "mode": "hybrid",
+      "rank": 2,
+      "leaf_hit": null
+    }
+  ]
+}

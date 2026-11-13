@@ -1,0 +1,77 @@
+{
+  "days": [
+    {
+      "day": "2026-10-09",
+      "open": 0,
+      "failed": 0,
+      "completed": 0,
+      "not_eligible": 0
+    },
+    {
+      "day": "2026-10-10",
+      "open": 0,
+      "failed": 0,
+      "completed": 0,
+      "not_eligible": 0
+    },
+    {
+      "day": "2026-10-11",
+      "open": 0,
+      "failed": 0,
+      "completed": 0,
+      "not_eligible": 0
+    },
+    {
+      "day": "2026-10-12",
+      "open": 0,
+      "failed": 0,
+      "completed": 0,
+      "not_eligible": 0
+    },
+    {
+      "day": "2026-10-13",
+      "open": 0,
+      "failed": 0,
+      "completed": 0,
+      "not_eligible": 0
+    },
+    {
+      "day": "2026-10-14",
+      "open": 0,
+      "failed": 0,
+      "completed": 0,
+      "not_eligible": 0
+    },
+    {
+      "day": "2026-10-15",
+      "open": 1,
+      "failed": 0,
+      "completed": 1,
+      "not_eligible": 0
+    }
+  ],
+  "by_type": [
+    {
+      "cases": 1,
+      "failed": 0,
+      "p50_ms": 4200,
+      "retries": 1,
+      "completed": 1,
+      "not_eligible": 0,
+      "request_type": "return"
+    }
+  ],
+  "latency": [
+    {
+      "tool": "order_get_order",
+      "p50_ms": 240,
+      "p95_ms": 240
+    }
+  ],
+  "previous": {
+    "cases": 0,
+    "failed": 0,
+    "completed": 0,
+    "not_eligible": 0
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "key": "bus:customer:order-support",
+  "bus": "customer",
+  "area": "order-support",
+  "length": 3,
+  "last_entry_id": "1792058400000-0",
+  "groups": [
+    {
+      "name": "carebus-api-recorder",
+      "consumers": 1,
+      "pending": 0,
+      "lag": 0,
+      "last_delivered_id": "1792058400000-0"
+    },
+    {
+      "name": "interaction",
+      "consumers": 1,
+      "pending": 0,
+      "lag": 0,
+      "last_delivered_id": "1792058400000-0"
+    },
+    {
+      "name": "orchestrator",
+      "consumers": 1,
+      "pending": 0,
+      "lag": 0,
+      "last_delivered_id": "1792058400000-0"
+    }
+  ]
+}

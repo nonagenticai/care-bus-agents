@@ -1,0 +1,412 @@
+{
+  "items": [
+    {
+      "name": "Communication",
+      "label": "Communication",
+      "scope": "generic",
+      "hidden": false,
+      "industry": null,
+      "synonyms": [
+        "message",
+        "email",
+        "sms"
+      ],
+      "attributes": [
+        {
+          "pii": false,
+          "name": "at",
+          "synonyms": [],
+          "data_type": "date"
+        },
+        {
+          "pii": false,
+          "name": "channel",
+          "synonyms": [],
+          "data_type": "enum"
+        },
+        {
+          "pii": false,
+          "name": "subject",
+          "synonyms": [],
+          "data_type": "string"
+        }
+      ],
+      "department": null,
+      "origin": "base",
+      "overridden": false
+    },
+    {
+      "name": "Customer",
+      "label": "Customer",
+      "scope": "generic",
+      "hidden": false,
+      "industry": null,
+      "synonyms": [
+        "client",
+        "buyer",
+        "cust_no"
+      ],
+      "attributes": [
+        {
+          "pii": false,
+          "name": "customer_id",
+          "synonyms": [],
+          "data_type": "string"
+        },
+        {
+          "pii": true,
+          "name": "email",
+          "synonyms": [],
+          "data_type": "string"
+        },
+        {
+          "pii": true,
+          "name": "name",
+          "synonyms": [],
+          "data_type": "string"
+        },
+        {
+          "pii": false,
+          "name": "tier",
+          "synonyms": [],
+          "data_type": "enum"
+        }
+      ],
+      "department": null,
+      "origin": "base",
+      "overridden": false
+    },
+    {
+      "name": "Policy",
+      "label": "Policy",
+      "scope": "generic",
+      "hidden": false,
+      "industry": null,
+      "synonyms": [
+        "terms",
+        "rule"
+      ],
+      "attributes": [
+        {
+          "pii": false,
+          "name": "code",
+          "synonyms": [],
+          "data_type": "string"
+        },
+        {
+          "pii": false,
+          "name": "text",
+          "synonyms": [],
+          "data_type": "text"
+        }
+      ],
+      "department": null,
+      "origin": "base",
+      "overridden": false
+    },
+    {
+      "name": "Order",
+      "label": "Order",
+      "scope": "industry",
+      "hidden": false,
+      "industry": "retail",
+      "synonyms": [
+        "purchase",
+        "ord_no",
+        "bestelling"
+      ],
+      "attributes": [
+        {
+          "pii": false,
+          "name": "amount",
+          "synonyms": [],
+          "data_type": "money"
+        },
+        {
+          "pii": false,
+          "name": "order_id",
+          "synonyms": [],
+          "data_type": "string"
+        },
+        {
+          "pii": false,
+          "name": "placed",
+          "synonyms": [],
+          "data_type": "date"
+        },
+        {
+          "pii": false,
+          "name": "shipment_id",
+          "synonyms": [],
+          "data_type": "string"
+        },
+        {
+          "pii": false,
+          "name": "status",
+          "synonyms": [],
+          "data_type": "enum"
+        }
+      ],
+      "department": null,
+      "origin": "base",
+      "overridden": false
+    },
+    {
+      "name": "Payment",
+      "label": "Payment",
+      "scope": "industry",
+      "hidden": false,
+      "industry": "retail",
+      "synonyms": [
+        "charge",
+        "transaction",
+        "psp_reference"
+      ],
+      "attributes": [
+        {
+          "pii": false,
+          "name": "amount",
+          "synonyms": [],
+          "data_type": "money"
+        },
+        {
+          "pii": false,
+          "name": "at",
+          "synonyms": [],
+          "data_type": "datetime"
+        },
+        {
+          "pii": true,
+          "name": "method",
+          "synonyms": [],
+          "data_type": "string"
+        },
+        {
+          "pii": false,
+          "name": "payment_id",
+          "synonyms": [],
+          "data_type": "string"
+        },
+        {
+          "pii": false,
+          "name": "status",
+          "synonyms": [],
+          "data_type": "enum"
+        }
+      ],
+      "department": null,
+      "origin": "base",
+      "overridden": false
+    },
+    {
+      "name": "Product",
+      "label": "Product",
+      "scope": "industry",
+      "hidden": false,
+      "industry": "retail",
+      "synonyms": [
+        "item",
+        "article",
+        "sku"
+      ],
+      "attributes": [
+        {
+          "pii": false,
+          "name": "category",
+          "synonyms": [],
+          "data_type": "enum"
+        },
+        {
+          "pii": false,
+          "name": "name",
+          "synonyms": [],
+          "data_type": "string"
+        },
+        {
+          "pii": false,
+          "name": "sku",
+          "synonyms": [],
+          "data_type": "string"
+        }
+      ],
+      "department": null,
+      "origin": "base",
+      "overridden": false
+    },
+    {
+      "name": "Shipment",
+      "label": "Shipment",
+      "scope": "industry",
+      "hidden": false,
+      "industry": "retail",
+      "synonyms": [
+        "parcel",
+        "package",
+        "zending"
+      ],
+      "attributes": [
+        {
+          "pii": false,
+          "name": "carrier",
+          "synonyms": [],
+          "data_type": "enum"
+        },
+        {
+          "pii": false,
+          "name": "eta",
+          "synonyms": [],
+          "data_type": "string"
+        },
+        {
+          "pii": false,
+          "name": "shipment_id",
+          "synonyms": [],
+          "data_type": "string"
+        },
+        {
+          "pii": false,
+          "name": "status",
+          "synonyms": [],
+          "data_type": "enum"
+        }
+      ],
+      "department": null,
+      "origin": "base",
+      "overridden": false
+    },
+    {
+      "name": "Carrier",
+      "label": "Carrier",
+      "scope": "industry_dept",
+      "hidden": false,
+      "industry": "retail",
+      "synonyms": [
+        "PostNL",
+        "DHL",
+        "courier"
+      ],
+      "attributes": [
+        {
+          "pii": false,
+          "name": "code",
+          "synonyms": [],
+          "data_type": "string"
+        },
+        {
+          "pii": false,
+          "name": "name",
+          "synonyms": [],
+          "data_type": "string"
+        }
+      ],
+      "department": "logistics",
+      "origin": "base",
+      "overridden": false
+    },
+    {
+      "name": "Refund",
+      "label": "Refund",
+      "scope": "industry_dept",
+      "hidden": false,
+      "industry": "retail",
+      "synonyms": [
+        "money back",
+        "chargeback",
+        "terugbetaling"
+      ],
+      "attributes": [
+        {
+          "pii": false,
+          "name": "amount",
+          "synonyms": [],
+          "data_type": "money"
+        },
+        {
+          "pii": false,
+          "name": "eta",
+          "synonyms": [],
+          "data_type": "string"
+        },
+        {
+          "pii": false,
+          "name": "refund_id",
+          "synonyms": [],
+          "data_type": "string"
+        }
+      ],
+      "department": "payments",
+      "origin": "base",
+      "overridden": false
+    },
+    {
+      "name": "ReturnAuthorization",
+      "label": "Return (RMA)",
+      "scope": "industry_dept",
+      "hidden": false,
+      "industry": "retail",
+      "synonyms": [
+        "rma",
+        "return label",
+        "retour"
+      ],
+      "attributes": [
+        {
+          "pii": false,
+          "name": "deadline",
+          "synonyms": [],
+          "data_type": "date"
+        },
+        {
+          "pii": false,
+          "name": "reason",
+          "synonyms": [],
+          "data_type": "text"
+        },
+        {
+          "pii": false,
+          "name": "rma_id",
+          "synonyms": [],
+          "data_type": "string"
+        }
+      ],
+      "department": "order-support",
+      "origin": "base",
+      "overridden": false
+    },
+    {
+      "name": "WarrantyClaim",
+      "label": "Warranty claim",
+      "scope": "industry_dept",
+      "hidden": false,
+      "industry": "retail",
+      "synonyms": [
+        "guarantee claim",
+        "repair"
+      ],
+      "attributes": [
+        {
+          "pii": false,
+          "name": "claim_id",
+          "synonyms": [],
+          "data_type": "string"
+        },
+        {
+          "pii": false,
+          "name": "defect",
+          "synonyms": [],
+          "data_type": "text"
+        },
+        {
+          "pii": false,
+          "name": "warranty_until",
+          "synonyms": [],
+          "data_type": "date"
+        }
+      ],
+      "department": "order-support",
+      "origin": "base",
+      "overridden": false
+    }
+  ],
+  "next": null
+}

@@ -1,0 +1,42 @@
+{
+	"name": "carebus-web",
+	"private": true,
+	"license": "Apache-2.0",
+	"type": "module",
+	"engines": {
+		"node": ">=26"
+	},
+	"scripts": {
+		"dev": "vite dev --host 127.0.0.1 --port 3000 --strictPort",
+		"build": "vite build",
+		"preview": "vite preview --host 127.0.0.1 --port 3000 --strictPort",
+		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+		"ci:verify": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --fail-on-warnings",
+		"format": "prettier --write .",
+		"format:check": "prettier --check .",
+		"lint": "prettier --check .",
+		"test": "vitest run",
+		"test:e2e": "playwright test",
+		"verify:no-e2e-shim": "node scripts/verify-no-e2e-shim.mjs"
+	},
+	"dependencies": {
+		"@xyflow/svelte": "1.7.0",
+		"keycloak-js": "26.1.0"
+	},
+	"devDependencies": {
+		"@playwright/test": "1.60.0",
+		"@sveltejs/adapter-node": "5.5.7",
+		"@sveltejs/kit": "2.70.3",
+		"@sveltejs/vite-plugin-svelte": "7.3.1",
+		"@testing-library/svelte": "5.2.4",
+		"@types/node": "26.6.4",
+		"jsdom": "30.1.1",
+		"prettier": "3.3.3",
+		"prettier-plugin-svelte": "3.2.8",
+		"svelte": "5.57.1",
+		"svelte-check": "4.7.6",
+		"typescript": "5.7.3",
+		"vite": "8.3.2",
+		"vitest": "5.0.3"
+	}
+}

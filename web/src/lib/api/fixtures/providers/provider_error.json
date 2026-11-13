@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "region_not_allowed",
+    "message": "regions must contain eu"
+  }
+}

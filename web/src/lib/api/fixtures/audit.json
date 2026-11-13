@@ -1,0 +1,99 @@
+{
+  "items": [
+    {
+      "id": 6,
+      "timestamp": "2026-10-15T10:00:05.000000Z",
+      "actor_id": "tool-executor",
+      "actor_type": "system",
+      "action_type": "execute",
+      "resource_type": "tool",
+      "resource_id": "order_get_order",
+      "status": "success",
+      "details": {
+        "error": null,
+        "case_id": "CASE-0001",
+        "latency_ms": 240
+      },
+      "request_id": "CASE-0001:0:order:2",
+      "ip_address": null
+    },
+    {
+      "id": 5,
+      "timestamp": "2026-10-15T10:00:04.000000Z",
+      "actor_id": "a.bakker",
+      "actor_type": "human",
+      "action_type": "update",
+      "resource_type": "model_route",
+      "resource_id": "generation",
+      "status": "success",
+      "details": {
+        "model": "local-llm",
+        "provider": "vllm"
+      },
+      "request_id": null,
+      "ip_address": null
+    },
+    {
+      "id": 4,
+      "timestamp": "2026-10-15T10:00:03.000000Z",
+      "actor_id": "a.bakker",
+      "actor_type": "human",
+      "action_type": "test",
+      "resource_type": "model_route",
+      "resource_id": "generation",
+      "status": "success",
+      "details": {
+        "status": 200,
+        "reachable": true
+      },
+      "request_id": null,
+      "ip_address": null
+    },
+    {
+      "id": 3,
+      "timestamp": "2026-10-15T10:00:02.000000Z",
+      "actor_id": "a.bakker",
+      "actor_type": "human",
+      "action_type": "update",
+      "resource_type": "model_route",
+      "resource_id": "generation",
+      "status": "success",
+      "details": {
+        "model": "local-llm",
+        "provider": "vllm"
+      },
+      "request_id": null,
+      "ip_address": null
+    },
+    {
+      "id": 2,
+      "timestamp": "2026-10-15T10:00:01.000000Z",
+      "actor_id": "a.bakker",
+      "actor_type": "human",
+      "action_type": "test",
+      "resource_type": "connector",
+      "resource_id": "oms",
+      "status": "success",
+      "details": {
+        "status": 200,
+        "reachable": true
+      },
+      "request_id": null,
+      "ip_address": null
+    },
+    {
+      "id": 1,
+      "timestamp": "2026-10-15T10:00:00.000000Z",
+      "actor_id": "a.bakker",
+      "actor_type": "human",
+      "action_type": "create",
+      "resource_type": "connector",
+      "resource_id": "oms",
+      "status": "success",
+      "details": {},
+      "request_id": null,
+      "ip_address": null
+    }
+  ],
+  "next": null
+}

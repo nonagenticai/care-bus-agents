@@ -1,0 +1,17 @@
+# Local bus for development and the integration tests. Same port inside and outside.
+services:
+  redis:
+    image: redis:8.10.1-alpine
+    container_name: carebus_redis
+    command: ["redis-server", "--port", "6391", "--appendonly", "yes"]
+    ports: ["6391:6391"]
+
+  carebus-demo-db:
+    image: postgres:18-alpine
+    container_name: carebus_demo_db
+    environment:
+      POSTGRES_DB: carebus_demo
+      POSTGRES_USER: carebus_demo
+      POSTGRES_PASSWORD: carebus_demo
+      PGPORT: "5442"
+    ports: ["5442:5442"]

@@ -1,0 +1,63 @@
+{
+  "items": [
+    {
+      "id": 42,
+      "point": "request",
+      "conversation_id": null,
+      "case_id": null,
+      "outcome": "fired",
+      "fired_keys": [
+        "emergency",
+        "topic"
+      ],
+      "action": "handoff",
+      "answers": {
+        "emergency": {
+          "type": "noul",
+          "noul": 0.93,
+          "fired": true
+        },
+        "credentials_shared": {
+          "type": "choice",
+          "fired": false,
+          "skipped": "precheck"
+        },
+        "bereavement": {
+          "type": "noul",
+          "noul": 0.01,
+          "fired": false
+        },
+        "frustration": {
+          "type": "score",
+          "score": 2,
+          "probabilities": {
+            "0": 0.05,
+            "1": 0.2,
+            "2": 0.5,
+            "3": 0.2,
+            "4": 0.05
+          },
+          "confidence": 0.5,
+          "fired": false
+        },
+        "topic": {
+          "type": "choice",
+          "choice": "delivery",
+          "probabilities": {
+            "returns": 0.05,
+            "warranty": 0.05,
+            "delivery": 0.8,
+            "payment": 0.03,
+            "faq": 0.02,
+            "other": 0.05
+          },
+          "confidence": 0.8,
+          "fired": true
+        }
+      },
+      "latency_ms": 212,
+      "error": null,
+      "created_at": "2026-10-18T10:01:00Z"
+    }
+  ]
+}

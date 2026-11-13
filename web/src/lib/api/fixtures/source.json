@@ -1,0 +1,39 @@
+{
+  "id": "00000000-0000-4000-8000-000000000001",
+  "name": "Customer API",
+  "type": "api",
+  "config": {
+    "url": "https://oms.example.com/customers",
+    "auth": {
+      "type": "header",
+      "header_name": "X-Api-Key"
+    }
+  },
+  "mapping": [
+    {
+      "source_field": "customer_id",
+      "entity": "Customer",
+      "attribute": "customer_id"
+    },
+    {
+      "source_field": "email",
+      "entity": "Customer",
+      "attribute": "email"
+    }
+  ],
+  "target_store_id": "7f1c9a2e-0000-4000-8000-000000000002",
+  "schedule": "0 3 * * *",
+  "enabled": true,
+  "has_credentials": true,
+  "created_at": "2026-10-15T10:00:00.000000Z",
+  "updated_at": "2026-10-15T10:00:00.000000Z",
+  "updated_by": "a.bakker",
+  "last_run": {
+    "id": "00000000-0000-4000-8000-000000000002",
+    "status": "failed",
+    "started_at": "2026-10-15T10:00:01.000000Z",
+    "finished_at": "2026-10-15T10:00:02.000000Z",
+    "document_count": 0,
+    "error": "1 of 1 ingest jobs did not complete: 7f1c9a2e-0000-4000-8000-000000000b01 failed: source_auth: the source answered HTTP 401"
+  }
+}

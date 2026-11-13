@@ -1,0 +1,16 @@
+{
+  "id": "7f1c9a2e-0000-4000-8000-000000000e01",
+  "query": "How long does a refund take?",
+  "expected_document": "Returns policy",
+  "expected_leaf": "help-centre",
+  "expected_document_ids": [
+    "7f1c9a2e-0000-4000-8000-0000000000d1"
+  ],
+  "expected_chunk_ids": [
+    "7f1c9a2e-0000-4000-8000-0000000000c1"
+  ],
+  "expected_text": "within 5 working days",
+  "created_by": "7f1c9a2e-0000-4000-8000-00000000ac70",
+  "created_at": "2026-10-19T09:00:00.000000Z",
+  "updated_at": "2026-10-19T09:00:00.000000Z"
+}

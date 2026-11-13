@@ -1,0 +1,30 @@
+{
+  "stream": "bus:customer:order-support",
+  "entry_id": "1792058400000-0",
+  "envelope": {
+    "id": "00000000-0000-4000-8000-000000000001",
+    "topic": "order-support.returns.request.qualified",
+    "from": "interaction",
+    "correlation_id": "CASE-0001",
+    "published_at_ms": 1792058400000,
+    "payload": {
+      "case_id": "CASE-0001",
+      "customer_id": "C-10482",
+      "request_type": "return",
+      "area": "order-support",
+      "context_space": "retail:order-support:returns",
+      "slots": {
+        "order_id": "ORD-58213",
+        "reason": "too uncomfortable",
+        "defect": null,
+        "error_type": null,
+        "question": null
+      },
+      "utterance": "I want to return my headphones"
+    },
+    "tenant_id": "0195f48b-d000-7000-8000-000000000099",
+    "job": "customer_care_agent"
+  },
+  "consumer_group": "orchestrator",
+  "acked": false
+}

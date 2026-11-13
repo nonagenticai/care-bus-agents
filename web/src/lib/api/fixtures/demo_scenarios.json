@@ -1,0 +1,8 @@
+{
+  "scenarios": [
+    {
+      "name": "duplicate-charge",
+      "description": "Restore Anna's duplicate capture on ORD-58790"
+    }
+  ]
+}

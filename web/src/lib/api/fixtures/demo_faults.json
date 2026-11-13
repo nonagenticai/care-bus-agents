@@ -1,0 +1,8 @@
+{
+  "faults": {
+    "delivery_track_shipment": {
+      "mode": "timeout",
+      "remaining": 1
+    }
+  }
+}

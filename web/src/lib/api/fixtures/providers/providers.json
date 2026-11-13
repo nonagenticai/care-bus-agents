@@ -1,0 +1,102 @@
+{
+  "services": [
+    {
+      "name": "strata_rag",
+      "status": "ok"
+    },
+    {
+      "name": "strata_ingest",
+      "status": "ok"
+    }
+  ],
+  "capabilities": [
+    {
+      "capability": "embed",
+      "owner": "strata_rag",
+      "available": true,
+      "source": "tenant",
+      "provider": {
+        "base_url": "https://embed.example.eu/v1",
+        "dialect": "openai",
+        "model": "acme-embed",
+        "model_id": null,
+        "dims": 1024,
+        "regions": [
+          "eu"
+        ],
+        "zdr": true,
+        "timeout_ms": 30000,
+        "concurrency": 8,
+        "has_api_key": true,
+        "thinking": null,
+        "temperature": null,
+        "updated_at": "2026-10-15T10:00:00.000000Z"
+      },
+      "default": null
+    },
+    {
+      "capability": "rerank",
+      "owner": "strata_rag",
+      "available": true,
+      "source": "default",
+      "provider": null,
+      "default": {
+        "dialect": "cohere",
+        "model": "BAAI/bge-reranker-v2-m3",
+        "dims": null
+      }
+    },
+    {
+      "capability": "chat",
+      "owner": "strata_rag",
+      "available": true,
+      "source": "default",
+      "provider": null,
+      "default": {
+        "dialect": "openai",
+        "model": "local-llm",
+        "dims": null
+      }
+    },
+    {
+      "capability": "ocr",
+      "owner": "strata_ingest",
+      "available": true,
+      "source": "tenant",
+      "provider": {
+        "base_url": "https://ocr.example.eu/v1",
+        "dialect": "mistral",
+        "model": "mistral-ocr-latest",
+        "model_id": null,
+        "dims": null,
+        "regions": [
+          "eu"
+        ],
+        "zdr": true,
+        "timeout_ms": 30000,
+        "concurrency": 8,
+        "has_api_key": true,
+        "thinking": null,
+        "temperature": null,
+        "updated_at": "2026-10-15T10:00:01.000000Z"
+      },
+      "default": null
+    },
+    {
+      "capability": "vision",
+      "owner": "strata_ingest",
+      "available": true,
+      "source": "unconfigured",
+      "provider": null,
+      "default": null
+    },
+    {
+      "capability": "transcribe",
+      "owner": "strata_ingest",
+      "available": true,
+      "source": "unconfigured",
+      "provider": null,
+      "default": null
+    }
+  ]
+}

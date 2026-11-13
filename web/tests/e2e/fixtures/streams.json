@@ -1,0 +1,37 @@
+{
+	"items": [
+		{
+			"key": "bus:customer:logistics",
+			"bus": "customer",
+			"area": "logistics",
+			"length": 100,
+			"last_entry_id": "1792065600000-0",
+			"groups": [
+				{
+					"name": "orchestrator",
+					"consumers": 2,
+					"pending": 0,
+					"lag": 0,
+					"last_delivered_id": "1792065600000-0"
+				}
+			]
+		},
+		{
+			"key": "bus:tool:delivery",
+			"bus": "tool",
+			"area": null,
+			"length": 200,
+			"last_entry_id": "1792065600400-0",
+			"groups": [
+				{
+					"name": "tool-executor",
+					"consumers": 1,
+					"pending": 12,
+					"lag": 37,
+					"last_delivered_id": "1792065600300-0"
+				}
+			]
+		}
+	],
+	"next": null
+}

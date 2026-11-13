@@ -1,0 +1,32 @@
+# One Dockerfile, three images: --build-arg PACKAGE=carebus | carebus-api | demo-backends
+#
+# Dependencies are compiled in their own layer (cargo-chef: the recipe changes only when a Cargo.toml / Cargo.lock
+# does), so a commit that touches only workspace code reuses the dependency layer and compiles just the workspace
+# crates.
+ARG BASE_REGISTRY=docker.io
+FROM ${BASE_REGISTRY}/library/rust:1.99.1-bookworm AS chef
+RUN cargo install cargo-chef --locked --version 0.1.78
+WORKDIR /src
+
+FROM chef AS plan
+COPY Cargo.toml Cargo.lock ./
+COPY crates ./crates
+RUN cargo chef prepare --recipe-path recipe.json
+
+FROM chef AS build
+ARG PACKAGE
+COPY --from=plan /src/recipe.json recipe.json
+RUN test -n "$PACKAGE" \
+ && cargo chef cook --release --locked -p "$PACKAGE" --recipe-path recipe.json
+COPY Cargo.toml Cargo.lock ./
+COPY crates ./crates
+RUN cargo build --release --locked -p "$PACKAGE" \
+ && mkdir /out \
+ && find target/release -maxdepth 1 -type f -perm -u+x -exec cp {} /out/ \;
+
+FROM ${BASE_REGISTRY}/library/debian:12-slim
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+COPY --from=build /out/ /usr/local/bin/
+USER 65532:65532

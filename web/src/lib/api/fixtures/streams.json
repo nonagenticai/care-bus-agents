@@ -1,0 +1,59 @@
+{
+  "items": [
+    {
+      "key": "bus:customer:order-support",
+      "bus": "customer",
+      "area": "order-support",
+      "length": 3,
+      "last_entry_id": "1792058402000-0",
+      "groups": [
+        {
+          "name": "carebus-api-recorder",
+          "consumers": 1,
+          "pending": 0,
+          "lag": 0,
+          "last_delivered_id": "1792058402000-0"
+        },
+        {
+          "name": "interaction",
+          "consumers": 1,
+          "pending": 0,
+          "lag": 0,
+          "last_delivered_id": "1792058402000-0"
+        },
+        {
+          "name": "orchestrator",
+          "consumers": 1,
+          "pending": 0,
+          "lag": 0,
+          "last_delivered_id": "1792058402000-0"
+        }
+      ]
+    },
+    {
+      "key": "bus:dead",
+      "bus": "dead",
+      "area": null,
+      "length": 1,
+      "last_entry_id": "1792058401000-0",
+      "groups": []
+    },
+    {
+      "key": "bus:worker:order-support:order",
+      "bus": "worker",
+      "area": "order-support",
+      "length": 1,
+      "last_entry_id": "1792058400000-0",
+      "groups": [
+        {
+          "name": "worker-order",
+          "consumers": 1,
+          "pending": 0,
+          "lag": 0,
+          "last_delivered_id": "1792058400000-0"
+        }
+      ]
+    }
+  ],
+  "next": null
+}

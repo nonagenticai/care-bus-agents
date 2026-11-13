@@ -1,0 +1,6 @@
+{
+  "ok": true,
+  "status": 200,
+  "latency_ms": 84,
+  "models": ["jev-system1", "jev-system1-mini"]
+}

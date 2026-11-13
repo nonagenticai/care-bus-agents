@@ -1,0 +1,8 @@
+[workspace]
+resolver = "3"
+members = ["crates/carebus", "crates/carebus-api", "crates/demo-backends"]
+
+[workspace.package]
+# Inherited by every crate (`license.workspace = true`).
+license = "Apache-2.0"
+repository = "https://github.com/nonagenticai/care-bus-agents"

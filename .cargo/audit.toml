@@ -1,0 +1,17 @@
+# cargo-audit config (read by the rust-library archetype's `cargo audit` step).
+[advisories]
+ignore = [
+  # RUSTSEC-2023-0071: rsa — Marvin timing side-channel on PKCS#1 v1.5 decryption; no fixed
+  # release exists. `rsa` is ONLY a dev-dependency of carebus-api (`cargo tree -i rsa`: no
+  # normal/build edge), used to generate throwaway JWT signing keys in tests; it never ships
+  # in an image and never decrypts attacker-supplied data. Revisit if it gains a normal edge.
+  "RUSTSEC-2023-0071",
+  # RUSTSEC-2026-0459: libsqlite3-sys (CVE-2026-119375) — SQLite can return uninitialised
+  # page-cache memory when a process opens a crafted database file together with a sibling
+  # -wal file. The crate is not reachable from this workspace's dependency graph:
+  # `cargo tree -i libsqlite3-sys --target all` prints nothing, so no target compiles, links
+  # or opens SQLite. The lockfile entry is an optional/stale resolution that cargo-audit still
+  # scans. No fixed release is reachable from the versions in play; revisit when the graph
+  # entry disappears or a fixed release arrives.
+  "RUSTSEC-2026-0459",
+]

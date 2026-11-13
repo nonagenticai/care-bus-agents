@@ -1,0 +1,133 @@
+{
+  "questions": [
+    {
+      "key": "emergency",
+      "point": "request",
+      "type": "noul",
+      "instructions": "A customer of an online electronics and home-goods shop wrote this message. Decide whether it describes an emergency.",
+      "criteria": {
+        "true": "The message describes a present or imminent danger to people or property.",
+        "false": "The message describes an ordinary service issue with no danger to anyone."
+      },
+      "fire_when": "gte",
+      "threshold": 0.7,
+      "fire_values": null,
+      "action": "handoff",
+      "message": "This sounds urgent, so I am connecting you with a colleague right now. If anyone is in danger, unplug the device if it is safe to do so and call 112.",
+      "fail": "closed",
+      "tools": null,
+      "enabled": true,
+      "ordinal": 0,
+      "updated_at": "2026-10-18T09:00:00Z",
+      "updated_by": "migration:0027",
+      "input": "message",
+      "precheck": null
+    },
+    {
+      "key": "frustration",
+      "point": "request",
+      "type": "score",
+      "instructions": "Rate how frustrated or upset the customer is in this message.",
+      "criteria": [
+        "Calm: neutral or friendly",
+        "Mildly irritated: some impatience",
+        "Frustrated: clearly annoyed, mentions repeated contact or delays",
+        "Angry: hostile wording, threatens to cancel, complain or leave a bad review",
+        "Furious: abusive, shouting, or threatening legal action"
+      ],
+      "fire_when": "gte",
+      "threshold": 3,
+      "fire_values": null,
+      "action": "handoff",
+      "message": "I am sorry this has been so frustrating. I am bringing in a colleague who can sort this out with you directly.",
+      "fail": "open",
+      "tools": null,
+      "enabled": true,
+      "ordinal": 3,
+      "updated_at": "2026-10-18T09:00:00Z",
+      "updated_by": "migration:0016",
+      "input": "request",
+      "precheck": null
+    },
+    {
+      "key": "topic",
+      "point": "request",
+      "type": "choice",
+      "instructions": "Classify what the customer's message is mainly about.",
+      "criteria": {
+        "returns": "Sending a product back.",
+        "warranty": "A broken product.",
+        "delivery": "Where an order is.",
+        "payment": "Charges and refunds.",
+        "faq": "A general question.",
+        "other": "Anything else."
+      },
+      "fire_when": "gte",
+      "threshold": 0.5,
+      "fire_values": null,
+      "action": "annotate",
+      "message": null,
+      "fail": "open",
+      "tools": null,
+      "enabled": true,
+      "ordinal": 4,
+      "updated_at": "2026-10-18T09:00:00Z",
+      "updated_by": "migration:0016",
+      "input": "request",
+      "precheck": null
+    },
+    {
+      "key": "unbacked_claim",
+      "point": "response",
+      "type": "noul",
+      "instructions": "Decide whether the reply states a fact or makes a promise that the tool outcomes do not support.",
+      "criteria": {
+        "true": "The reply contains at least one claim or promise not backed by the tool outcomes.",
+        "false": "Every fact and promise in the reply is backed by the tool outcomes."
+      },
+      "fire_when": "gte",
+      "threshold": 0.5,
+      "fire_values": null,
+      "action": "handoff",
+      "message": "I want to be sure you get accurate information, so a colleague will check this and reply to you by email today.",
+      "fail": "closed",
+      "tools": null,
+      "enabled": true,
+      "ordinal": 0,
+      "updated_at": "2026-10-18T09:00:00Z",
+      "updated_by": "migration:0016",
+      "input": "request",
+      "precheck": null
+    },
+    {
+      "key": "customer_consent",
+      "point": "tool",
+      "type": "noul",
+      "instructions": "Decide whether the customer's own request explicitly asks for what this tool does.",
+      "criteria": {
+        "true": "The customer explicitly asked for this refund or return.",
+        "false": "The customer did not ask for this refund or return."
+      },
+      "fire_when": "lt",
+      "threshold": 0.5,
+      "fire_values": null,
+      "action": "block",
+      "message": null,
+      "fail": "closed",
+      "tools": [
+        "order_issue_refund",
+        "order_create_rma"
+      ],
+      "enabled": true,
+      "ordinal": 0,
+      "updated_at": "2026-10-18T09:00:00Z",
+      "updated_by": "migration:0016",
+      "input": "request",
+      "precheck": null
+    }
+  ],
+  "provider": {
+    "bound": true,
+    "model": "jev-latest"
+  }
+}

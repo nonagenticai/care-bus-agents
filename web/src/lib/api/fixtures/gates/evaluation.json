@@ -1,0 +1,63 @@
+{
+  "outcome": "fired",
+  "action": "handoff",
+  "message": "This sounds urgent, so I am connecting you with a colleague right now. If anyone is in danger, unplug the device if it is safe to do so and call 112.",
+  "fired_keys": [
+    "emergency",
+    "topic"
+  ],
+  "answers": {
+    "emergency": {
+      "type": "noul",
+      "noul": 0.93,
+      "fired": true
+    },
+    "credentials_shared": {
+      "type": "choice",
+      "fired": false,
+      "skipped": "precheck"
+    },
+    "bereavement": {
+      "type": "noul",
+      "noul": 0.01,
+      "fired": false
+    },
+    "frustration": {
+      "type": "score",
+      "score": 2,
+      "probabilities": {
+        "0": 0.05,
+        "1": 0.2,
+        "2": 0.5,
+        "3": 0.2,
+        "4": 0.05
+      },
+      "confidence": 0.5,
+      "fired": false
+    },
+    "topic": {
+      "type": "choice",
+      "choice": "delivery",
+      "probabilities": {
+        "returns": 0.05,
+        "warranty": 0.05,
+        "delivery": 0.8,
+        "payment": 0.03,
+        "faq": 0.02,
+        "other": 0.05
+      },
+      "confidence": 0.8,
+      "fired": true
+    }
+  },
+  "latency_ms": 212,
+  "error": null,
+  "has_closed": true,
+  "texts": {
+    "emergency": "My charger is smoking!",
+    "credentials_shared": "My charger is smoking!",
+    "bereavement": "My charger is smoking!",
+    "frustration": "Customer message: My charger is smoking!",
+    "topic": "Customer message: My charger is smoking!"
+  }
+}

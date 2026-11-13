@@ -1,0 +1,47 @@
+{
+  "items": [
+    {
+      "stream": "bus:dead",
+      "entry_id": "1792058401000-0",
+      "envelope": {
+        "id": "00000000-0000-4000-8000-000000000001",
+        "topic": "dead.letter",
+        "from": "worker-order",
+        "correlation_id": "CASE-0002",
+        "published_at_ms": 1792058401000,
+        "payload": {
+          "stream": "bus:worker:order-support:order",
+          "entry_id": "1792058400000-0",
+          "deliveries": 3,
+          "reason": "gave up after 2 deliveries",
+          "original": {
+            "id": "00000000-0000-4000-8000-000000000002",
+            "topic": "order-support.returns.work.requested",
+            "from": "orchestrator",
+            "correlation_id": "CASE-0002",
+            "published_at_ms": 1792058400000,
+            "payload": {
+              "work_id": "CASE-0002:0:order:1",
+              "idempotency_key": "CASE-0002:0:order",
+              "case_id": "CASE-0002",
+              "phase": 0,
+              "as": "order",
+              "worker": "order",
+              "action": "get_order",
+              "args": {
+                "order_id": "ORD-58213"
+              },
+              "attempt": 1,
+              "request_type": "return"
+            },
+            "tenant_id": "0195f48b-d000-7000-8000-000000000099",
+            "job": "customer_care_agent"
+          }
+        },
+        "tenant_id": "0195f48b-d000-7000-8000-000000000099",
+        "job": "customer_care_agent"
+      }
+    }
+  ],
+  "next": null
+}

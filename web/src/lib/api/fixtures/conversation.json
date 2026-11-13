@@ -1,0 +1,34 @@
+{
+  "conversation_id": "conv-00000000000000000000000000000001",
+  "customer_id": "C-10482",
+  "messages": [
+    {
+      "conversation_id": "conv-00000000000000000000000000000001",
+      "role": "customer",
+      "text": "I want to return ORD-58213",
+      "at_ms": 1792058400000
+    },
+    {
+      "conversation_id": "conv-00000000000000000000000000000001",
+      "role": "agent",
+      "text": "What's the reason you'd like to return it?",
+      "at_ms": 1792058401000
+    },
+    {
+      "conversation_id": "conv-00000000000000000000000000000001",
+      "role": "customer",
+      "text": "It is too small",
+      "at_ms": 1792058402000
+    },
+    {
+      "conversation_id": "conv-00000000000000000000000000000001",
+      "role": "agent",
+      "text": "Thanks, I have everything I need. Checking this for you now.",
+      "case_id": "CASE-5eed0001",
+      "at_ms": 1792058403000
+    }
+  ],
+  "case_ids": [
+    "CASE-5eed0001"
+  ]
+}

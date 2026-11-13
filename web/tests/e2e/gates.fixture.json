@@ -1,0 +1,154 @@
+{
+	"questions": [
+		{
+			"key": "emergency",
+			"point": "request",
+			"type": "noul",
+			"instructions": "Does the customer describe a danger to life, health or property?",
+			"criteria": { "true": "someone is in danger", "false": "no danger" },
+			"fire_when": "gte",
+			"threshold": 0.7,
+			"fire_values": null,
+			"action": "handoff",
+			"message": "I am connecting you with a colleague right away.",
+			"fail": "closed",
+			"tools": null,
+			"enabled": true,
+			"ordinal": 0,
+			"updated_at": "2026-10-18T09:00:00Z",
+			"updated_by": "seed"
+		},
+		{
+			"key": "frustration",
+			"point": "request",
+			"type": "score",
+			"instructions": "How frustrated is the customer?",
+			"criteria": ["calm", "mild", "annoyed", "angry", "furious"],
+			"fire_when": "gte",
+			"threshold": 3,
+			"fire_values": null,
+			"action": "handoff",
+			"message": null,
+			"fail": "open",
+			"tools": null,
+			"enabled": true,
+			"ordinal": 3,
+			"updated_at": "2026-10-18T09:00:00Z",
+			"updated_by": "seed"
+		},
+		{
+			"key": "topic",
+			"point": "request",
+			"type": "choice",
+			"instructions": "What is the message about?",
+			"criteria": {
+				"returns": "returning a product",
+				"warranty": "a repair or warranty claim",
+				"delivery": "where an order is",
+				"payment": "invoices and payments",
+				"faq": "a general question",
+				"other": "anything else"
+			},
+			"fire_when": "in",
+			"threshold": null,
+			"fire_values": ["warranty"],
+			"action": "annotate",
+			"message": null,
+			"fail": "open",
+			"tools": null,
+			"enabled": false,
+			"ordinal": 4,
+			"updated_at": "2026-10-18T09:00:00Z",
+			"updated_by": "seed"
+		},
+		{
+			"key": "customer_consent",
+			"point": "tool",
+			"type": "noul",
+			"instructions": "Did the customer explicitly ask for this refund or return?",
+			"criteria": { "true": "the customer asked for it", "false": "the customer did not ask for it" },
+			"fire_when": "lt",
+			"threshold": 0.5,
+			"fire_values": null,
+			"action": "block",
+			"message": null,
+			"fail": "closed",
+			"tools": ["order_issue_refund", "order_create_rma"],
+			"enabled": true,
+			"ordinal": 0,
+			"updated_at": "2026-10-18T09:00:00Z",
+			"updated_by": "seed"
+		},
+		{
+			"key": "unbacked_claim",
+			"point": "response",
+			"type": "noul",
+			"instructions": "Does the reply promise something no tool outcome backs?",
+			"criteria": { "true": "an unbacked promise", "false": "every claim is backed" },
+			"fire_when": "gte",
+			"threshold": 0.5,
+			"fire_values": null,
+			"action": "handoff",
+			"message": null,
+			"fail": "closed",
+			"tools": null,
+			"enabled": true,
+			"ordinal": 0,
+			"updated_at": "2026-10-18T09:00:00Z",
+			"updated_by": "seed"
+		}
+	],
+	"provider": { "bound": true, "model": "laya-jev-1" },
+	"evaluation": {
+		"outcome": "fired",
+		"action": "handoff",
+		"message": "I am connecting you with a colleague right away.",
+		"fired_keys": ["emergency"],
+		"answers": {
+			"emergency": { "noul": 0.93 },
+			"frustration": { "score": 2, "probabilities": [0.05, 0.2, 0.5, 0.2, 0.05], "confidence": 0.5 },
+			"topic": {
+				"choice": "delivery",
+				"probabilities": {
+					"returns": 0.05,
+					"warranty": 0.05,
+					"delivery": 0.8,
+					"payment": 0.03,
+					"faq": 0.02,
+					"other": 0.05
+				},
+				"confidence": 0.8
+			}
+		},
+		"latency_ms": 212
+	},
+	"verdicts": {
+		"items": [
+			{
+				"id": 42,
+				"point": "response",
+				"conversation_id": "conv-9",
+				"case_id": "CASE-7",
+				"outcome": "failed_closed",
+				"fired_keys": [],
+				"action": "handoff",
+				"latency_ms": 1500,
+				"error": "laya timed out after 1500 ms",
+				"created_at": "2026-10-18T10:02:00Z"
+			},
+			{
+				"id": 41,
+				"point": "request",
+				"conversation_id": null,
+				"case_id": null,
+				"outcome": "fired",
+				"fired_keys": ["emergency"],
+				"action": "handoff",
+				"latency_ms": 212,
+				"error": null,
+				"created_at": "2026-10-18T10:01:00Z"
+			}
+		],
+		"next": null
+	}
+}

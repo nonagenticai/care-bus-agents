@@ -1,0 +1,25 @@
+{
+  "key": "retail:faq:general",
+  "area": "faq",
+  "label": "Frequently asked",
+  "request_type": "faq",
+  "required": [
+    "question",
+    "order_id"
+  ],
+  "entities": [
+    "Policy"
+  ],
+  "procedure": "faq_answer",
+  "topic_prefix": "faq.general",
+  "streams": {
+    "customer": "bus:customer:faq",
+    "worker_results": "bus:worker:faq:results",
+    "worker": [
+      "bus:worker:faq:faq"
+    ]
+  },
+  "origin": "tenant",
+  "overridden": true,
+  "hidden": false
+}

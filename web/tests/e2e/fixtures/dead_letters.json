@@ -1,0 +1,34 @@
+{
+	"items": [
+		{
+			"stream": "bus:dead",
+			"entry_id": "1792066211044-0",
+			"envelope": {
+				"id": "dl-1",
+				"topic": "dead.letter",
+				"from": "tool-executor",
+				"correlation_id": "CASE-2",
+				"published_at_ms": 1792066211044,
+				"payload": {
+					"stream": "bus:tool:delivery",
+					"entry_id": "1792065600500-0",
+					"deliveries": 5,
+					"reason": "timeout after 3000 ms",
+					"original": {
+						"id": "env-c",
+						"topic": "logistics.delivery-status.tool.request",
+						"from": "worker",
+						"correlation_id": "CASE-2",
+						"published_at_ms": 1792065600500,
+						"payload": {},
+						"tenant_id": "0195f48b-d000-7000-8000-000000000099",
+						"job": "customer_care_agent"
+					}
+				},
+				"tenant_id": "0195f48b-d000-7000-8000-000000000099",
+				"job": "customer_care_agent"
+			}
+		}
+	],
+	"next": null
+}

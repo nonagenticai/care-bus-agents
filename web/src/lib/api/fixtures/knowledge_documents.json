@@ -1,0 +1,15 @@
+{
+  "items": [
+    {
+      "id": "7f1c9a2e-0000-4000-8000-0000000000d1",
+      "store_id": "7f1c9a2e-0000-4000-8000-000000000002",
+      "source": "policies/returns.md",
+      "title": "Returns policy",
+      "content_hash": "9b74c9897bac770ffc029102a200c5de",
+      "token_count": 1840,
+      "chunk_count": 6,
+      "created_at": "2026-10-15T10:00:00.000000Z"
+    }
+  ],
+  "next": "eyJvIjoxfQ"
+}

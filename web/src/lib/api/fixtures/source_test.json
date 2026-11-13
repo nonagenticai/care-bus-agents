@@ -1,0 +1,16 @@
+{
+  "ok": true,
+  "status": 200,
+  "detail": "reachable",
+  "sample": {
+    "customer_id": "C-10482",
+    "name": "Anna de Vries",
+    "email": "anna@example.nl"
+  },
+  "fields": [
+    "customer_id",
+    "email",
+    "name"
+  ],
+  "truncated": false
+}

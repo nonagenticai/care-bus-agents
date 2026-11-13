@@ -1,0 +1,61 @@
+{
+	"case": {
+		"case_id": "CASE-1",
+		"conversation_id": "conv-1",
+		"customer_id": "C-10482",
+		"request_type": "delivery_status",
+		"area": "logistics",
+		"context_space": "retail:logistics:delivery-status",
+		"outcome": "completed",
+		"reason": null,
+		"work_items": 1,
+		"retries": 0,
+		"started_at": "2026-10-15T14:52:00Z",
+		"resolved_at": "2026-10-15T14:52:02Z",
+		"duration_ms": 2000,
+		"procedure": "delivery_status@2.0.0"
+	},
+	"hash": {
+		"phase": 2,
+		"resolved": "completed"
+	},
+	"trace": [
+		{
+			"stream": "bus:customer:logistics",
+			"entry_id": "1792065600000-0",
+			"envelope": {
+				"id": "env-a",
+				"topic": "logistics.delivery-status.request.qualified",
+				"from": "interaction",
+				"correlation_id": "CASE-1",
+				"published_at_ms": 1792065600000,
+				"payload": {
+					"case_id": "CASE-1",
+					"request_type": "delivery_status"
+				},
+				"tenant_id": "0195f48b-d000-7000-8000-000000000099",
+				"job": "customer_care_agent"
+			},
+			"consumer_group": "orchestrator",
+			"acked": true
+		},
+		{
+			"stream": "bus:tool:delivery",
+			"entry_id": "1792065600400-0",
+			"envelope": {
+				"id": "env-b",
+				"topic": "logistics.delivery-status.tool.response",
+				"from": "mcp:delivery",
+				"correlation_id": "CASE-1",
+				"published_at_ms": 1792065600400,
+				"payload": {
+					"ok": true
+				},
+				"tenant_id": "0195f48b-d000-7000-8000-000000000099",
+				"job": "customer_care_agent"
+			},
+			"consumer_group": "worker-delivery",
+			"acked": false
+		}
+	]
+}

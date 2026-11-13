@@ -1,0 +1,16 @@
+{
+  "format": "csv",
+  "columns": [
+    "customer_id",
+    "name",
+    "email"
+  ],
+  "sample_rows": [
+    [
+      "C-10482",
+      "Anna de Vries",
+      "anna@example.nl"
+    ]
+  ],
+  "row_count": 1
+}

@@ -1,0 +1,24 @@
+{
+  "id": "7f1c9a2e-0000-4000-8000-000000000e03",
+  "source": "tenant",
+  "root_id": "7f1c9a2e-0000-4000-8000-0000000000a0",
+  "modes": [
+    "embed",
+    "hybrid"
+  ],
+  "beam": 3,
+  "min_score": 0.35,
+  "status": "running",
+  "error": null,
+  "progress": {
+    "done": 0,
+    "total": 4
+  },
+  "verdict": null,
+  "started_by": "7f1c9a2e-0000-4000-8000-00000000ac70",
+  "started_at": "2026-10-19T09:00:00.000000Z",
+  "finished_at": null,
+  "took_ms": null,
+  "reports": null,
+  "question_count": 2
+}

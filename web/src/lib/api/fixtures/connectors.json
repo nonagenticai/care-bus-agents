@@ -1,0 +1,26 @@
+{
+  "items": [
+    {
+      "id": "oms",
+      "name": "Order management",
+      "health": "ok",
+      "system": "OMS",
+      "base_url": "https://oms.example.com/api",
+      "mappings": [
+        {
+          "attribute": "Order.order_id",
+          "backend_field": "ord_no"
+        }
+      ],
+      "auth_type": "api_key",
+      "rate_limit": "80 req/s",
+      "secret_ref": "carebus-connectors/oms-api-key",
+      "timeout_ms": 2500,
+      "health_checked_at": "2026-10-15T10:00:00.000000Z",
+      "origin": "tenant",
+      "overridden": false,
+      "hidden": false
+    }
+  ],
+  "next": null
+}

@@ -1,0 +1,28 @@
+{
+  "items": [
+    {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "source_id": "00000000-0000-4000-8000-000000000002",
+      "status": "completed",
+      "started_at": "2026-10-15T10:00:00.000000Z",
+      "finished_at": "2026-10-15T10:00:01.000000Z",
+      "started_by": "a.bakker",
+      "ingest_job_ids": [
+        "7f1c9a2e-0000-4000-8000-000000000b02"
+      ],
+      "document_ids": [
+        "7f1c9a2e-0000-4000-8000-000000000d01"
+      ],
+      "error": null,
+      "replaced_run_id": null,
+      "replace_report": {
+        "failed": [],
+        "deleted": 0,
+        "kept_shared": 0,
+        "already_gone": 0
+      },
+      "stale": false
+    }
+  ],
+  "next": null
+}

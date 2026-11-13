@@ -1,0 +1,50 @@
+{
+  "items": [
+    {
+      "id": "7f1c9a2e-0000-4000-8000-000000000e03",
+      "source": "tenant",
+      "root_id": "7f1c9a2e-0000-4000-8000-0000000000a0",
+      "modes": [
+        "embed",
+        "hybrid"
+      ],
+      "beam": 3,
+      "min_score": 0.35,
+      "status": "completed",
+      "error": null,
+      "progress": {
+        "done": 4,
+        "total": 4
+      },
+      "verdict": "PASS",
+      "started_by": "7f1c9a2e-0000-4000-8000-00000000ac70",
+      "started_at": "2026-10-19T09:00:00.000000Z",
+      "finished_at": "2026-10-19T09:00:04.250000Z",
+      "took_ms": 4250,
+      "reports": [
+        {
+          "mode": "embed",
+          "n": 2,
+          "recall_at_1": 0.5,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "leaf_accuracy": 1.0,
+          "laya_consulted": 0,
+          "laya_fallbacks": 0
+        },
+        {
+          "mode": "hybrid",
+          "n": 2,
+          "recall_at_1": 0.5,
+          "recall_at_5": 1.0,
+          "recall_at_10": 1.0,
+          "leaf_accuracy": 1.0,
+          "laya_consulted": 2,
+          "laya_fallbacks": 0
+        }
+      ],
+      "question_count": 2
+    }
+  ],
+  "next": null
+}

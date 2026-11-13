@@ -1,0 +1,27 @@
+{
+  "items": [
+    {
+      "id": "7f1c9a2e-0000-4000-8000-000000000001",
+      "parent_id": null,
+      "kind": "router",
+      "name": "care",
+      "description": "All customer-care knowledge",
+      "token_count": 0,
+      "chunk_count": 0,
+      "children": [
+        "7f1c9a2e-0000-4000-8000-000000000002"
+      ]
+    },
+    {
+      "id": "7f1c9a2e-0000-4000-8000-000000000002",
+      "parent_id": "7f1c9a2e-0000-4000-8000-000000000001",
+      "kind": "leaf",
+      "name": "returns",
+      "description": "Returns and refunds",
+      "token_count": 18400,
+      "chunk_count": 62,
+      "children": []
+    }
+  ],
+  "next": null
+}

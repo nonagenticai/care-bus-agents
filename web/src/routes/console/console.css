@@ -1,0 +1,839 @@
+/* Console page styles, extracted from design/console/index.html. Every rule is scoped under .console because
+   SvelteKit never unloads CSS: nothing here may leak into admin pages. */
+.console.app {
+	height: max(640px, calc(100dvh - 130px));
+	display: grid;
+	grid-template-columns: minmax(290px, 350px) minmax(0, 1fr);
+	gap: 12px;
+}
+.console .panel {
+	background: var(--panel);
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	min-width: 0;
+	min-height: 0;
+}
+.console .chat {
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+}
+.console .chat header {
+	padding: 14px 14px 10px;
+	border-bottom: 1px solid var(--line);
+	display: grid;
+	gap: 6px;
+}
+.console .chat h1 {
+	margin: 0;
+	font: 600 18px/1.2 var(--cond);
+	letter-spacing: 0.01em;
+}
+.console .log {
+	flex: 1;
+	overflow: auto;
+	padding: 14px;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	min-height: 180px;
+}
+.console .bub {
+	max-width: 88%;
+	padding: 8px 11px;
+	border-radius: 10px;
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	min-width: 0;
+}
+.console .bub .txt {
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+.console .bub.user {
+	align-self: flex-end;
+	background: var(--accent);
+	color: var(--panel);
+	border-bottom-right-radius: 3px;
+}
+.console .bub.agent {
+	align-self: flex-start;
+	background: var(--sunk);
+	border-bottom-left-radius: 3px;
+}
+.console .bub .bwho {
+	display: block;
+	font: 600 10.5px/1.3 var(--cond);
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	opacity: 0.7;
+	margin-bottom: 2px;
+}
+.console .note {
+	align-self: stretch;
+	margin: 0;
+	font: 12px/1.4 var(--mono);
+	color: var(--muted);
+	border-left: 2px solid var(--line);
+	padding: 2px 0 2px 8px;
+	overflow-wrap: anywhere;
+}
+.console .chat .sub {
+	margin: 0;
+	font-size: 12px;
+	color: var(--muted);
+}
+.console .note.err {
+	border-color: var(--err);
+	color: var(--err);
+}
+.console .qchips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	padding: 0 14px 10px;
+}
+.console .qchip {
+	border: 1px solid var(--line);
+	background: var(--panel);
+	border-radius: 999px;
+	padding: 4px 10px;
+	font-size: 12.5px;
+	cursor: pointer;
+}
+.console .qchip:hover {
+	border-color: var(--accent);
+	color: var(--accent);
+}
+.console form.send {
+	display: flex;
+	gap: 6px;
+	padding: 10px 14px;
+	border-top: 1px solid var(--line);
+}
+.console form.send input {
+	flex: 1;
+	min-width: 0;
+	padding: 8px 10px;
+	border: 1px solid var(--line);
+	border-radius: 6px;
+	background: var(--bg);
+}
+.console .controls {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+	align-items: center;
+	padding: 8px 14px 12px;
+	font-size: 12.5px;
+	color: var(--muted);
+}
+/* The toolbar, the activity summary and the agent strip are max-content rows: they never shrink. With `auto` rows
+   and the panels' min-height: 0, a short window (the console's height is fixed) squeezed them to a sliver and
+   their text overlaid the lanes. The lanes get the rest, never less than 260px; past that the column scrolls. */
+.console .main {
+	display: grid;
+	grid-template-rows: max-content max-content max-content minmax(260px, 1fr);
+	gap: 12px;
+	min-width: 0;
+	min-height: 0;
+	overflow: auto;
+}
+.console .buses {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(270px, 330px);
+	grid-template-rows: minmax(0, 1fr);
+	gap: 12px;
+	min-height: 0;
+}
+.console .bus {
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+	border-top: 3px solid var(--c);
+}
+.console .bus header {
+	padding: 9px 12px 8px;
+	border-bottom: 1px solid var(--line);
+	display: grid;
+	gap: 3px;
+}
+.console .bus h2 {
+	margin: 0;
+	font: 600 15px/1.2 var(--mono);
+	color: var(--c);
+	display: flex;
+	justify-content: space-between;
+	gap: 8px;
+}
+.console .bus h2 .count {
+	font-weight: 400;
+	color: var(--muted);
+	font-size: 12px;
+}
+.console .bus .flow {
+	font: 11.5px/1.35 var(--mono);
+	color: var(--muted);
+}
+.console .list {
+	flex: 1;
+	overflow-y: auto;
+	overflow-x: hidden;
+	padding: 8px;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	min-height: 120px;
+}
+.console .empty {
+	color: var(--muted);
+	font-size: 12.5px;
+	padding: 8px 4px;
+}
+.console .msg {
+	all: unset;
+	box-sizing: border-box;
+	cursor: pointer;
+	display: grid;
+	gap: 2px;
+	padding: 7px 9px;
+	border-radius: 5px;
+	border: 1px solid var(--line);
+	border-left: 3px solid var(--c);
+	background: var(--bg);
+	min-width: 0;
+	max-width: 100%;
+}
+.console .msg > * {
+	min-width: 0;
+}
+.console .msg:hover,
+.console .msg.rel {
+	background: color-mix(in srgb, var(--c) 9%, var(--bg));
+}
+.console .msg.sel {
+	border-color: var(--c);
+	box-shadow: inset 0 0 0 1px var(--c);
+}
+.console .msg:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 1px;
+}
+.console .r1 {
+	display: flex;
+	justify-content: space-between;
+	gap: 2px 8px;
+	align-items: baseline;
+	flex-wrap: wrap;
+	min-width: 0;
+}
+.console .topic {
+	font: 500 12.5px/1.3 var(--mono);
+	color: var(--c);
+	overflow-wrap: anywhere;
+	min-width: 0;
+}
+.console .route {
+	font: 11px/1.35 var(--mono);
+	color: var(--muted);
+	overflow-wrap: anywhere;
+}
+.console .meta {
+	display: flex;
+	gap: 6px;
+	flex-wrap: wrap;
+	align-items: center;
+	font: 10.5px/1.3 var(--mono);
+	color: var(--muted);
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+.console .meta > * {
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+.console .meta .skey {
+	color: var(--c);
+}
+.console .dir {
+	font: 600 12px/1 var(--mono);
+	margin-right: 5px;
+}
+.console .msg.up {
+	background: color-mix(in srgb, var(--c) 5%, var(--bg));
+}
+.console .inspector {
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+}
+.console .inspector header {
+	padding: 9px 12px 8px;
+	border-bottom: 1px solid var(--line);
+	display: grid;
+	gap: 3px;
+}
+.console .inspector h3 {
+	margin: 0;
+	font: 600 15px/1.2 var(--cond);
+}
+.console .ibody {
+	flex: 1;
+	overflow: auto;
+	padding: 10px 12px;
+	display: grid;
+	gap: 12px;
+	align-content: start;
+	min-height: 160px;
+}
+.console .ibody h4 {
+	margin: 0 0 5px;
+	font: 500 12px/1.2 var(--mono);
+	color: var(--accent);
+}
+.console .ibody p {
+	margin: 0;
+	color: var(--muted);
+	font-size: 12.5px;
+}
+/* Ported from artifacts/care-bus-console.html: customer line, note kinds, pending bubbles, agents strip,
+   message cards, legends, inspector JSON and work lists. */
+.console .chat header .cust {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	color: var(--muted);
+	font-size: 12.5px;
+	flex-wrap: wrap;
+}
+.console .chat header .cust b {
+	color: var(--fg);
+	font-weight: 600;
+}
+.console .tag {
+	font: 500 11px/1 var(--mono);
+	padding: 3px 6px;
+	border-radius: 4px;
+	background: var(--sunk);
+	color: var(--muted);
+}
+.console .note.cust {
+	border-color: var(--cust);
+}
+.console .note.hint {
+	border-color: var(--work);
+}
+.console .note.err {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	flex-wrap: wrap;
+}
+.console .bub.pending {
+	opacity: 0.6;
+}
+.console .bub.pending.failed {
+	opacity: 1;
+	background: color-mix(in srgb, var(--err) 18%, var(--panel));
+	color: var(--fg);
+	border: 1px solid var(--err);
+}
+.console .bub .qtag {
+	align-self: flex-end;
+	font: 500 10px/1.2 var(--mono);
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	opacity: 0.85;
+	margin-top: 2px;
+}
+.console .typing {
+	align-self: flex-start;
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	font-size: 12.5px;
+	color: var(--muted);
+}
+.console .typing .dots {
+	display: inline-flex;
+	gap: 3px;
+}
+.console .typing .dots i {
+	width: 5px;
+	height: 5px;
+	border-radius: 50%;
+	background: var(--muted);
+	animation: cb-pulse 1s infinite;
+}
+.console .typing .dots i:nth-child(2) {
+	animation-delay: 0.2s;
+}
+.console .typing .dots i:nth-child(3) {
+	animation-delay: 0.4s;
+}
+
+.console .agents {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 10px;
+	padding: 10px;
+}
+.console .group {
+	display: grid;
+	gap: 6px;
+	align-content: start;
+	min-width: 0;
+}
+.console .group > div {
+	display: grid;
+	gap: 6px;
+	min-width: 0;
+}
+/* Front, coordination and the MCP bridge share the top row; the per-tool workers get the full width below. */
+.console .agents .wk {
+	grid-column: 1/-1;
+	order: 1;
+}
+.console .workers {
+	grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+}
+.console .agent {
+	all: unset;
+	box-sizing: border-box;
+	cursor: pointer;
+	display: grid;
+	grid-template-columns: auto 1fr auto;
+	gap: 2px 7px;
+	align-items: center;
+	padding: 8px 10px;
+	border: 1px solid var(--line);
+	border-radius: 6px;
+	background: var(--bg);
+	min-width: 0;
+}
+.console .agent:hover {
+	border-color: var(--muted);
+}
+.console .agent.sel {
+	border-color: var(--accent);
+	box-shadow: inset 0 0 0 1px var(--accent);
+}
+.console .agent:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 2px;
+}
+.console .dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: var(--line);
+}
+.console .aname {
+	font: 600 13px/1.2 var(--cond);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.console .pill {
+	font: 500 10.5px/1 var(--mono);
+	padding: 3px 6px;
+	border-radius: 999px;
+	background: var(--sunk);
+	color: var(--muted);
+}
+.console .aline {
+	grid-column: 1/-1;
+	font: 11.5px/1.35 var(--mono);
+	color: var(--muted);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-height: 1.35em;
+}
+.console .agent.small {
+	padding: 6px 8px;
+}
+.console .agent.small .pill {
+	display: none;
+}
+.console .agent.small .aname {
+	font-size: 12px;
+}
+.console .agent[data-s='working'] .dot {
+	background: var(--accent);
+	animation: cb-pulse 1s infinite;
+}
+.console .agent[data-s='working'] .pill {
+	background: color-mix(in srgb, var(--accent) 16%, transparent);
+	color: var(--accent);
+}
+.console .agent[data-s='waiting'] .dot,
+.console .agent[data-s='holding'] .dot {
+	background: var(--work);
+}
+.console .agent[data-s='waiting'] .pill,
+.console .agent[data-s='holding'] .pill {
+	background: color-mix(in srgb, var(--work) 16%, transparent);
+	color: var(--work);
+}
+.console .agent[data-s='ready'] .dot {
+	background: var(--ok);
+}
+.console .agent[data-s='backlog'] .dot {
+	background: var(--warn);
+}
+.console .agent[data-s='backlog'] .pill {
+	background: color-mix(in srgb, var(--warn) 16%, transparent);
+	color: var(--warn);
+}
+.console .agent[data-s='offline'] .dot {
+	background: var(--err);
+}
+@keyframes cb-pulse {
+	50% {
+		opacity: 0.3;
+	}
+}
+
+.console .msg.bad {
+	border-left-color: var(--err);
+}
+.console .msg.bad .topic {
+	color: var(--err);
+}
+.console .msg.fresh {
+	animation: cb-fresh 1.2s ease-out;
+}
+@keyframes cb-fresh {
+	from {
+		background: color-mix(in srgb, var(--c) 28%, var(--bg));
+	}
+}
+.console .topic .ctx {
+	opacity: 0.65;
+	font-weight: 400;
+}
+.console .time {
+	font: 11px/1 var(--mono);
+	color: var(--muted);
+	font-variant-numeric: tabular-nums;
+}
+.console .sum {
+	font-size: 12.5px;
+	overflow-wrap: anywhere;
+}
+.console .ack {
+	font: 500 10px/1 var(--mono);
+	padding: 2px 6px;
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--work) 16%, transparent);
+	color: var(--work);
+}
+.console .ack.done {
+	background: color-mix(in srgb, var(--ok) 16%, transparent);
+	color: var(--ok);
+}
+.console .legend {
+	display: flex;
+	gap: 4px 10px;
+	flex-wrap: wrap;
+	align-items: center;
+	font: 10.5px/1.4 var(--mono);
+	color: var(--muted);
+}
+.console .legend b {
+	color: var(--fg);
+	font-weight: 600;
+}
+.console .jpre {
+	margin: 0;
+	font: 11.5px/1.45 var(--mono);
+	background: var(--sunk);
+	border-radius: 5px;
+	padding: 8px;
+	overflow: auto;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	max-height: 340px;
+}
+.console .jpre .k {
+	color: var(--accent);
+}
+.console .jpre .s {
+	color: var(--cust);
+}
+.console .jpre .n {
+	color: var(--work);
+}
+.console .jpre .b {
+	color: var(--tool);
+}
+.console .wl {
+	display: grid;
+	gap: 4px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+.console .wl li {
+	font: 11.5px/1.4 var(--mono);
+	padding: 5px 7px;
+	background: var(--sunk);
+	border-radius: 4px;
+	overflow-wrap: anywhere;
+}
+.console .wl .st {
+	float: right;
+	margin-left: 6px;
+}
+.console .st.ok {
+	color: var(--ok);
+}
+.console .st.fail {
+	color: var(--err);
+}
+.console .st.run {
+	color: var(--work);
+}
+@media (prefers-reduced-motion: reduce) {
+	.console .agent[data-s='working'] .dot,
+	.console .typing .dots i,
+	.console .msg.fresh {
+		animation: none;
+	}
+}
+/* Layout follows the width the console actually gets (the nav can collapse), not the viewport: the host is a
+   size container and every breakpoint below is a container query. */
+.console-host {
+	container: console / inline-size;
+}
+.console .ctabs {
+	display: none;
+}
+.console .ipane,
+.console .strip {
+	display: contents;
+}
+/* Three readable lanes plus a side inspector need a wide console; below that the inspector moves under them. */
+@container console (max-width: 1499px) {
+	/* The inspector (and dead-letter lane) get their own content-sized rows below the lanes. The wide layout's
+	   minmax(0, 1fr) row must not apply here: it let the lanes' row collapse so the inspector row overlaid them. */
+	.console .buses {
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		grid-template-rows: none;
+		grid-auto-rows: auto;
+		min-height: auto;
+	}
+	.console .inspector {
+		grid-column: 1/-1;
+		max-height: 360px;
+	}
+	.console .main {
+		grid-template-rows: max-content max-content max-content max-content;
+		overflow: auto;
+	}
+	.console .bus {
+		height: 420px;
+	}
+	.console .bus.dead {
+		height: 220px;
+	}
+}
+@container console (max-width: 1099px) {
+	.console .agents {
+		grid-template-columns: 1fr 1fr;
+	}
+}
+@container console (max-width: 959px) {
+	.console.app {
+		height: auto;
+		grid-template-columns: minmax(0, 1fr);
+	}
+	.console .chat {
+		height: auto;
+	}
+	.console .chat .log {
+		flex: none;
+		height: min(480px, 62vh);
+	}
+	.console .main {
+		overflow: visible;
+	}
+	.console .bus {
+		height: 360px;
+	}
+}
+/* Phone-sized console: one panel at a time (Chat / Activity / Details) instead of every lane stacked. */
+@container console (max-width: 699px) {
+	.console .ctabs {
+		display: block;
+		position: sticky;
+		top: 0;
+		z-index: 2;
+		background: var(--bg);
+	}
+	.console.app[data-view='chat'] .main,
+	.console.app:not([data-view='chat']) .chat,
+	.console.app[data-view='activity'] [data-pane='details'],
+	.console.app[data-view='details'] [data-pane='activity'] {
+		display: none;
+	}
+	.console .buses {
+		grid-template-columns: minmax(0, 1fr);
+	}
+	.console .bus,
+	.console .bus.dead {
+		height: auto;
+		max-height: 60vh;
+	}
+	.console .inspector {
+		max-height: none;
+	}
+}
+@container console (max-width: 479px) {
+	.console .agents {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}
+
+/* Activity summary: what the bus has shown about the case in view, never an inferred agent state. */
+.console .activity {
+	padding: 9px 12px;
+	display: grid;
+	gap: 6px;
+}
+.console .activity dl {
+	margin: 0;
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+	gap: 6px 16px;
+}
+.console .activity dl > div {
+	min-width: 0;
+}
+.console .activity dt {
+	font: 500 11px/1.3 var(--mono);
+	color: var(--muted);
+}
+.console .activity dd {
+	margin: 0;
+	font-size: 13px;
+	overflow-wrap: anywhere;
+}
+.console .activity dd.mono {
+	font: 12.5px/1.4 var(--mono);
+}
+.console .activity dd.bad {
+	color: var(--err);
+}
+.console .activity dd .time {
+	margin-left: 6px;
+}
+.console .activity p {
+	margin: 0;
+	font-size: 12.5px;
+	color: var(--muted);
+}
+.console .conn {
+	font-weight: 600;
+}
+.console .conn[data-s='open'] {
+	color: var(--ok);
+}
+.console .conn[data-s='retrying'],
+.console .conn[data-s='connecting'] {
+	color: var(--warn);
+}
+.console .conn[data-s='stopped'] {
+	color: var(--err);
+}
+.console .demo {
+	margin: 0 14px 12px;
+	padding: 6px 10px;
+	border: 1px dashed var(--line);
+	border-radius: 6px;
+	font-size: 12.5px;
+	color: var(--muted);
+}
+.console .demo summary {
+	cursor: pointer;
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	font-weight: 600;
+}
+.console .demo p {
+	margin: 6px 0;
+}
+.console .bus.dead {
+	grid-column: 1/-1;
+	height: 200px;
+}
+
+.console .tracebar {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px 14px;
+	align-items: center;
+	font: 11.5px/1.4 var(--mono);
+	color: var(--muted);
+}
+.console .tracebar select {
+	font: inherit;
+	max-width: 220px;
+}
+.console .newev {
+	position: sticky;
+	bottom: 0;
+	align-self: center;
+	flex: none;
+	border: 1px solid var(--line);
+	background: var(--panel);
+	color: var(--fg);
+	border-radius: 999px;
+	padding: 4px 12px;
+	font: 600 11.5px/1.2 var(--mono);
+	cursor: pointer;
+	box-shadow: 0 2px 8px color-mix(in srgb, var(--fg) 18%, transparent);
+}
+.console .plain {
+	font-size: 13px;
+	font-weight: 500;
+	overflow-wrap: anywhere;
+}
+.console .msg .sum {
+	color: var(--muted);
+	font: 11.5px/1.35 var(--mono);
+}
+.console .vtabs {
+	display: flex;
+	gap: 4px;
+	padding: 6px 12px 0;
+	border-bottom: 1px solid var(--line);
+}
+.console .vtabs button {
+	border: 0;
+	background: none;
+	color: var(--muted);
+	font: 600 12px/1 var(--cond);
+	padding: 6px 10px;
+	border-bottom: 2px solid transparent;
+	cursor: pointer;
+}
+.console .vtabs button[aria-selected='true'] {
+	color: var(--fg);
+	border-bottom-color: var(--accent);
+}
+.console .ilinks {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px 12px;
+	font: 12px/1.4 var(--mono);
+}
+.console .note.err .row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin-top: 4px;
+}

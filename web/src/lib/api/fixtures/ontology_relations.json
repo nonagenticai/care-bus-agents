@@ -1,0 +1,95 @@
+{
+  "items": [
+    {
+      "object": "Order",
+      "subject": "Customer",
+      "predicate": "places",
+      "cardinality": "1:n",
+      "origin": "base",
+      "overridden": false,
+      "hidden": false
+    },
+    {
+      "object": "Communication",
+      "subject": "Customer",
+      "predicate": "receives",
+      "cardinality": "1:n",
+      "origin": "base",
+      "overridden": false,
+      "hidden": false
+    },
+    {
+      "object": "Product",
+      "subject": "Order",
+      "predicate": "contains",
+      "cardinality": "n:m",
+      "origin": "base",
+      "overridden": false,
+      "hidden": false
+    },
+    {
+      "object": "Payment",
+      "subject": "Order",
+      "predicate": "paidBy",
+      "cardinality": "1:n",
+      "origin": "base",
+      "overridden": false,
+      "hidden": false
+    },
+    {
+      "object": "Shipment",
+      "subject": "Order",
+      "predicate": "shippedVia",
+      "cardinality": "1:n",
+      "origin": "base",
+      "overridden": false,
+      "hidden": false
+    },
+    {
+      "object": "ReturnAuthorization",
+      "subject": "Policy",
+      "predicate": "governs",
+      "cardinality": "1:n",
+      "origin": "base",
+      "overridden": false,
+      "hidden": false
+    },
+    {
+      "object": "Payment",
+      "subject": "Refund",
+      "predicate": "reverses",
+      "cardinality": "n:1",
+      "origin": "base",
+      "overridden": false,
+      "hidden": false
+    },
+    {
+      "object": "Order",
+      "subject": "ReturnAuthorization",
+      "predicate": "for",
+      "cardinality": "n:1",
+      "origin": "base",
+      "overridden": false,
+      "hidden": false
+    },
+    {
+      "object": "Carrier",
+      "subject": "Shipment",
+      "predicate": "carriedBy",
+      "cardinality": "n:1",
+      "origin": "base",
+      "overridden": false,
+      "hidden": false
+    },
+    {
+      "object": "Product",
+      "subject": "WarrantyClaim",
+      "predicate": "covers",
+      "cardinality": "n:1",
+      "origin": "base",
+      "overridden": false,
+      "hidden": false
+    }
+  ],
+  "next": null
+}

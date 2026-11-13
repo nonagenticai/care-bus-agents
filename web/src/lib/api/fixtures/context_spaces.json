@@ -1,0 +1,149 @@
+{
+  "items": [
+    {
+      "key": "retail:faq:general",
+      "area": "faq",
+      "label": "General questions",
+      "request_type": "faq",
+      "required": [
+        "question"
+      ],
+      "entities": [
+        "Policy"
+      ],
+      "procedure": "faq_answer",
+      "topic_prefix": "faq.general",
+      "streams": {
+        "customer": "bus:customer:faq",
+        "worker_results": "bus:worker:faq:results",
+        "worker": [
+          "bus:worker:faq:faq"
+        ]
+      },
+      "origin": "base",
+      "overridden": false,
+      "hidden": false
+    },
+    {
+      "key": "retail:logistics:delivery-status",
+      "area": "logistics",
+      "label": "Delivery status",
+      "request_type": "delivery_status",
+      "required": [
+        "order_id"
+      ],
+      "entities": [
+        "Order",
+        "Shipment",
+        "Carrier"
+      ],
+      "procedure": "delivery_status",
+      "topic_prefix": "logistics.delivery-status",
+      "streams": {
+        "customer": "bus:customer:logistics",
+        "worker_results": "bus:worker:logistics:results",
+        "worker": [
+          "bus:worker:logistics:order",
+          "bus:worker:logistics:delivery"
+        ]
+      },
+      "origin": "base",
+      "overridden": false,
+      "hidden": false
+    },
+    {
+      "key": "retail:order-support:returns",
+      "area": "order-support",
+      "label": "Returns",
+      "request_type": "return",
+      "required": [
+        "order_id",
+        "reason"
+      ],
+      "entities": [
+        "Customer",
+        "Order",
+        "Product",
+        "ReturnAuthorization"
+      ],
+      "procedure": "return",
+      "topic_prefix": "order-support.returns",
+      "streams": {
+        "customer": "bus:customer:order-support",
+        "worker_results": "bus:worker:order-support:results",
+        "worker": [
+          "bus:worker:order-support:crm",
+          "bus:worker:order-support:order",
+          "bus:worker:order-support:business-rules",
+          "bus:worker:order-support:procedures"
+        ]
+      },
+      "origin": "base",
+      "overridden": false,
+      "hidden": false
+    },
+    {
+      "key": "retail:order-support:warranty",
+      "area": "order-support",
+      "label": "Warranty claims",
+      "request_type": "warranty_claim",
+      "required": [
+        "order_id",
+        "defect"
+      ],
+      "entities": [
+        "Customer",
+        "Order",
+        "Product",
+        "WarrantyClaim"
+      ],
+      "procedure": "warranty_claim",
+      "topic_prefix": "order-support.warranty",
+      "streams": {
+        "customer": "bus:customer:order-support",
+        "worker_results": "bus:worker:order-support:results",
+        "worker": [
+          "bus:worker:order-support:crm",
+          "bus:worker:order-support:order",
+          "bus:worker:order-support:business-rules",
+          "bus:worker:order-support:procedures"
+        ]
+      },
+      "origin": "base",
+      "overridden": false,
+      "hidden": false
+    },
+    {
+      "key": "retail:payments:payment-errors",
+      "area": "payments",
+      "label": "Payment errors",
+      "request_type": "payment_error",
+      "required": [
+        "order_id",
+        "error_type"
+      ],
+      "entities": [
+        "Customer",
+        "Order",
+        "Payment",
+        "Refund"
+      ],
+      "procedure": "duplicate_charge_refund",
+      "topic_prefix": "payments.payment-errors",
+      "streams": {
+        "customer": "bus:customer:payments",
+        "worker_results": "bus:worker:payments:results",
+        "worker": [
+          "bus:worker:payments:crm",
+          "bus:worker:payments:order",
+          "bus:worker:payments:business-rules",
+          "bus:worker:payments:procedures"
+        ]
+      },
+      "origin": "base",
+      "overridden": false,
+      "hidden": false
+    }
+  ],
+  "next": null
+}

@@ -1,0 +1,37 @@
+{
+  "items": [
+    {
+      "case_id": "CASE-0001",
+      "conversation_id": null,
+      "customer_id": "C-10482",
+      "request_type": "return",
+      "area": "order-support",
+      "context_space": "retail:order-support:returns",
+      "outcome": "completed",
+      "reason": null,
+      "work_items": 3,
+      "retries": 1,
+      "started_at": "2026-10-15T10:00:01.000000Z",
+      "resolved_at": "2026-10-15T10:00:02.000000Z",
+      "duration_ms": 4200,
+      "procedure": null
+    },
+    {
+      "case_id": "CASE-5eed0001",
+      "conversation_id": "conv-00000000000000000000000000000001",
+      "customer_id": "C-10482",
+      "request_type": "return",
+      "area": "order-support",
+      "context_space": "retail:order-support:returns",
+      "outcome": null,
+      "reason": null,
+      "work_items": 0,
+      "retries": 0,
+      "started_at": "2026-10-15T10:00:00.000000Z",
+      "resolved_at": null,
+      "duration_ms": null,
+      "procedure": null
+    }
+  ],
+  "next": null
+}

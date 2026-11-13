@@ -1,0 +1,412 @@
+{
+  "items": [
+    {
+      "name": "delivery_status",
+      "plan": {
+        "phases": [
+          {
+            "gate": null,
+            "steps": [
+              {
+                "as": "order",
+                "args": {
+                  "order_id": "$request.order_id"
+                },
+                "action": "get_order",
+                "worker": "order"
+              }
+            ]
+          },
+          {
+            "gate": null,
+            "steps": [
+              {
+                "as": "shipment",
+                "args": {
+                  "shipment_id": "$order.shipment_id"
+                },
+                "action": "track_shipment",
+                "worker": "delivery"
+              }
+            ]
+          }
+        ]
+      },
+      "steps": 2,
+      "domain": "customer_care",
+      "runs_7d": 0,
+      "version": "2.0.0",
+      "reviewers": [
+        "r.visser",
+        "a.bakker"
+      ],
+      "updated_at": "2026-10-15T10:00:00.000000Z",
+      "success_rate": null,
+      "context_space": "retail:logistics:delivery-status",
+      "version_status": "PUBLISHED",
+      "origin": "base",
+      "overridden": false,
+      "shadowed": false,
+      "hidden": false
+    },
+    {
+      "name": "duplicate_charge_refund",
+      "plan": {
+        "phases": [
+          {
+            "gate": null,
+            "steps": [
+              {
+                "as": "customer",
+                "args": {
+                  "customer_id": "$request.customer_id"
+                },
+                "action": "verify_customer",
+                "worker": "crm"
+              },
+              {
+                "as": "payments",
+                "args": {
+                  "order_id": "$request.order_id"
+                },
+                "action": "get_payments",
+                "worker": "order"
+              }
+            ]
+          },
+          {
+            "gate": "rules",
+            "steps": [
+              {
+                "as": "rules",
+                "args": {
+                  "order_id": "$request.order_id",
+                  "error_type": "$request.error_type"
+                },
+                "action": "check_payment_issue",
+                "worker": "business-rules"
+              },
+              {
+                "as": "procedure",
+                "args": {
+                  "name": "duplicate_charge_refund"
+                },
+                "action": "get_procedure",
+                "worker": "procedures"
+              }
+            ]
+          },
+          {
+            "gate": null,
+            "steps": [
+              {
+                "as": "refund",
+                "args": {
+                  "amount": "$rules.refund_amount",
+                  "payment_id": "$rules.refund_payment_id"
+                },
+                "action": "issue_refund",
+                "worker": "order"
+              }
+            ]
+          }
+        ]
+      },
+      "steps": 5,
+      "domain": "customer_care",
+      "runs_7d": 0,
+      "version": "1.0.2",
+      "reviewers": [
+        "a.bakker",
+        "k.dekker"
+      ],
+      "updated_at": "2026-10-15T10:00:00.000000Z",
+      "success_rate": null,
+      "context_space": "retail:payments:payment-errors",
+      "version_status": "PUBLISHED",
+      "origin": "base",
+      "overridden": false,
+      "shadowed": false,
+      "hidden": false
+    },
+    {
+      "name": "faq_answer",
+      "plan": {
+        "phases": [
+          {
+            "gate": null,
+            "steps": [
+              {
+                "as": "faq",
+                "args": {
+                  "question": "$request.question"
+                },
+                "action": "ask",
+                "worker": "faq"
+              }
+            ]
+          }
+        ]
+      },
+      "steps": 1,
+      "domain": "customer_care",
+      "runs_7d": 0,
+      "version": "2.0.0",
+      "reviewers": [
+        "m.jansen",
+        "a.bakker"
+      ],
+      "updated_at": "2026-10-15T10:00:00.000000Z",
+      "success_rate": null,
+      "context_space": "retail:faq:general",
+      "version_status": "PUBLISHED",
+      "origin": "base",
+      "overridden": false,
+      "shadowed": false,
+      "hidden": false
+    },
+    {
+      "name": "return",
+      "plan": {
+        "phases": [
+          {
+            "gate": null,
+            "steps": [
+              {
+                "as": "customer",
+                "args": {
+                  "customer_id": "$request.customer_id"
+                },
+                "action": "verify_customer",
+                "worker": "crm"
+              },
+              {
+                "as": "order",
+                "args": {
+                  "order_id": "$request.order_id"
+                },
+                "action": "get_order",
+                "worker": "order"
+              }
+            ]
+          },
+          {
+            "gate": "rules",
+            "steps": [
+              {
+                "as": "rules",
+                "args": {
+                  "category": "$order.category",
+                  "order_id": "$order.order_id",
+                  "delivered_on": "$order.delivered_on"
+                },
+                "action": "check_return_window",
+                "worker": "business-rules"
+              },
+              {
+                "as": "procedure",
+                "args": {
+                  "name": "return"
+                },
+                "action": "get_procedure",
+                "worker": "procedures"
+              }
+            ]
+          },
+          {
+            "gate": null,
+            "steps": [
+              {
+                "as": "rma",
+                "args": {
+                  "reason": "$request.reason",
+                  "order_id": "$request.order_id"
+                },
+                "action": "create_rma",
+                "worker": "order"
+              }
+            ]
+          }
+        ]
+      },
+      "steps": 5,
+      "domain": "customer_care",
+      "runs_7d": 0,
+      "version": "1.4.0-beta",
+      "reviewers": [
+        "a.bakker"
+      ],
+      "updated_at": "2026-10-15T10:00:00.000000Z",
+      "success_rate": null,
+      "context_space": "retail:order-support:returns",
+      "version_status": "CANARY",
+      "origin": "base",
+      "overridden": false,
+      "shadowed": false,
+      "hidden": false
+    },
+    {
+      "name": "return",
+      "plan": {
+        "phases": [
+          {
+            "gate": null,
+            "steps": [
+              {
+                "as": "customer",
+                "args": {
+                  "customer_id": "$request.customer_id"
+                },
+                "action": "verify_customer",
+                "worker": "crm"
+              },
+              {
+                "as": "order",
+                "args": {
+                  "order_id": "$request.order_id"
+                },
+                "action": "get_order",
+                "worker": "order"
+              }
+            ]
+          },
+          {
+            "gate": "rules",
+            "steps": [
+              {
+                "as": "rules",
+                "args": {
+                  "category": "$order.category",
+                  "order_id": "$order.order_id",
+                  "delivered_on": "$order.delivered_on"
+                },
+                "action": "check_return_window",
+                "worker": "business-rules"
+              },
+              {
+                "as": "procedure",
+                "args": {
+                  "name": "return"
+                },
+                "action": "get_procedure",
+                "worker": "procedures"
+              }
+            ]
+          },
+          {
+            "gate": null,
+            "steps": [
+              {
+                "as": "rma",
+                "args": {
+                  "reason": "$request.reason",
+                  "order_id": "$request.order_id"
+                },
+                "action": "create_rma",
+                "worker": "order"
+              }
+            ]
+          }
+        ]
+      },
+      "steps": 5,
+      "domain": "customer_care",
+      "runs_7d": 0,
+      "version": "1.3.0",
+      "reviewers": [
+        "a.bakker",
+        "r.visser"
+      ],
+      "updated_at": "2026-10-15T10:00:00.000000Z",
+      "success_rate": null,
+      "context_space": "retail:order-support:returns",
+      "version_status": "PUBLISHED",
+      "origin": "base",
+      "overridden": false,
+      "shadowed": false,
+      "hidden": false
+    },
+    {
+      "name": "warranty_claim",
+      "plan": {
+        "phases": [
+          {
+            "gate": null,
+            "steps": [
+              {
+                "as": "customer",
+                "args": {
+                  "customer_id": "$request.customer_id"
+                },
+                "action": "verify_customer",
+                "worker": "crm"
+              },
+              {
+                "as": "order",
+                "args": {
+                  "order_id": "$request.order_id"
+                },
+                "action": "get_order",
+                "worker": "order"
+              }
+            ]
+          },
+          {
+            "gate": "rules",
+            "steps": [
+              {
+                "as": "rules",
+                "args": {
+                  "category": "$order.category",
+                  "order_id": "$order.order_id",
+                  "delivered_on": "$order.delivered_on"
+                },
+                "action": "check_warranty",
+                "worker": "business-rules"
+              },
+              {
+                "as": "procedure",
+                "args": {
+                  "name": "warranty_claim"
+                },
+                "action": "get_procedure",
+                "worker": "procedures"
+              }
+            ]
+          },
+          {
+            "gate": null,
+            "steps": [
+              {
+                "as": "claim",
+                "args": {
+                  "defect": "$request.defect",
+                  "order_id": "$request.order_id"
+                },
+                "action": "create_warranty_claim",
+                "worker": "order"
+              }
+            ]
+          }
+        ]
+      },
+      "steps": 5,
+      "domain": "customer_care",
+      "runs_7d": 0,
+      "version": "1.1.0",
+      "reviewers": [
+        "a.bakker",
+        "r.visser"
+      ],
+      "updated_at": "2026-10-15T10:00:00.000000Z",
+      "success_rate": null,
+      "context_space": "retail:order-support:warranty",
+      "version_status": "PUBLISHED",
+      "origin": "base",
+      "overridden": false,
+      "shadowed": false,
+      "hidden": false
+    }
+  ],
+  "next": null
+}

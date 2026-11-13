@@ -1,0 +1,18 @@
+{
+  "id": "interaction",
+  "name": "Interaction agent",
+  "kind": "front",
+  "group": "interaction",
+  "tool": null,
+  "consumers": 1,
+  "pending": 0,
+  "lag": 0,
+  "streams": [
+    "bus:customer:order-support"
+  ],
+  "status": "ok",
+  "model_routes": [
+    "generation",
+    "routing"
+  ]
+}

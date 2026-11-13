@@ -1,0 +1,20 @@
+{
+	"conversation_id": "conv-1",
+	"customer_id": "C-10482",
+	"messages": [
+		{
+			"conversation_id": "conv-1",
+			"role": "customer",
+			"text": "Where is my airfryer?",
+			"at_ms": 1
+		},
+		{
+			"conversation_id": "conv-1",
+			"role": "agent",
+			"text": "Your Philips Airfryer XXL (ORD-58790) is on its way with PostNL.",
+			"case_id": "CASE-1",
+			"at_ms": 2
+		}
+	],
+	"case_ids": ["CASE-1"]
+}

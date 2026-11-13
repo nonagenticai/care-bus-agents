@@ -1,0 +1,23 @@
+{
+	"today": { "cases": 412, "completed": 300, "not_eligible": 20, "failed": 9, "open": 8, "median_ms": 3100 },
+	"week_ago": {
+		"cases": 400,
+		"completed": 290,
+		"not_eligible": 22,
+		"failed": 11,
+		"open": 6,
+		"median_ms": 3300
+	},
+	"health": [
+		{ "name": "redis", "status": "ok", "detail": null },
+		{ "name": "strata_rag", "status": "down", "detail": "http://strata-rag.example.com:8090" },
+		{ "name": "mcp", "status": "unconfigured", "detail": null }
+	],
+	"attention": [
+		{
+			"severity": "warn",
+			"title": "tool-executor is 37 messages behind on bus:tool:delivery",
+			"page": "buses"
+		}
+	]
+}

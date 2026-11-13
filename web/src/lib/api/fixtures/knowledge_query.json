@@ -1,0 +1,41 @@
+{
+  "results": [
+    {
+      "chunk_id": "7f1c9a2e-0000-4000-8000-0000000000c1",
+      "document_id": "7f1c9a2e-0000-4000-8000-0000000000d1",
+      "store_path": [
+        "care",
+        "returns"
+      ],
+      "ord": 3,
+      "text": "Refunds are issued within 5 working days.",
+      "page_start": 2,
+      "page_end": 3,
+      "source": "policies/returns.pdf",
+      "title": "Returns policy",
+      "scores": {
+        "dense": 0.81,
+        "lexical": 0.44,
+        "rerank": 0.93
+      },
+      "source_id": "7f1c9a2e-0000-4000-8000-0000000000e1",
+      "source_run": null,
+      "metadata": {}
+    }
+  ],
+  "routing": {
+    "mode_used": "hybrid",
+    "leaves": [
+      "7f1c9a2e-0000-4000-8000-000000000002"
+    ],
+    "laya_consulted": true,
+    "laya_fallback": null
+  },
+  "timings_ms": {
+    "embed": 12,
+    "route": 30,
+    "search": 18,
+    "rerank": 95,
+    "total": 160
+  }
+}

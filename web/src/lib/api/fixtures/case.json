@@ -1,0 +1,86 @@
+{
+  "case": {
+    "case_id": "CASE-0001",
+    "conversation_id": null,
+    "customer_id": "C-10482",
+    "request_type": "return",
+    "area": "order-support",
+    "context_space": "retail:order-support:returns",
+    "outcome": "completed",
+    "reason": null,
+    "work_items": 3,
+    "retries": 1,
+    "started_at": "2026-10-15T10:00:00.000000Z",
+    "resolved_at": "2026-10-15T10:00:01.000000Z",
+    "duration_ms": 4200,
+    "procedure": null
+  },
+  "hash": {
+    "pending:0": "1",
+    "phase": "0",
+    "plan": "{\"phases\":[{\"steps\":[{\"worker\":\"crm\",\"action\":\"verify_customer\",\"as\":\"customer\",\"args\":{\"customer_id\":\"$request.customer_id\"}},{\"worker\":\"order\",\"action\":\"get_order\",\"as\":\"order\",\"args\":{\"order_id\":\"$request.order_id\"}}],\"gate\":null},{\"steps\":[{\"worker\":\"business-rules\",\"action\":\"check_return_window\",\"as\":\"rules\",\"args\":{\"order_id\":\"$order.order_id\",\"category\":\"$order.category\",\"delivered_on\":\"$order.delivered_on\"}},{\"worker\":\"procedures\",\"action\":\"get_procedure\",\"as\":\"procedure\",\"args\":{\"name\":\"return\"}}],\"gate\":\"rules\"},{\"steps\":[{\"worker\":\"order\",\"action\":\"create_rma\",\"as\":\"rma\",\"args\":{\"order_id\":\"$request.order_id\",\"reason\":\"$request.reason\"}}],\"gate\":null}]}",
+    "request": "{\"case_id\":\"CASE-0001\",\"customer_id\":\"C-10482\",\"request_type\":\"return\",\"area\":\"order-support\",\"context_space\":\"retail:order-support:returns\",\"slots\":{\"order_id\":\"ORD-58213\",\"reason\":\"too uncomfortable\",\"defect\":null,\"error_type\":null,\"question\":null},\"utterance\":\"I want to return my headphones\"}",
+    "resolution": "{\"case_id\":\"CASE-0001\",\"request_type\":\"return\",\"outcome\":\"completed\",\"reason\":null,\"facts\":{\"rma_id\":\"RMA-1042\"}}",
+    "resolved": "completed",
+    "result:order": "{\"order_id\":\"ORD-58213\",\"category\":\"audio\",\"status\":\"delivered\"}",
+    "work:CASE-0001:0:customer:1": "{\"work_id\":\"CASE-0001:0:customer:1\",\"worker\":\"crm\",\"action\":\"verify_customer\",\"attempt\":1,\"status\":\"succeeded\",\"error\":null}",
+    "work:CASE-0001:0:order:1": "{\"work_id\":\"CASE-0001:0:order:1\",\"worker\":\"order\",\"action\":\"get_order\",\"attempt\":1,\"status\":\"failed\",\"error\":\"timeout\"}",
+    "work:CASE-0001:0:order:2": "{\"work_id\":\"CASE-0001:0:order:2\",\"worker\":\"order\",\"action\":\"get_order\",\"attempt\":2,\"status\":\"succeeded\",\"error\":null}"
+  },
+  "trace": [
+    {
+      "stream": "bus:customer:order-support",
+      "entry_id": "1792058400000-0",
+      "envelope": {
+        "id": "00000000-0000-4000-8000-000000000001",
+        "topic": "order-support.returns.request.qualified",
+        "from": "interaction",
+        "correlation_id": "CASE-0001",
+        "published_at_ms": 1792058400000,
+        "payload": {
+          "case_id": "CASE-0001",
+          "customer_id": "C-10482",
+          "request_type": "return",
+          "area": "order-support",
+          "context_space": "retail:order-support:returns",
+          "slots": {
+            "order_id": "ORD-58213",
+            "reason": "too uncomfortable",
+            "defect": null,
+            "error_type": null,
+            "question": null
+          },
+          "utterance": "I want to return my headphones"
+        },
+        "tenant_id": "0195f48b-d000-7000-8000-000000000099",
+        "job": "customer_care_agent"
+      },
+      "consumer_group": "orchestrator",
+      "acked": true
+    },
+    {
+      "stream": "bus:customer:order-support",
+      "entry_id": "1792058401000-0",
+      "envelope": {
+        "id": "00000000-0000-4000-8000-000000000002",
+        "topic": "order-support.returns.request.resolved",
+        "from": "orchestrator",
+        "correlation_id": "CASE-0001",
+        "published_at_ms": 1792058401000,
+        "payload": {
+          "case_id": "CASE-0001",
+          "request_type": "return",
+          "outcome": "completed",
+          "reason": null,
+          "facts": {
+            "rma_id": "RMA-1042"
+          }
+        },
+        "tenant_id": "0195f48b-d000-7000-8000-000000000099",
+        "job": "customer_care_agent"
+      },
+      "consumer_group": "interaction",
+      "acked": true
+    }
+  ]
+}

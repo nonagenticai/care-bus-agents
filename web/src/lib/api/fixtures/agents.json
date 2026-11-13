@@ -1,0 +1,133 @@
+{
+  "items": [
+    {
+      "id": "interaction",
+      "name": "Interaction agent",
+      "kind": "front",
+      "group": "interaction",
+      "tool": null,
+      "consumers": 1,
+      "pending": 0,
+      "lag": 0,
+      "streams": [
+        "bus:customer:order-support"
+      ],
+      "status": "ok",
+      "model_routes": [
+        "generation",
+        "routing"
+      ]
+    },
+    {
+      "id": "orchestrator",
+      "name": "Orchestrator agent",
+      "kind": "coordination",
+      "group": "orchestrator",
+      "tool": null,
+      "consumers": 1,
+      "pending": 0,
+      "lag": 0,
+      "streams": [
+        "bus:customer:order-support"
+      ],
+      "status": "ok",
+      "model_routes": [
+        "generation"
+      ]
+    },
+    {
+      "id": "worker-crm",
+      "name": "crm worker",
+      "kind": "worker",
+      "group": "worker-crm",
+      "tool": "crm",
+      "consumers": 0,
+      "pending": 0,
+      "lag": 0,
+      "streams": [],
+      "status": "idle",
+      "model_routes": []
+    },
+    {
+      "id": "worker-order",
+      "name": "order worker",
+      "kind": "worker",
+      "group": "worker-order",
+      "tool": "order",
+      "consumers": 1,
+      "pending": 0,
+      "lag": 0,
+      "streams": [
+        "bus:worker:order-support:order"
+      ],
+      "status": "ok",
+      "model_routes": []
+    },
+    {
+      "id": "worker-delivery",
+      "name": "delivery worker",
+      "kind": "worker",
+      "group": "worker-delivery",
+      "tool": "delivery",
+      "consumers": 0,
+      "pending": 0,
+      "lag": 0,
+      "streams": [],
+      "status": "idle",
+      "model_routes": []
+    },
+    {
+      "id": "worker-faq",
+      "name": "faq worker",
+      "kind": "worker",
+      "group": "worker-faq",
+      "tool": "faq",
+      "consumers": 0,
+      "pending": 0,
+      "lag": 0,
+      "streams": [],
+      "status": "idle",
+      "model_routes": []
+    },
+    {
+      "id": "worker-business-rules",
+      "name": "business-rules worker",
+      "kind": "worker",
+      "group": "worker-business-rules",
+      "tool": "business-rules",
+      "consumers": 0,
+      "pending": 0,
+      "lag": 0,
+      "streams": [],
+      "status": "idle",
+      "model_routes": []
+    },
+    {
+      "id": "worker-procedures",
+      "name": "procedures worker",
+      "kind": "worker",
+      "group": "worker-procedures",
+      "tool": "procedures",
+      "consumers": 0,
+      "pending": 0,
+      "lag": 0,
+      "streams": [],
+      "status": "idle",
+      "model_routes": []
+    },
+    {
+      "id": "tool-executor",
+      "name": "Tool executor (MCP bridge)",
+      "kind": "bridge",
+      "group": "tool-executor",
+      "tool": null,
+      "consumers": 0,
+      "pending": 0,
+      "lag": 0,
+      "streams": [],
+      "status": "idle",
+      "model_routes": []
+    }
+  ],
+  "next": null
+}
