@@ -121,7 +121,8 @@ jobs:
             "https://github.com/nextest-rs/nextest/releases/download/cargo-nextest-0.9.150/cargo-nextest-0.9.150-x86_64-unknown-linux-gnu.tar.gz"
           echo "b0959bc64232974224cf9fb22c915845398c0e8668fa7831eb5b43fb1eef781f  $RUNNER_TEMP/nextest.tgz" | sha256sum -c -
           tar -xzf "$RUNNER_TEMP/nextest.tgz" -C "$RUNNER_TEMP" cargo-nextest
-          "$RUNNER_TEMP/cargo-nextest" nextest run -p carebus --no-tests=fail --color never --locked
+          # --no-fail-fast: one red run reports every failure, not just the first one to trip.
+          "$RUNNER_TEMP/cargo-nextest" nextest run -p carebus --no-fail-fast --no-tests=fail --color never --locked
 
       - name: cargo test --doc
         run: cargo test --doc --locked
@@ -201,7 +202,8 @@ jobs:
             "https://github.com/nextest-rs/nextest/releases/download/cargo-nextest-0.9.150/cargo-nextest-0.9.150-x86_64-unknown-linux-gnu.tar.gz"
           echo "b0959bc64232974224cf9fb22c915845398c0e8668fa7831eb5b43fb1eef781f  $RUNNER_TEMP/nextest.tgz" | sha256sum -c -
           tar -xzf "$RUNNER_TEMP/nextest.tgz" -C "$RUNNER_TEMP" cargo-nextest
-          "$RUNNER_TEMP/cargo-nextest" nextest run -p carebus-api --no-tests=fail --color never --locked
+          # --no-fail-fast: one red run reports every failure, not just the first one to trip.
+          "$RUNNER_TEMP/cargo-nextest" nextest run -p carebus-api --no-fail-fast --no-tests=fail --color never --locked
 
   # The fake backends: Postgres 18 (one fresh database per test), no Redis.
   demo-backends:
@@ -253,7 +255,8 @@ jobs:
             "https://github.com/nextest-rs/nextest/releases/download/cargo-nextest-0.9.150/cargo-nextest-0.9.150-x86_64-unknown-linux-gnu.tar.gz"
           echo "b0959bc64232974224cf9fb22c915845398c0e8668fa7831eb5b43fb1eef781f  $RUNNER_TEMP/nextest.tgz" | sha256sum -c -
           tar -xzf "$RUNNER_TEMP/nextest.tgz" -C "$RUNNER_TEMP" cargo-nextest
-          "$RUNNER_TEMP/cargo-nextest" nextest run -p demo-backends --no-tests=fail --color never --locked
+          # --no-fail-fast: one red run reports every failure, not just the first one to trip.
+          "$RUNNER_TEMP/cargo-nextest" nextest run -p demo-backends --no-fail-fast --no-tests=fail --color never --locked
 
   web:
     if: ${{ !github.event.repository.private }}
