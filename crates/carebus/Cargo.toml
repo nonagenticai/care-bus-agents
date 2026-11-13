@@ -13,7 +13,7 @@ redis = { version = "1.7.1", features = ["tokio-comp", "streams", "aio", "connec
 reqwest = { version = "=0.13.5", features = ["json", "form", "query"] }
 rig-agent = "0.44.0"
 rig-core = { version = "0.44.0", features = ["reqwest"] }
-rig-reqwest = "0.44.0"
+rig-reqwest = "0.46.0"
 rmcp = { version = "=3.9.0", default-features = false, features = ["client", "reqwest", "transport-streamable-http-client-reqwest"] }
 schemars = "1"
 serde = { version = "1.0.229", features = ["derive"] }

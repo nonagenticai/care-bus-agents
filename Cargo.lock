@@ -411,7 +411,7 @@ dependencies = [
  "reqwest",
  "rig-agent",
  "rig-core",
- "rig-reqwest",
+ "rig-reqwest 0.46.0",
  "rmcp",
  "schemars 1.2.3",
  "serde",
@@ -2691,8 +2691,8 @@ dependencies = [
  "mime_guess",
  "ordered-float",
  "rig-derive",
- "rig-http",
- "rig-reqwest",
+ "rig-http 0.44.0",
+ "rig-reqwest 0.44.0",
  "rig-tungstenite",
  "schemars 1.2.3",
  "serde",
@@ -2733,6 +2733,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "rig-http"
+version = "0.46.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ac927db714f03f383330e16ef360d4ab288fdf42eecab6156982fab90786d5bd"
+dependencies = [
+ "bytes",
+ "futures",
+ "futures-timer",
+ "http",
+ "mime",
+ "thiserror",
+ "tokio",
+ "url",
+]
+
+[[package]]
 name = "rig-reqwest"
 version = "0.44.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2742,10 +2758,27 @@ dependencies = [
  "futures",
  "http",
  "reqwest",
- "rig-http",
+ "rig-http 0.44.0",
  "thiserror",
  "tokio",
  "url",
+]
+
+[[package]]
+name = "rig-reqwest"
+version = "0.46.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a203e5c50e5460024594cc4ccf6cfc99c7ff22aee57cbacef0fb52ea0c7abd10"
+dependencies = [
+ "bytes",
+ "futures",
+ "http",
+ "reqwest",
+ "rig-http 0.46.0",
+ "thiserror",
+ "tracing",
+ "url",
+ "webpki-root-certs",
 ]
 
 [[package]]
@@ -2755,7 +2788,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d145d2d41722fd040dbb47f05b797c8119884697bb4ee7e53fc5c1c1ec9610df"
 dependencies = [
  "futures",
- "rig-http",
+ "rig-http 0.44.0",
  "thiserror",
  "tokio",
  "tokio-tungstenite",
