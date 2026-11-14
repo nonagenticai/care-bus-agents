@@ -23,14 +23,12 @@ function fakeServer() {
 			log.push({ conversation_id: 'conv-1', role: 'agent', text: `Reply to ${text}`, at_ms: ++at });
 			return { turn: 'ask', text: `Reply to ${text}`, case_id: null };
 		},
-		conversation: vi.fn(
-			async (id: string): Promise<Conversation> => ({
-				conversation_id: id,
-				customer_id: 'C-1',
-				messages: [...log],
-				case_ids: [],
-			}),
-		),
+		conversation: vi.fn(async (id: string): Promise<Conversation> => ({
+			conversation_id: id,
+			customer_id: 'C-1',
+			messages: [...log],
+			case_ids: [],
+		})),
 		api: null as unknown as SessionApi,
 	};
 	s.api = {

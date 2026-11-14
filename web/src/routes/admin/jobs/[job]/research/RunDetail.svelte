@@ -184,7 +184,7 @@
 			['Steps', fmt.n(r.steps_used)],
 			['Tokens', fmt.n(r.tokens_used)],
 			['Attempts', fmt.n(r.attempts)],
-			['Limits', budgetText(r.budget as Record<string, unknown>)],
+			['Limits', budgetText(r.budget as Record)],
 			['Stores', r.store_ids.length ? String(r.store_ids.length) : 'none'],
 			['Created', `${when(r.created_at)} · ${r.created_by}`],
 			['Started', when(r.started_at)],

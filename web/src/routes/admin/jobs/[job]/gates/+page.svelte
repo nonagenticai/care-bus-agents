@@ -696,9 +696,9 @@
 						aria-invalid={tried && errors.precheck ? 'true' : undefined}
 					/>{#if tried && errors.precheck}<span class="field-err">{errors.precheck}</span>{:else}<span
 							class="muted hint"
-							>A regular expression (Rust syntax; <span class="mono">(?i)</span> = ignore case). Laya is asked
-							only when it matches the text above; otherwise the question is skipped and does not fire. Blank:
-							always asked.</span
+							>A regular expression (Rust syntax; <span class="mono">(?i)</span> = ignore case). Laya is asked only
+							when it matches the text above; otherwise the question is skipped and does not fire. Blank: always
+							asked.</span
 						>{/if}</label
 				>
 			</div>
