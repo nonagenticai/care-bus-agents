@@ -5,6 +5,7 @@ pub mod config;
 pub mod crypto;
 pub mod error;
 pub mod gates;
+pub mod http_base;
 pub mod ingest;
 pub mod licence;
 pub mod mcp_binding;

@@ -1,0 +1,21 @@
+# CodeQL model: BaseUrl's builders return a URL that cannot be redirected elsewhere.
+#
+# `rust/request-forgery` asks one question: can a remote value change the URL of an outgoing request? The two admin
+# calls it reports here (the licence minter and the internal MCP server) start from a base parsed once from operator
+# config and append caller values as percent-encoded path segments — a `/` becomes `%2F` and a segment of `.` or
+# `..` is dropped by the `url` crate — or as encoded query pairs. Scheme, host and port come from that base and are
+# never touched afterwards, so no caller value can point the request at a different host, which is the whole of
+# CWE-918. (Customer-supplied URLs elsewhere in this crate are a different problem and are guarded by
+# crate::netguard, not by this model.)
+#
+# The query's only built-in way to express that is a barrier, and its barrier sources are Models-as-Data only
+# (rust/ql/src/queries/security/CWE-918/RequestForgery.ql sets isBarrier from RequestForgery::Barrier, which is
+# populated solely by barrierModel). Declaring the two builders as request-url barriers is therefore the fix the
+# analyser can read, rather than an exclusion that would blind it to every other SSRF in the crate.
+extensions:
+  - addsTo:
+      pack: codeql/rust-all
+      extensible: barrierModel
+    data:
+      - ["<carebus_api::http_base::BaseUrl>::endpoint", "ReturnValue", "request-url", "manual"]
+      - ["<carebus_api::http_base::BaseUrl>::endpoint_with_query", "ReturnValue", "request-url", "manual"]

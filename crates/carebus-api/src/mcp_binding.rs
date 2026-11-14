@@ -224,17 +224,23 @@ impl Bindings {
         licence: &str,
         rotate: bool,
     ) -> ApiResult<Option<(Uuid, String)>> {
-        let url = format!(
-            "{}/mcp/internal/tenants/{tenant}/bindings/ensure",
-            self.base
-        );
+        // The internal MCP base is operator config; the tenant is the only caller value, appended as one encoded
+        // path segment so it can never change the host (crate::http_base).
+        let base = crate::http_base::BaseUrl::parse(&self.base).map_err(|_| {
+            tracing::warn!(%tenant, "mcp_binding: MCP internal base is not an http(s) URL");
+            ApiError::Upstream(UPSTREAM)
+        })?;
+        let tenant_id = tenant.to_string();
+        let url = base.endpoint(&[
+            "mcp", "internal", "tenants", &tenant_id, "bindings", "ensure",
+        ]);
         let body = json!({"product": PRODUCT, "licence_id": licence_id, "licence_token": licence, "rotate": rotate});
         let mut fresh = false;
         loop {
             let bearer = self.tokens.minter_bearer(fresh).await?;
             let resp = self
                 .http
-                .post(&url)
+                .post(url.clone())
                 .bearer_auth(bearer)
                 .json(&body)
                 .send()

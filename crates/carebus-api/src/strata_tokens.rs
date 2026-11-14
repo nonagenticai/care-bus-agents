@@ -318,12 +318,21 @@ impl StrataTokens {
             tracing::warn!(error = %e, "strata_bundle_token: minter SA token failed");
             ApiError::Upstream(LICENCES)
         })?;
-        let mut url = format!(
-            "{}/internal/tenants/{tenant}/bundle-token?app={key}&ttl_minutes={}",
-            m.url, m.ttl_minutes
+        // The minter's base is operator config and the caller values are the tenant, the app key and the optional
+        // bundle: appending them through `BaseUrl` keeps the scheme/host from the base and percent-encodes each
+        // segment, so no value can move the request to another host (crate::http_base).
+        let base = crate::http_base::BaseUrl::parse(&m.url).map_err(|_| {
+            tracing::warn!(%tenant, app = key, "strata_bundle_token: licences base is not an http(s) URL");
+            ApiError::Upstream(LICENCES)
+        })?;
+        let ttl = m.ttl_minutes.to_string();
+        let tenant_id = tenant.to_string();
+        let mut url = base.endpoint_with_query(
+            &["internal", "tenants", &tenant_id, "bundle-token"],
+            &[("app", key), ("ttl_minutes", &ttl)],
         );
         if let Some(b) = bundle {
-            url.push_str(&format!("&bundle={b}"));
+            url.query_pairs_mut().append_pair("bundle", b);
         }
         let resp = self
             .http

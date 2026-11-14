@@ -142,8 +142,20 @@ async fn server() -> &'static Server {
 }
 
 /// The runtime role's test-only password. Production creates `carebus_app` LOGIN through the gitops provisioning
-/// script with its own secret; migration 0007 creates it NOLOGIN when it is missing.
-pub const APP_ROLE_PASSWORD: &str = "carebus_app";
+/// script with its own secret; migration 0007 creates it NOLOGIN when it is missing. Derived from the server URL
+/// rather than written in the source (CWE-798), and derived *deterministically* because nextest runs every test in
+/// its own process against one shared server: a per-process random value would leave the role's password owned by
+/// whichever process altered it last, and every other test would fail to connect.
+pub fn app_role_password(base: &str) -> String {
+    use std::hash::{Hash, Hasher};
+    // Only the server identifies the role: `ensure_app_role` is handed the server URL while the callers hold a
+    // database URL, so hashing the whole string would give the two sides different passwords. `//host:port` is
+    // the part they share.
+    let authority = base.split('/').nth(2).unwrap_or(base);
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    authority.hash(&mut h);
+    format!("carebus_app_{:016x}", h.finish())
+}
 
 /// Once per server, before any database is migrated: `carebus_app` exists, may log in, and has the test password.
 /// A server reused through `TEST_DATABASE_URL` may hold it NOLOGIN from an earlier 0007 run, hence the ALTER.
@@ -157,20 +169,22 @@ async fn ensure_app_role(base: &str) {
     let admin = PgPool::connect(base)
         .await
         .expect("connect to the test postgres server");
-    sqlx::query(
+    let password = app_role_password(base);
+    let sql = format!(
         "DO $$ BEGIN
              PERFORM pg_advisory_xact_lock(hashtext('carebus_app_role'));
              IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'carebus_app') THEN
-                 CREATE ROLE carebus_app LOGIN PASSWORD 'carebus_app' NOSUPERUSER NOBYPASSRLS;
+                 CREATE ROLE carebus_app LOGIN PASSWORD '{password}' NOSUPERUSER NOBYPASSRLS;
              ELSE
-                 ALTER ROLE carebus_app LOGIN PASSWORD 'carebus_app' NOSUPERUSER NOBYPASSRLS;
+                 ALTER ROLE carebus_app LOGIN PASSWORD '{password}' NOSUPERUSER NOBYPASSRLS;
              END IF;
          EXCEPTION WHEN duplicate_object OR unique_violation THEN NULL;
          END $$",
-    )
-    .execute(&admin)
-    .await
-    .expect("create the carebus_app test role");
+    );
+    sqlx::query(sqlx::AssertSqlSafe(sql.clone()))
+        .execute(&admin)
+        .await
+        .expect("create the carebus_app test role");
     admin.close().await;
 }
 
@@ -318,7 +332,11 @@ pub async fn bind_llm_use(db: &PgPool, use_name: &str) -> uuid::Uuid {
 pub fn test_config(database_url: String, test: &str) -> Config {
     Config {
         bind: "127.0.0.1:0".into(),
-        database_app_url: with_user(&database_url, "carebus_app", APP_ROLE_PASSWORD),
+        database_app_url: with_user(
+            &database_url,
+            "carebus_app",
+            &app_role_password(&database_url),
+        ),
         database_url,
         // CI's rust-library archetype exports REDIS_URL; same lookup as crates/carebus tests.
         redis_url: std::env::var("TEST_REDIS_URL")
