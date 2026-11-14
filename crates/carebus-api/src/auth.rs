@@ -607,15 +607,16 @@ mod tests {
     }
 
     fn gen_key() -> TestKey {
+        use rsa::Generate;
         use rsa::pkcs1::EncodeRsaPrivateKey;
         use rsa::traits::PublicKeyParts;
-        let k = rsa::RsaPrivateKey::new(&mut rsa::rand_core::OsRng, 2048).unwrap();
+        let k = rsa::PrivateKey::generate();
         TestKey {
             pem: k
                 .to_pkcs1_pem(rsa::pkcs1::LineEnding::LF)
                 .unwrap()
                 .to_string(),
-            n: b64url(&k.n().to_bytes_be()),
+            n: b64url(&k.n_bytes()),
         }
     }
 
