@@ -1,4 +1,9 @@
 version: 2
+
+# Re-validated 2026-11-14: jsonwebtoken moved to 12.0.0 because 10.x cannot clear
+# RUSTSEC-2026-0387 (its elliptic-curve 0.13 pins crypto-bigint ^0.5, and the fix is 0.7.6).
+# A dependabot.yml change is what makes GitHub re-evaluate, so the record stops showing the
+# security-update job that the old lock could never satisfy.
 updates:
   - package-ecosystem: cargo
     directory: /
