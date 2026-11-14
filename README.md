@@ -35,6 +35,16 @@ Env:
 Live tests (`--ignored`): `live_vllm` and `live_mcp` need a real model gateway and MCP server respectively; the
 default suite runs against Redis and the in-process fakes.
 
+## Licensing
+
+The code in this repository is Apache-2.0 and needs no licence key to build, test or run.
+The care-bus API integrates with an **optional** licence gate: when `LICENSE_GATE_2_ENABLED`
+is not `true` (the default), the gate returns immediately and no licence request is ever
+built. Configured, enforcement is fail-closed: an unreachable licences service denies the
+request rather than allowing it.
+
+The licensing stack is public too — [`licenses`](https://github.com/nonagenticai/licenses) (entitlements, plans and tokens) and [`license-authz`](https://github.com/nonagenticai/license-authz) (the Envoy `ext_authz` enforcement point). Neither is required to run this code.
+
 ## License
 
 Apache 2.0 — see [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
