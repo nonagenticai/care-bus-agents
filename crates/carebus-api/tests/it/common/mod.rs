@@ -141,13 +141,16 @@ async fn server() -> &'static Server {
         .await
 }
 
-/// The runtime role's test-only password, drawn once per test process. Production creates `carebus_app` LOGIN
-/// through the gitops provisioning script with its own secret; migration 0007 creates it NOLOGIN when it is
-/// missing. A fresh value per run rather than a constant keeps a throwaway credential out of the source tree
-/// (CWE-798) without changing what the tests do: the role is local to the ephemeral test server either way.
-pub fn app_role_password() -> &'static str {
-    static PASSWORD: std::sync::OnceLock<String> = std::sync::OnceLock::new();
-    PASSWORD.get_or_init(|| format!("carebus_app_{}", uuid::Uuid::new_v4().simple()))
+/// The runtime role's test-only password. Production creates `carebus_app` LOGIN through the gitops provisioning
+/// script with its own secret; migration 0007 creates it NOLOGIN when it is missing. Derived from the server URL
+/// rather than written in the source (CWE-798), and derived *deterministically* because nextest runs every test in
+/// its own process against one shared server: a per-process random value would leave the role's password owned by
+/// whichever process altered it last, and every other test would fail to connect.
+pub fn app_role_password(base: &str) -> String {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    base.hash(&mut h);
+    format!("carebus_app_{:016x}", h.finish())
 }
 
 /// Once per server, before any database is migrated: `carebus_app` exists, may log in, and has the test password.
@@ -162,7 +165,7 @@ async fn ensure_app_role(base: &str) {
     let admin = PgPool::connect(base)
         .await
         .expect("connect to the test postgres server");
-    let password = app_role_password();
+    let password = app_role_password(base);
     let sql = format!(
         "DO $$ BEGIN
              PERFORM pg_advisory_xact_lock(hashtext('carebus_app_role'));
@@ -325,7 +328,11 @@ pub async fn bind_llm_use(db: &PgPool, use_name: &str) -> uuid::Uuid {
 pub fn test_config(database_url: String, test: &str) -> Config {
     Config {
         bind: "127.0.0.1:0".into(),
-        database_app_url: with_user(&database_url, "carebus_app", app_role_password()),
+        database_app_url: with_user(
+            &database_url,
+            "carebus_app",
+            &app_role_password(&database_url),
+        ),
         database_url,
         // CI's rust-library archetype exports REDIS_URL; same lookup as crates/carebus tests.
         redis_url: std::env::var("TEST_REDIS_URL")
