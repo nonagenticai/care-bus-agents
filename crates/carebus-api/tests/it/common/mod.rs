@@ -497,7 +497,7 @@ fn sign(claims: &Value) -> String {
     encode(
         &Header::default(),
         claims,
-        &EncodingKey::from_secret(TEST_SECRET),
+        &EncodingKey::from_secret(TEST_SECRET).expect("TEST_SECRET is a non-empty literal"),
     )
     .unwrap()
 }

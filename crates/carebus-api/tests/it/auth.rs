@@ -187,7 +187,8 @@ async fn missing_claims_or_alg_none_is_401() {
         encode(
             &Header::default(),
             c,
-            &EncodingKey::from_secret(crate::common::TEST_SECRET),
+            &EncodingKey::from_secret(crate::common::TEST_SECRET)
+                .expect("TEST_SECRET is a non-empty literal"),
         )
         .unwrap()
     };
