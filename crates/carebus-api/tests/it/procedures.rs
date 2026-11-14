@@ -16,7 +16,8 @@ fn admin_as(user: &str) -> String {
     encode(
         &Header::default(),
         &claims,
-        &EncodingKey::from_secret(crate::common::TEST_SECRET),
+        &EncodingKey::from_secret(crate::common::TEST_SECRET)
+            .expect("TEST_SECRET is a non-empty literal"),
     )
     .unwrap()
 }
