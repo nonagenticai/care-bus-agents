@@ -148,8 +148,12 @@ async fn server() -> &'static Server {
 /// whichever process altered it last, and every other test would fail to connect.
 pub fn app_role_password(base: &str) -> String {
     use std::hash::{Hash, Hasher};
+    // Only the server identifies the role: `ensure_app_role` is handed the server URL while the callers hold a
+    // database URL, so hashing the whole string would give the two sides different passwords. `//host:port` is
+    // the part they share.
+    let authority = base.split('/').nth(2).unwrap_or(base);
     let mut h = std::collections::hash_map::DefaultHasher::new();
-    base.hash(&mut h);
+    authority.hash(&mut h);
     format!("carebus_app_{:016x}", h.finish())
 }
 
