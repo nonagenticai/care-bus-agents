@@ -231,7 +231,9 @@ impl Bindings {
             ApiError::Upstream(UPSTREAM)
         })?;
         let tenant_id = tenant.to_string();
-        let url = base.endpoint(&["mcp", "internal", "tenants", &tenant_id, "bindings", "ensure"]);
+        let url = base.endpoint(&[
+            "mcp", "internal", "tenants", &tenant_id, "bindings", "ensure",
+        ]);
         let body = json!({"product": PRODUCT, "licence_id": licence_id, "licence_token": licence, "rotate": rotate});
         let mut fresh = false;
         loop {
