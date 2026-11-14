@@ -10,9 +10,7 @@ import type { ProviderInput, ProviderView } from './api/providers';
 
 export type WriteKind = 'ok' | 'rejected' | 'uncertain';
 export type WriteOutcome =
-	| { kind: 'ok' }
-	| { kind: 'rejected'; error: unknown }
-	| { kind: 'uncertain'; error: unknown };
+	{ kind: 'ok' } | { kind: 'rejected'; error: unknown } | { kind: 'uncertain'; error: unknown };
 
 /**
  * A failed write is uncertain when no answer from carebus-api itself came back: the network failed (status 0),
