@@ -143,6 +143,9 @@
 					.map(([k, v]) => `${k.replace('max_', '')} ${v}`)
 					.join(' · ')
 			: 'runner defaults';
+	// Typed here, not in the template: prettier-plugin-svelte drops generic arguments
+	// written inside a markup expression.
+	const budgetOf = (b: unknown) => budgetText(b as Record<string, unknown>);
 </script>
 
 {#if loadError}
@@ -184,7 +187,7 @@
 			['Steps', fmt.n(r.steps_used)],
 			['Tokens', fmt.n(r.tokens_used)],
 			['Attempts', fmt.n(r.attempts)],
-			['Limits', budgetText(r.budget as Record<string, unknown>)],
+			['Limits', budgetOf(r.budget)],
 			['Stores', r.store_ids.length ? String(r.store_ids.length) : 'none'],
 			['Created', `${when(r.created_at)} · ${r.created_by}`],
 			['Started', when(r.started_at)],
