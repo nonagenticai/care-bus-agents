@@ -17,7 +17,7 @@ chrono = { version = "0.4.45", features = ["serde"] }
 csv = "=1.4.0"
 futures-util = "0.3.34"
 hex = "0.4.3"
-jsonwebtoken = "=9.3.1"
+jsonwebtoken = { version = "=10.4.0", features = ["rust_crypto"] }
 quick-xml = "=0.42.0"
 redis = { version = "1.7.1", features = ["tokio-comp", "streams", "aio", "connection-manager"] }
 # Gate prechecks (admin-set patterns run before laya is asked).
