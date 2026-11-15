@@ -28,6 +28,77 @@ pub struct Secrets<'a> {
     pub keyring: Option<&'a Keyring>,
 }
 
+/// The same material, owned: a long-lived resolver (the interaction daemon's qualifier) keeps this
+/// and borrows a [`Secrets`] per call.
+#[derive(Clone, Default)]
+pub struct SecretsOwned {
+    pub source_key: Option<SourceKey>,
+    pub keyring: Option<Keyring>,
+}
+
+impl SecretsOwned {
+    /// `CAREBUS_SOURCE_KEY` (the legacy `secret_enc` envelope), `PROVIDER_SECRET_KEYS` and
+    /// `PROVIDER_SECRET_KEY_CURRENT` (the `v2:` ring). An unset pair is `None`; anything malformed is
+    /// an error naming the variable, never a key.
+    pub fn from_env() -> anyhow::Result<Self> {
+        let get = |k: &str| std::env::var(k).ok().filter(|v| !v.trim().is_empty());
+        let source_key = match get("CAREBUS_SOURCE_KEY") {
+            None => None,
+            Some(raw) => Some(
+                SourceKey::from_base64(&raw)
+                    .map_err(|e| anyhow::anyhow!("CAREBUS_SOURCE_KEY: {e}"))?,
+            ),
+        };
+        let keyring = Keyring::parse(
+            get("PROVIDER_SECRET_KEYS").as_deref(),
+            get("PROVIDER_SECRET_KEY_CURRENT").as_deref(),
+        )
+        .map_err(|e| anyhow::anyhow!("PROVIDER_SECRET_KEYS: {e}"))?;
+        Ok(Self {
+            source_key,
+            keyring,
+        })
+    }
+
+    pub fn borrow(&self) -> Secrets<'_> {
+        Secrets {
+            source_key: self.source_key.as_ref(),
+            keyring: self.keyring.as_ref(),
+        }
+    }
+}
+
+/// The platform default's AAD scope: there is one row and no tenant, so it cannot use
+/// [`provider_keyring::provider_scope`].
+pub const PLATFORM_SCOPE: &str = "platform:llm_key:default";
+
+/// Seal the platform default's token under the current kid (0033's row, written by a super_admin).
+pub fn seal_platform(s: Secrets<'_>, token: &str) -> Result<Stored, SecretError> {
+    let kr = s.keyring.ok_or(SecretError::NotConfigured(
+        "PROVIDER_SECRET_KEYS is not set, so provider secrets cannot be stored or used.",
+    ))?;
+    let out = kr.seal(PLATFORM_SCOPE, token);
+    Ok(Stored {
+        sealed: out.sealed,
+        fingerprint: out.fingerprint,
+    })
+}
+
+/// The platform default's usable token; `None` when the row stores none.
+pub fn open_platform(s: Secrets<'_>, sealed: Option<&str>) -> Result<Option<String>, SecretError> {
+    match sealed.filter(|v| !v.is_empty()) {
+        None => Ok(None),
+        Some(v) => {
+            let kr = s.keyring.ok_or(SecretError::NotConfigured(
+                "PROVIDER_SECRET_KEYS is not set, so provider secrets cannot be stored or used.",
+            ))?;
+            kr.open(PLATFORM_SCOPE, v)
+                .map(Some)
+                .map_err(|_| SecretError::Unreadable)
+        }
+    }
+}
+
 /// A secret to store: the value for `secret_sealed` and the fingerprint shown in its place.
 #[derive(Clone, Debug)]
 pub struct Stored {

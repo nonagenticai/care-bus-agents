@@ -337,8 +337,7 @@ fn check(i: ProviderInput) -> ApiResult<Checked> {
 // writer can never disagree about which form a row is in. Re-exported here for the existing callers.
 pub use crate::provider_secret::{open_token, seal_token};
 
-const SELECT_ONE: &str =
-    "SELECT id, name, kind, base_url, models,
+const SELECT_ONE: &str = "SELECT id, name, kind, base_url, models,
             (secret_enc IS NOT NULL OR secret_sealed IS NOT NULL) AS has_token,
             secret_fpr, secret_updated_at, updated_at, updated_by
        FROM llm_providers WHERE id = $1 AND deleted_at IS NULL";
@@ -896,12 +895,11 @@ async fn bind(
     if let Some(pid) = input.provider_id {
         // A soft-deleted row still satisfies the FK, so without this check a binding could name a
         // provider that no longer resolves — and the turn would silently use the platform model.
-        let found: Option<(String, bool)> = sqlx::query_as(
-            "SELECT kind, deleted_at IS NOT NULL FROM llm_providers WHERE id = $1",
-        )
-        .bind(pid)
-        .fetch_optional(&mut *tx)
-        .await?;
+        let found: Option<(String, bool)> =
+            sqlx::query_as("SELECT kind, deleted_at IS NOT NULL FROM llm_providers WHERE id = $1")
+                .bind(pid)
+                .fetch_optional(&mut *tx)
+                .await?;
         let (kind, deleted) = found.ok_or_else(|| ApiError::NotFound("provider".into()))?;
         if deleted {
             return Err(ApiError::Conflict(
@@ -1093,12 +1091,7 @@ mod tests {
             check(base(vec![" a ", "b"])).unwrap().models,
             vec!["a".to_string(), "b".to_string()]
         );
-        for bad in [
-            vec![],
-            vec!["a", "a"],
-            vec![""],
-            vec!["   "],
-        ] {
+        for bad in [vec![], vec!["a", "a"], vec![""], vec!["   "]] {
             assert!(
                 matches!(
                     check(base(bad.clone())),
