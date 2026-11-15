@@ -10,12 +10,12 @@ use axum::routing::get;
 use carebus_api::chat_q::{AnyQualifier, qualifier_for};
 use serde_json::{Value, json};
 
-use crate::common::{admin, user};
+use crate::common::{admin, super_admin, user};
 
 const TOKEN: &str = "tok-sekrit-4f1d9a";
 
 fn input(name: &str, kind: &str, base_url: &str, token: Option<&str>) -> Value {
-    let mut v = json!({"name": name, "kind": kind, "base_url": base_url});
+    let mut v = json!({"name": name, "kind": kind, "base_url": base_url, "models": ["test-model"]});
     if let Some(t) = token {
         v["token"] = json!(t);
     }
@@ -78,10 +78,11 @@ async fn crud_round_trip_never_returns_the_token() {
                {"use": "research", "provider_id": null, "model": null},
                {"use": "research_write", "provider_id": null, "model": null}])
     );
-    // tests never run the platform LLM
+    // tests never run the platform LLM: no 0033 row is seeded (nothing sets VLLM_LICENSE_TOKEN)
     assert_eq!(
         empty["platform_default"],
-        json!({"base_url": null, "model": null, "configured": false})
+        json!({"base_url": null, "model": null, "configured": false, "has_token": false,
+               "secret_fpr": null, "secret_updated_at": null, "updated_at": null, "updated_by": null})
     );
 
     let (s, p) = create(
@@ -109,7 +110,10 @@ async fn crud_round_trip_never_returns_the_token() {
             "has_token",
             "id",
             "kind",
+            "models",
             "name",
+            "secret_fpr",
+            "secret_updated_at",
             "updated_at",
             "updated_by"
         ]
@@ -234,7 +238,7 @@ async fn crud_round_trip_never_returns_the_token() {
 }
 
 #[tokio::test]
-async fn the_stored_token_is_sealed_and_opens_only_with_the_source_key() {
+async fn the_stored_token_is_sealed_under_the_keyring_and_opens_only_for_its_tenant() {
     let e = crate::common::env("llm-sealed").await;
     let (_, p) = create(
         &e,
@@ -242,20 +246,44 @@ async fn the_stored_token_is_sealed_and_opens_only_with_the_source_key() {
     )
     .await;
     let id: uuid::Uuid = p["id"].as_str().unwrap().parse().unwrap();
-    let enc: String = sqlx::query_scalar("SELECT secret_enc FROM llm_providers WHERE id = $1")
-        .bind(id)
-        .fetch_one(crate::common::pool(&e))
-        .await
-        .unwrap();
-    assert!(!enc.contains(TOKEN));
-    let key = crate::common::source_key();
+    let (sealed, enc): (Option<String>, Option<String>) =
+        sqlx::query_as("SELECT secret_sealed, secret_enc FROM llm_providers WHERE id = $1")
+            .bind(id)
+            .fetch_one(crate::common::pool(&e))
+            .await
+            .unwrap();
+    // Every write lands in the `v2:` form, never the legacy envelope (0031).
+    let sealed = sealed.expect("a v2 secret");
+    assert!(sealed.starts_with("v2:"));
+    assert!(enc.is_none());
+    assert!(!sealed.contains(TOKEN));
+    let tenant: uuid::Uuid = crate::common::BOOT_TENANT.parse().unwrap();
     assert_eq!(
-        carebus_api::routes::llm_providers::open_token(&key, id, &enc).unwrap(),
-        TOKEN
+        carebus_api::provider_secret::open(e.state.cfg.secrets(), tenant, id, Some(&sealed), None)
+            .unwrap()
+            .as_deref(),
+        Some(TOKEN)
     );
-    // bound to the provider id: the same ciphertext on another row does not open
+    // The tenant and the row are in the AAD: neither another tenant nor another row opens it.
     assert!(
-        carebus_api::routes::llm_providers::open_token(&key, uuid::Uuid::new_v4(), &enc).is_err()
+        carebus_api::provider_secret::open(
+            e.state.cfg.secrets(),
+            uuid::Uuid::new_v4(),
+            id,
+            Some(&sealed),
+            None
+        )
+        .is_err()
+    );
+    assert!(
+        carebus_api::provider_secret::open(
+            e.state.cfg.secrets(),
+            tenant,
+            uuid::Uuid::new_v4(),
+            Some(&sealed),
+            None
+        )
+        .is_err()
     );
 }
 
@@ -804,7 +832,13 @@ async fn the_qualifier_follows_the_tenants_qualify_binding() {
     let tenant: uuid::Uuid = crate::common::BOOT_TENANT.parse().unwrap();
     // unbound: the platform default (keyword rules in tests)
     let q = qualifier_for(&e.state, tenant).await.unwrap();
-    assert!(Arc::ptr_eq(&q, &e.state.qualifier));
+    assert!(Arc::ptr_eq(
+        &q,
+        &e.state
+            .platform
+            .fixed_qualifier()
+            .expect("tests fix the platform qualifier")
+    ));
 
     let (_, p) = create(
         &e,
@@ -821,7 +855,10 @@ async fn the_qualifier_follows_the_tenants_qualify_binding() {
     bind(&e, "gates", l["id"].clone(), Value::Null).await;
     assert!(Arc::ptr_eq(
         &qualifier_for(&e.state, tenant).await.unwrap(),
-        &e.state.qualifier
+        &e.state
+            .platform
+            .fixed_qualifier()
+            .expect("tests fix the platform qualifier")
     ));
 
     let (s, _) = bind(&e, "qualify", id.clone(), json!("local-llm")).await;
@@ -852,8 +889,9 @@ async fn the_qualifier_follows_the_tenants_qualify_binding() {
     let remodelled = qualifier_for(&e.state, tenant).await.unwrap();
     assert!(!Arc::ptr_eq(&rebuilt, &remodelled));
     // a stored base_url that is not callable (written past the API guard): no client is built for it
+    // A write outside the API still has to move `version` — that is the cache key readers order by.
     sqlx::query(
-        "UPDATE llm_providers SET base_url = 'http://10.0.0.5/v1', updated_at = now() WHERE id = $1",
+        "UPDATE llm_providers SET base_url = 'http://10.0.0.5/v1', updated_at = now(), version = version + 1 WHERE id = $1",
     )
     .bind(id.as_str().unwrap().parse::<uuid::Uuid>().unwrap())
     .execute(crate::common::pool(&e))
@@ -864,7 +902,10 @@ async fn the_qualifier_follows_the_tenants_qualify_binding() {
     bind(&e, "qualify", Value::Null, Value::Null).await;
     assert!(Arc::ptr_eq(
         &qualifier_for(&e.state, tenant).await.unwrap(),
-        &e.state.qualifier
+        &e.state
+            .platform
+            .fixed_qualifier()
+            .expect("tests fix the platform qualifier")
     ));
 }
 
@@ -890,11 +931,16 @@ async fn the_providers_list_matches_the_web_fixture() {
     .await;
     let (s, _) = bind(&e, "qualify", p["id"].clone(), json!("local-llm")).await;
     assert_eq!(s, StatusCode::OK);
-    let mut st = e.state.clone();
-    st.platform_llm = Arc::new(carebus_api::chat_q::PlatformLlm {
-        endpoint: Some(("http://vllm.example:8001/v1".into(), "local-llm".into())),
-    });
-    let app = carebus_api::router(st);
+    // 0033: the platform default is a row. Inserted through the owner pool, as a super_admin's PUT
+    // would write it, so the list reads it back the way production does.
+    sqlx::query(
+        "INSERT INTO platform_llm_default (base_url, model, updated_by)
+         VALUES ('http://vllm.example:8001/v1', 'local-llm', 'test')",
+    )
+    .execute(crate::common::pool(&e))
+    .await
+    .unwrap();
+    let app = carebus_api::router(e.state.clone());
     let (s, body) =
         crate::common::send(&app, crate::common::get("/api/providers", Some(&admin()))).await;
     assert_eq!(s, StatusCode::OK, "{body}");
@@ -1046,9 +1092,10 @@ async fn a_chat_turn_sends_the_conversations_tenant_to_the_platform_model() {
     assert_ne!(tenant, uuid::Uuid::nil());
     let (url, seen) = chat_stub().await;
     let mut state = e.state.clone();
-    state.qualifier = Arc::new(AnyQualifier::Rig(Box::new(
-        carebus::interaction::RigQualifier::new("lic".into(), url, "local-llm".into()).unwrap(),
-    )));
+    state.platform =
+        carebus_api::chat_q::PlatformQualifier::test_fixed(AnyQualifier::Rig(Box::new(
+            carebus::interaction::RigQualifier::new("lic".into(), url, "local-llm".into()).unwrap(),
+        )));
     // the stub answers 500: the turn fails (503); what reached the model is in the stub's record
     let s = chat_turn(state).await;
     assert_ne!(s, StatusCode::OK);
@@ -1077,10 +1124,11 @@ async fn a_chat_turn_never_sends_the_effective_tenant_to_a_tenant_provider() {
     let (s, b) = bind(&e, "qualify", p["id"].clone(), json!("their-model")).await;
     assert_eq!(s, StatusCode::OK, "{b}");
     let mut state = e.state.clone();
-    state.qualifier = Arc::new(AnyQualifier::Rig(Box::new(
-        carebus::interaction::RigQualifier::new("lic".into(), platform_url, "local-llm".into())
-            .unwrap(),
-    )));
+    state.platform =
+        carebus_api::chat_q::PlatformQualifier::test_fixed(AnyQualifier::Rig(Box::new(
+            carebus::interaction::RigQualifier::new("lic".into(), platform_url, "local-llm".into())
+                .unwrap(),
+        )));
     let s = chat_turn(state).await;
     assert_ne!(s, StatusCode::OK);
     let got = sent(&byo_seen);
@@ -1110,7 +1158,7 @@ async fn a_research_call_sends_the_tenant_only_to_the_platform_model() {
             &e.state.db,
             tenant,
             USE_RESEARCH,
-            e.state.cfg.source_key.as_ref(),
+            e.state.cfg.secrets(),
             true,
             default,
             std::time::Duration::from_secs(5),
@@ -1176,4 +1224,125 @@ async fn a_research_call_sends_the_tenant_only_to_the_platform_model() {
         vec![(None, Some(format!("Bearer {TOKEN}")))]
     );
     assert!(sent(&platform_seen).is_empty());
+}
+
+/// 0033: the platform default is a row — any member reads it, only a super_admin writes it, the
+/// secret is sealed (only its fingerprint comes back), and an unbound tenant's qualifier resolves
+/// through it.
+#[tokio::test]
+async fn the_platform_default_is_a_row_a_super_admin_writes() {
+    use base64::Engine;
+    let key = base64::engine::general_purpose::STANDARD.encode((11u8..43).collect::<Vec<u8>>());
+    let e = crate::common::env_with("platform-row", |c| {
+        c.provider_keyring = carebus_api::config::parse_provider_keyring(
+            Some(format!(r#"{{"k1":"{key}"}}"#)),
+            Some("k1".to_string()),
+        )
+        .unwrap();
+    })
+    .await;
+    let tenant: uuid::Uuid = crate::common::BOOT_TENANT.parse().unwrap();
+    let put = |body: Value, token: String| {
+        crate::common::json("PUT", "/api/providers/platform", Some(&token), body)
+    };
+
+    let (s, body) = crate::common::send(
+        &e.app,
+        crate::common::get("/api/providers/platform", Some(&user())),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{body}");
+    assert_eq!(body["configured"], false);
+
+    // A tenant_admin is not a super_admin: the platform row is deployment configuration.
+    let (s, body) = crate::common::send(
+        &e.app,
+        put(
+            json!({"base_url": "http://llm.internal:8001/v1", "model": "local-llm"}),
+            admin(),
+        ),
+    )
+    .await;
+    assert_eq!(s, StatusCode::FORBIDDEN, "{body}");
+
+    let (s, body) = crate::common::send(
+        &e.app,
+        put(
+            json!({"base_url": "http://llm.internal:8001/v1", "model": "local-llm", "token": "plat-token"}),
+            super_admin(),
+        ),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{body}");
+    assert_eq!(body["configured"], true);
+    assert_eq!(body["has_token"], true);
+    assert_eq!(body["secret_fpr"].as_str().map(str::len), Some(8));
+    assert!(!body.to_string().contains("plat-token"));
+
+    // Absent token keeps it; "" clears it.
+    let (s, body) = crate::common::send(
+        &e.app,
+        put(
+            json!({"base_url": "http://llm.internal:8001/v1", "model": "other-model"}),
+            super_admin(),
+        ),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{body}");
+    assert_eq!(body["has_token"], true);
+    let (s, body) = crate::common::send(
+        &e.app,
+        put(
+            json!({"base_url": "http://llm.internal:8001/v1", "model": "other-model", "token": ""}),
+            super_admin(),
+        ),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{body}");
+    assert_eq!(body["has_token"], false);
+    assert!(body["secret_fpr"].is_null());
+
+    // provider_db reads the row; an unbound tenant's qualifier is built from it (rig, not rules).
+    let p =
+        carebus::provider_db::platform_default(crate::common::app_pool(&e), e.state.cfg.secrets())
+            .await
+            .unwrap()
+            .expect("the platform row");
+    assert_eq!(p.base_url, "http://llm.internal:8001/v1");
+    assert_eq!(p.model.as_deref(), Some("other-model"));
+    // The test state fixes the platform qualifier to rules; build the production one here.
+    let mut st = e.state.clone();
+    st.platform = Arc::new(carebus_api::chat_q::PlatformQualifier::new(
+        st.cfg.service_actor,
+    ));
+    let q = qualifier_for(&st, tenant).await.unwrap();
+    assert!(matches!(*q, AnyQualifier::Rig(_)));
+}
+
+/// A binding that names a soft-deleted provider is 409 `provider_deleted`, never a binding that
+/// resolves to the platform default on the next turn.
+#[tokio::test]
+async fn a_soft_deleted_provider_cannot_be_bound() {
+    let e = crate::common::env("llm-deleted-bind").await;
+    let (s, p) = create(
+        &e,
+        input("Gone", "openai", "https://gone.example.test/v1", None),
+    )
+    .await;
+    assert_eq!(s, StatusCode::CREATED, "{p}");
+    let id = p["id"].clone();
+    let (s, _) = crate::common::send(
+        &e.app,
+        crate::common::json(
+            "DELETE",
+            &format!("/api/providers/{}", id.as_str().unwrap()),
+            Some(&admin()),
+            json!({}),
+        ),
+    )
+    .await;
+    assert_eq!(s, StatusCode::NO_CONTENT);
+    let (s, b) = bind(&e, "qualify", id, json!("their-model")).await;
+    assert_eq!(s, StatusCode::CONFLICT, "{b}");
+    assert_eq!(b["error"]["code"], "provider_deleted");
 }

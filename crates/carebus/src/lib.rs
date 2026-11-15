@@ -15,6 +15,7 @@
 pub mod bus;
 pub mod case;
 pub mod chat;
+pub mod crypto;
 pub mod domain;
 pub mod executor;
 pub mod gates;
@@ -25,6 +26,9 @@ pub mod mcp_http;
 pub mod mcp_tasks;
 pub mod orchestrator;
 pub mod procedures;
+pub mod provider_db;
+pub mod provider_keyring;
+pub mod provider_secret;
 pub mod scope;
 pub mod scopes;
 pub mod spaces;

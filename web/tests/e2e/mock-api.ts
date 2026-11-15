@@ -210,7 +210,10 @@ type LlmRow = {
 	name: string;
 	kind: string;
 	base_url: string;
+	models: string[];
 	has_token: boolean;
+	secret_fpr: string | null;
+	secret_updated_at: string | null;
 	updated_at: string;
 	updated_by: string | null;
 };
@@ -227,26 +230,42 @@ function llmProviderStore() {
 	let n = 0;
 	const bad = (route: Route, status: number, code: string, message: string) =>
 		ok(route, { error: { code, message } }, status);
-	const apply = (row: LlmRow, b: { name: string; kind: string; base_url: string; token?: string }) => {
+	const apply = (
+		row: LlmRow,
+		b: { name: string; kind: string; base_url: string; models: string[]; token?: string },
+	) => {
 		row.name = b.name;
 		row.kind = b.kind;
 		row.base_url = b.base_url;
-		if (b.token !== undefined) row.has_token = b.token !== '';
+		row.models = b.models;
+		if (b.token !== undefined) {
+			row.has_token = b.token !== '';
+			row.secret_fpr = row.has_token ? 'aaaaaaaa' : null;
+			row.secret_updated_at = row.has_token ? '2026-10-18T12:00:00Z' : null;
+		}
 		row.updated_at = '2026-10-18T12:00:00Z';
 		row.updated_by = E2E_ACTOR;
 		return row;
 	};
+	/** The server's rule: at least one model, at most 100. */
+	const invalidModels = (b: { models?: unknown }) =>
+		!Array.isArray(b.models) || b.models.length === 0 || b.models.length > 100;
 	return {
 		handle(route: Route, method: string, p: string) {
 			const [, , id, sub] = p.split('/').filter(Boolean); // ['api', 'providers', id, sub]
 			if (!id && method === 'GET') return ok(route, { ...body, providers, uses });
 			if (!id && method === 'POST') {
 				const b = route.request().postDataJSON();
+				if (invalidModels(b))
+					return bad(route, 400, 'invalid_models', 'models must name at least one model, at most 100.');
 				const row = apply(
 					{
 						id: `0195f48b-d001-7000-8000-00000000f${String(++n).padStart(3, '0')}`,
+						models: [],
 						has_token: false,
-					} as LlmRow,
+						secret_fpr: null,
+						secret_updated_at: null,
+					} as unknown as LlmRow,
 					b,
 				);
 				providers.push(row);
@@ -272,6 +291,26 @@ function llmProviderStore() {
 					...(b.kind === 'openai' ? { models: ['local-llm', 'qwen3-27b'] } : {}),
 				});
 			}
+			// The deployment-wide default (0033): members read it, a super_admin writes it.
+			if (id === 'platform' && !sub && method === 'GET') return ok(route, body.platform_default);
+			if (id === 'platform' && !sub && method === 'PUT') {
+				const b = route.request().postDataJSON();
+				if (!b.base_url || !b.model)
+					return bad(route, 400, 'invalid_body', 'base_url and model are required');
+				const pd = { ...body.platform_default };
+				pd.base_url = b.base_url;
+				pd.model = b.model;
+				pd.configured = true;
+				if (b.token !== undefined) {
+					pd.has_token = b.token !== '';
+					pd.secret_fpr = pd.has_token ? 'bbbbbbbb' : null;
+					pd.secret_updated_at = pd.has_token ? '2026-10-18T12:00:00Z' : null;
+				}
+				pd.updated_at = '2026-10-18T12:00:00Z';
+				pd.updated_by = E2E_ACTOR;
+				body.platform_default = pd;
+				return ok(route, pd);
+			}
 			if (id === 'uses' && sub && method === 'PUT') {
 				const b = route.request().postDataJSON();
 				const want = sub === 'gates' ? 'laya' : 'openai';
@@ -288,7 +327,12 @@ function llmProviderStore() {
 			const row = providers.find((x) => x.id === decodeURIComponent(id ?? ''));
 			if (!row) return null;
 			if (sub === 'test' && method === 'POST') return ok(route, fx('providers/llm_provider_test'));
-			if (!sub && method === 'PUT') return ok(route, apply(row, route.request().postDataJSON()));
+			if (!sub && method === 'PUT') {
+				const b = route.request().postDataJSON();
+				if (invalidModels(b))
+					return bad(route, 400, 'invalid_models', 'models must name at least one model, at most 100.');
+				return ok(route, apply(row, b));
+			}
 			if (!sub && method === 'DELETE') {
 				const bound = uses.filter((u) => u.provider_id === row.id).map((u) => u.use);
 				if (bound.length)

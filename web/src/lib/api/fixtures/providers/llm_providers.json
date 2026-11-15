@@ -1,21 +1,33 @@
 {
   "providers": [
     {
-      "id": "0195f48b-d001-7000-8000-0000000000a1",
-      "name": "Local vLLM",
-      "kind": "openai",
-      "base_url": "https://llm.example.eu/v1",
-      "has_token": true,
-      "updated_at": "2026-10-18T09:00:00Z",
-      "updated_by": "admin"
-    },
-    {
       "id": "0195f48b-d001-7000-8000-0000000000a2",
       "name": "Laya EU",
       "kind": "laya",
       "base_url": "https://laya.example.eu",
+      "models": [
+        "jev-system1",
+        "jev-system1-mini"
+      ],
       "has_token": false,
+      "secret_fpr": null,
+      "secret_updated_at": null,
       "updated_at": "2026-10-18T09:05:00Z",
+      "updated_by": "admin"
+    },
+    {
+      "id": "0195f48b-d001-7000-8000-0000000000a1",
+      "name": "Local vLLM",
+      "kind": "openai",
+      "base_url": "https://llm.example.eu/v1",
+      "models": [
+        "local-llm",
+        "local-llm-mini"
+      ],
+      "has_token": true,
+      "secret_fpr": "7f3a1c2e",
+      "secret_updated_at": "2026-10-18T09:00:00Z",
+      "updated_at": "2026-10-18T09:00:00Z",
       "updated_by": "admin"
     }
   ],
@@ -44,7 +56,12 @@
   "platform_default": {
     "base_url": "http://vllm.example:8001/v1",
     "model": "local-llm",
-    "configured": true
+    "configured": true,
+    "has_token": false,
+    "secret_fpr": null,
+    "secret_updated_at": null,
+    "updated_at": "2026-10-18T09:00:00Z",
+    "updated_by": "test"
   },
   "external_llm_allowed": false
 }

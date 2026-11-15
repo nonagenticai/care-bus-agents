@@ -30,10 +30,8 @@ use serde::Serialize;
 use serde_json::{Map, Value, json};
 use uuid::Uuid;
 
-use crate::crypto;
 use crate::error::{ApiError, ApiResult};
 use crate::netguard;
-use crate::routes::llm_providers::open_token;
 use crate::state::AppState;
 use crate::tenancy::begin_scoped;
 
@@ -235,8 +233,8 @@ pub struct EvalInput<'a> {
     pub case_id: Option<&'a str>,
 }
 
-/// The `gates` binding: (provider id, base_url, sealed token, model).
-type Binding = (Uuid, String, Option<String>, Option<String>);
+/// The `gates` binding: (provider id, base_url, token in either stored form, model).
+type Binding = (Uuid, String, Option<String>, Option<String>, Option<String>);
 
 /// The licences app and bundle the tenant's platform laya licence is minted on (licences 080: the care-bus bundle
 /// includes laya).
@@ -338,10 +336,10 @@ async fn load(st: &AppState, i: &EvalInput<'_>) -> ApiResult<(Vec<Question>, Opt
         .fetch_all(&mut *tx)
         .await?;
         let binding: Option<Binding> = sqlx::query_as(
-            "SELECT p.id, p.base_url, p.secret_enc, u.model
+            "SELECT p.id, p.base_url, p.secret_enc, p.secret_sealed, u.model
                FROM llm_provider_uses u
                JOIN llm_providers p ON p.tenant_id = u.tenant_id AND p.id = u.provider_id
-              WHERE u.\"use\" = 'gates' AND p.kind = 'laya'",
+              WHERE u.\"use\" = 'gates' AND p.kind = 'laya' AND p.deleted_at IS NULL",
         )
         .fetch_optional(&mut *tx)
         .await?;
@@ -432,27 +430,27 @@ async fn ask(
     st: &AppState,
     tenant: Uuid,
     plan: &Plan<'_>,
-    (provider, base_url, secret_enc, model): Binding,
+    (provider, base_url, secret_enc, secret_sealed, model): Binding,
     has_closed: bool,
 ) -> Evaluation {
     let asked = &plan.asked;
     let fail =
         |error: String, latency_ms: Option<u64>| failed(asked, has_closed, error, latency_ms);
-    let mut bearer = match secret_enc.filter(|e| !e.is_empty()) {
-        Some(enc) => {
-            let opened = crypto::require(st.cfg.source_key.as_ref())
-                .ok()
-                .and_then(|k| open_token(k, provider, &enc).ok());
-            match opened {
-                Some(t) => Bearer::Fixed(Some(t)),
-                None => return fail("the gates provider's token cannot be read".into(), None),
-            }
-        }
-        None if st.strata_tokens.minting() => match mint_laya(st, tenant).await {
+    let stored = crate::provider_secret::open(
+        st.cfg.secrets(),
+        tenant,
+        provider,
+        secret_sealed.as_deref(),
+        secret_enc.as_deref(),
+    );
+    let mut bearer = match stored {
+        Err(_) => return fail("the gates provider's token cannot be read".into(), None),
+        Ok(Some(t)) if !t.is_empty() => Bearer::Fixed(Some(t)),
+        Ok(_) if st.strata_tokens.minting() => match mint_laya(st, tenant).await {
             Ok(t) => Bearer::Minted(t),
             Err(e) => return fail(e, None),
         },
-        None => Bearer::Fixed(None),
+        Ok(_) => Bearer::Fixed(None),
     };
     let model = model.unwrap_or_else(|| DEFAULT_LAYA_MODEL.to_string());
     let started = Instant::now();

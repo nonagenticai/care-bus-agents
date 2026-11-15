@@ -232,6 +232,20 @@ pub fn source_key() -> carebus_api::crypto::SourceKey {
     carebus_api::crypto::SourceKey::from_base64(&raw).unwrap()
 }
 
+/// A fixed `v2:` provider keyring (key k1, bytes 7..39), built at runtime so no key literal is committed.
+/// Production always sets `PROVIDER_SECRET_KEYS`, and a provider write seals under it — so the test
+/// environment carries one too, exactly as the deployment does.
+pub fn test_keyring() -> carebus_api::provider_keyring::Keyring {
+    use base64::Engine;
+    let key = base64::engine::general_purpose::STANDARD.encode((7u8..39).collect::<Vec<u8>>());
+    carebus_api::config::parse_provider_keyring(
+        Some(format!(r#"{{"k1":"{key}"}}"#)),
+        Some("k1".to_string()),
+    )
+    .unwrap()
+    .unwrap()
+}
+
 /// The bootstrap tenant migration 0006 adopts every pre-W3 row into (minted outside care-bus). The static strata
 /// tokens are pinned to it (`strata_tenant`), and the strata fakes refuse a request whose `X-Tenant-Id` is not this.
 pub const BOOT_TENANT: &str = "0195f48b-d000-7000-8000-000000000099";
@@ -355,6 +369,9 @@ pub fn test_config(database_url: String, test: &str) -> Config {
         strata_tenant: Some(BOOT_TENANT.parse().unwrap()),
         strata_bundle: None,
         source_key: Some(source_key()),
+        // Every write seals under the `v2:` keyring (0031), which production always configures; the
+        // legacy `secret_enc` form is still read, and tests that exercise it write that form directly.
+        provider_keyring: Some(test_keyring()),
         source_fetch_allow_loopback: false,
         demo_backends_url: None,
         demo_backends_token: None,
@@ -366,6 +383,8 @@ pub fn test_config(database_url: String, test: &str) -> Config {
         metering: Default::default(),
         telegram: None,
         service_actor: None,
+        // Never seed 0033's row from a developer's shell: a test that wants one writes it.
+        seed_platform_default: false,
     }
 }
 

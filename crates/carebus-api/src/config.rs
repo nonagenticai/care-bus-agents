@@ -4,6 +4,7 @@ use uuid::Uuid;
 
 use crate::crypto::SourceKey;
 use crate::error::{ApiError, ApiResult};
+use crate::provider_keyring::Keyring;
 use crate::upstream::Auth;
 
 #[derive(Clone, Debug)]
@@ -52,6 +53,10 @@ pub struct Config {
     /// `CAREBUS_SOURCE_KEY`: AES-256-GCM key for source credentials. `None` = credentials can be neither stored
     /// nor used (503 `not_configured`); a malformed value stops startup.
     pub source_key: Option<SourceKey>,
+    /// `PROVIDER_SECRET_KEYS` + `PROVIDER_SECRET_KEY_CURRENT`: the `v2:` keyring that seals provider secrets
+    /// (crate::provider_keyring). `None` = provider secrets can be neither stored nor used (503 `not_configured`);
+    /// one variable without the other, or a malformed set, stops startup naming the variable.
+    pub provider_keyring: Option<Keyring>,
     /// Test-only: the api test-connection may reach 127.0.0.0/8 and ::1 (the in-process stub). No environment
     /// variable can set it; `from_lookup` always writes `false`.
     pub source_fetch_allow_loopback: bool,
@@ -64,6 +69,10 @@ pub struct Config {
     /// `SERVICE_ACTOR_ID` (carebus::identity): care-bus' Keycloak service-account sub, sent as `X-Actor-Id` on a
     /// strata_rag call no person is behind. `None` = no `X-Actor-Id` then; a malformed value stops startup.
     pub service_actor: Option<Uuid>,
+    /// Migration 0033's row is seeded once from the bootstrap env at boot. A real process always
+    /// does (the env is the deployment's); tests set this false so no developer's environment can
+    /// create a platform default inside a test database.
+    pub seed_platform_default: bool,
 }
 
 /// Comma-separated list; surrounding whitespace trimmed, blanks dropped.
@@ -79,6 +88,15 @@ pub fn split_list(raw: &str) -> Vec<String> {
 pub fn parse_source_key(raw: Option<String>) -> Result<Option<SourceKey>> {
     raw.map(|r| SourceKey::from_base64(&r).map_err(|e| anyhow::anyhow!("{e}")))
         .transpose()
+}
+
+/// The provider-secret keyring. Both variables unset is `None` (provider secrets unavailable); anything else that
+/// is wrong is an error naming the variable, never a key.
+pub fn parse_provider_keyring(
+    keys: Option<String>,
+    current: Option<String>,
+) -> Result<Option<Keyring>> {
+    Keyring::parse(keys.as_deref(), current.as_deref()).map_err(|e| anyhow::anyhow!("{e}"))
 }
 
 /// `STRATA_TOKENS_TENANT_ID`: a bare, non-nil uuid (what strata_rag's `X-Tenant-Id` accepts), or unset.
@@ -179,6 +197,10 @@ impl Config {
             service_tokens: split_list(&get("CAREBUS_API_SERVICE_TOKENS").unwrap_or_default()),
             cors_origins,
             source_key: parse_source_key(opt("CAREBUS_SOURCE_KEY"))?,
+            provider_keyring: parse_provider_keyring(
+                opt("PROVIDER_SECRET_KEYS"),
+                opt("PROVIDER_SECRET_KEY_CURRENT"),
+            )?,
             source_fetch_allow_loopback: false,
             licence: crate::licence::LicenceConfig::from_lookup(&get)?,
             metering: crate::metering::MeteringConfig::from_lookup(&get)?,
@@ -186,6 +208,7 @@ impl Config {
             service_actor: carebus::identity::parse_service_actor(
                 get(carebus::identity::SERVICE_ACTOR_ENV).as_deref(),
             )?,
+            seed_platform_default: true,
         })
     }
 }

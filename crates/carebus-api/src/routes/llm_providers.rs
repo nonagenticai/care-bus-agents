@@ -8,16 +8,19 @@
 //! `external_llm_allowed` (default false), which gates research runs to the platform's own model unless set. It
 //! applies ONLY to research runs for now; `qualify` and `gates` ignore it. `GET /api/providers` returns it.
 //!
-//! `token` is write-only end to end: sealed with `CAREBUS_SOURCE_KEY` (crate::crypto, bound to the provider id) into
-//! `secret_enc`, never returned (only `has_token`), never logged, audited or echoed.
+//! `token` is write-only end to end: sealed under `PROVIDER_SECRET_KEYS` into `secret_sealed` (the
+//! `v2:` form; rows that predate 0031 keep opening from `secret_enc`), never returned — only
+//! `has_token`, the fingerprint `secret_fpr` and `secret_updated_at` — never logged, audited or echoed.
+//!
+//! `GET/PUT /api/providers/platform` is the deployment-wide default (migration 0033): any
+//! authenticated caller reads it, a super_admin writes it. Its base_url is deployment
+//! configuration and may be in-cluster; a tenant's provider must be a public host.
 use std::time::{Duration, Instant};
 
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::routing::{get, post, put};
 use axum::{Json, Router};
-use base64::Engine;
-use base64::engine::general_purpose::STANDARD;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -25,11 +28,10 @@ use sqlx::PgConnection;
 use uuid::Uuid;
 
 use crate::audit;
-use crate::crypto::{self, SourceKey, Unreadable};
 use crate::error::{ApiError, ApiJson, ApiPath, ApiResult};
 use crate::netguard;
 use crate::state::AppState;
-use crate::tenancy::{Member, TenantAdmin, TenantCtx};
+use crate::tenancy::{Member, Provisioner, TenantAdmin, TenantCtx};
 
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -41,6 +43,11 @@ pub fn routes() -> Router<AppState> {
         .route("/api/providers/uses/{use_name}", put(bind))
         // Static, so it never reaches `/api/providers/{id}`.
         .route("/api/providers/settings", put(set_settings))
+        // The deployment-wide default (0033): members read it, a super_admin changes it.
+        .route(
+            "/api/providers/platform",
+            get(platform_default).put(set_platform_default),
+        )
 }
 
 /// The provider test's whole budget (connect + answer).
@@ -51,6 +58,8 @@ const MAX_MODELS_BODY: usize = 1 << 20;
 const MAX_MODELS: usize = 200;
 const MAX_TOKEN_CHARS: usize = 4096;
 const MAX_URL_CHARS: usize = 2048;
+/// The provider's declared catalogue bound (0031's `cardinality(models) <= 100` restates this).
+const MAX_PROVIDER_MODELS: usize = 100;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kind {
@@ -121,14 +130,19 @@ impl Use {
     }
 }
 
-/// A provider as every read returns it: no token, only whether one is stored.
+/// A provider as every read returns it: no token, only whether one is stored, plus the fingerprint of
+/// the stored secret (so a rotation is visible without ever returning it). `models` is the declared
+/// catalogue (0031); a binding's `model` is free text and is not restricted to it.
 #[derive(Clone, Debug, Serialize, sqlx::FromRow)]
 pub struct ProviderView {
     pub id: Uuid,
     pub name: String,
     pub kind: String,
     pub base_url: String,
+    pub models: Vec<String>,
     pub has_token: bool,
+    pub secret_fpr: Option<String>,
+    pub secret_updated_at: Option<DateTime<Utc>>,
     pub updated_at: DateTime<Utc>,
     pub updated_by: String,
 }
@@ -142,12 +156,82 @@ pub struct UseView {
     pub model: Option<String>,
 }
 
-/// The deployment's own qualifier LLM from env (`VLLM_LICENSE_TOKEN`, `CAREBUS_LLM_BASE_URL`, `CAREBUS_MODEL`).
+/// The deployment's own qualifier LLM: migration 0033's singleton row (seeded once from
+/// `VLLM_LICENSE_TOKEN`, `CAREBUS_LLM_BASE_URL`, `CAREBUS_MODEL`, then data).
 #[derive(Clone, Debug, Serialize)]
 pub struct PlatformDefaultView {
     pub base_url: Option<String>,
     pub model: Option<String>,
     pub configured: bool,
+    pub has_token: bool,
+    pub secret_fpr: Option<String>,
+    pub secret_updated_at: Option<DateTime<Utc>>,
+    pub updated_at: Option<DateTime<Utc>>,
+    pub updated_by: Option<String>,
+}
+
+/// 0033's row as the API shows it. A database that predates the migration reads as "not
+/// configured" rather than an error (the API is the binary that applies it, so this is only a
+/// rolling-deploy window).
+async fn platform_view(pool: &sqlx::PgPool) -> ApiResult<PlatformDefaultView> {
+    type Row = (
+        String,
+        String,
+        bool,
+        Option<String>,
+        Option<DateTime<Utc>>,
+        DateTime<Utc>,
+        String,
+    );
+    let row: Option<Row> = sqlx::query_as(
+        "SELECT base_url, model, secret_sealed IS NOT NULL, secret_fpr, secret_updated_at,
+                updated_at, updated_by
+           FROM platform_llm_default WHERE id",
+    )
+    .fetch_optional(pool)
+    .await
+    .or_else(|e| {
+        if matches!(&e, sqlx::Error::Database(d) if d.code().as_deref() == Some("42P01")) {
+            Ok(None)
+        } else {
+            Err(e)
+        }
+    })?;
+    Ok(match row {
+        Some((base_url, model, has_token, secret_fpr, secret_updated_at, updated_at, by)) => {
+            PlatformDefaultView {
+                base_url: Some(base_url),
+                model: Some(model),
+                configured: true,
+                has_token,
+                secret_fpr,
+                secret_updated_at,
+                updated_at: Some(updated_at),
+                updated_by: Some(by),
+            }
+        }
+        None => PlatformDefaultView {
+            base_url: None,
+            model: None,
+            configured: false,
+            has_token: false,
+            secret_fpr: None,
+            secret_updated_at: None,
+            updated_at: None,
+            updated_by: None,
+        },
+    })
+}
+
+/// `PUT /api/providers/platform` (super_admin): the deployment-wide default. `token` absent keeps
+/// the stored one, `""` clears it.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PlatformInput {
+    base_url: String,
+    model: String,
+    #[serde(default)]
+    token: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -187,6 +271,9 @@ pub struct ProviderInput {
     name: String,
     kind: String,
     base_url: String,
+    /// The provider's declared catalogue (0031): at least one, at most 100. Required on every write,
+    /// because a provider a use cannot name a model for is not usable.
+    models: Vec<String>,
     /// Absent = keep the stored token, `""` = clear it.
     #[serde(default)]
     token: Option<String>,
@@ -261,11 +348,12 @@ fn guard_base_url(s: &AppState, base_url: &str) -> ApiResult<()> {
     }
 }
 
-/// The validated input: (name, kind, base_url without trailing `/`, token change).
+/// The validated input: (name, kind, base_url without trailing `/`, models, token change).
 struct Checked {
     name: String,
     kind: Kind,
     base_url: String,
+    models: Vec<String>,
     /// `None` keep, `Some(None)` clear, `Some(Some(t))` replace.
     token: Option<Option<String>>,
 }
@@ -277,6 +365,29 @@ fn check(i: ProviderInput) -> ApiResult<Checked> {
     }
     let kind =
         Kind::parse(&i.kind).ok_or_else(|| bad("invalid_kind", "kind must be openai or laya."))?;
+    // The catalogue a use may bind to. Required: 0031 allows an empty array only so a pre-0031 row
+    // survives until its next write; a write without models would republish that gap.
+    if i.models.is_empty() || i.models.len() > MAX_PROVIDER_MODELS {
+        return Err(bad(
+            "invalid_models",
+            "models must name at least one model, at most 100.",
+        ));
+    }
+    // Bounded by MAX_PROVIDER_MODELS above; no capacity is reserved from the user's length.
+    let mut models: Vec<String> = Vec::new();
+    for m in &i.models {
+        let m = m.trim();
+        if m.is_empty() || m.chars().count() > 200 {
+            return Err(bad(
+                "invalid_models",
+                "each model must be 1 to 200 characters.",
+            ));
+        }
+        if models.iter().any(|seen| seen == m) {
+            return Err(bad("invalid_models", "models must not repeat a name."));
+        }
+        models.push(m.to_string());
+    }
     let base_url = i.base_url.trim().trim_end_matches('/').to_string();
     if !valid_base_url(&base_url) {
         return Err(bad(
@@ -298,48 +409,19 @@ fn check(i: ProviderInput) -> ApiResult<Checked> {
         name,
         kind,
         base_url,
+        models,
         token,
     })
 }
 
-fn aad(id: Uuid) -> Vec<u8> {
-    format!("llm_provider:{id}").into_bytes()
-}
+// The legacy envelope lives in `crate::provider_secret` with its `v2:` counterpart, so a reader and a
+// writer can never disagree about which form a row is in. Re-exported here for the existing callers.
+pub use crate::provider_secret::{open_token, seal_token};
 
-/// `secret_enc`: standard base64 of nonce (12 bytes) followed by the AES-256-GCM ciphertext, bound to `id`.
-pub fn seal_token(key: &SourceKey, id: Uuid, token: &str) -> String {
-    let s = key.seal(&aad(id), token.as_bytes());
-    let mut out = s.nonce;
-    out.extend_from_slice(&s.ciphertext);
-    STANDARD.encode(out)
-}
-
-/// The token sealed by [`seal_token`] for the same provider id.
-pub fn open_token(key: &SourceKey, id: Uuid, secret_enc: &str) -> Result<String, Unreadable> {
-    let raw = STANDARD.decode(secret_enc).map_err(|_| Unreadable)?;
-    if raw.len() < 12 {
-        return Err(Unreadable);
-    }
-    let (nonce, ciphertext) = raw.split_at(12);
-    let plain = key.open(&aad(id), nonce, ciphertext)?;
-    String::from_utf8(plain).map_err(|_| Unreadable)
-}
-
-/// The sealed token for a change, or 503 `not_configured` when a token is given without `CAREBUS_SOURCE_KEY`.
-fn sealed(s: &AppState, id: Uuid, token: Option<&str>) -> ApiResult<Option<String>> {
-    match token {
-        None => Ok(None),
-        Some(t) => Ok(Some(seal_token(
-            crypto::require(s.cfg.source_key.as_ref())?,
-            id,
-            t,
-        ))),
-    }
-}
-
-const SELECT_ONE: &str =
-    "SELECT id, name, kind, base_url, secret_enc IS NOT NULL AS has_token, updated_at, updated_by
-                            FROM llm_providers WHERE id = $1";
+const SELECT_ONE: &str = "SELECT id, name, kind, base_url, models,
+            (secret_enc IS NOT NULL OR secret_sealed IS NOT NULL) AS has_token,
+            secret_fpr, secret_updated_at, updated_at, updated_by
+       FROM llm_providers WHERE id = $1 AND deleted_at IS NULL";
 
 async fn one(conn: &mut PgConnection, id: Uuid) -> ApiResult<ProviderView> {
     sqlx::query_as(SELECT_ONE)
@@ -396,8 +478,10 @@ async fn audit_provider(
 async fn list(Member(ctx): Member, State(s): State<AppState>) -> ApiResult<Json<ProvidersView>> {
     let mut tx = ctx.begin(&s.db).await?;
     let providers: Vec<ProviderView> = sqlx::query_as(
-        "SELECT id, name, kind, base_url, secret_enc IS NOT NULL AS has_token, updated_at, updated_by
-           FROM llm_providers ORDER BY name, id",
+        "SELECT id, name, kind, base_url, models,
+                (secret_enc IS NOT NULL OR secret_sealed IS NOT NULL) AS has_token,
+                secret_fpr, secret_updated_at, updated_at, updated_by
+           FROM llm_providers WHERE deleted_at IS NULL ORDER BY name, id",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -426,9 +510,83 @@ async fn list(Member(ctx): Member, State(s): State<AppState>) -> ApiResult<Json<
     Ok(Json(ProvidersView {
         providers,
         uses,
-        platform_default: s.platform_llm.view(),
+        platform_default: platform_view(&s.db).await?,
         external_llm_allowed: external,
     }))
+}
+
+/// `GET /api/providers/platform`: the deployment default, readable by any authenticated caller
+/// (it is shown next to the tenant providers it backs).
+async fn platform_default(
+    _caller: crate::auth::Caller,
+    State(s): State<AppState>,
+) -> ApiResult<Json<PlatformDefaultView>> {
+    Ok(Json(platform_view(&s.db).await?))
+}
+
+/// `PUT /api/providers/platform` (super_admin): set the deployment default. Sealed under the
+/// platform scope, version bumped inside the write so every reader's cache invalidates.
+async fn set_platform_default(
+    Provisioner(caller): Provisioner,
+    State(s): State<AppState>,
+    ApiJson(input): ApiJson<PlatformInput>,
+) -> ApiResult<Json<PlatformDefaultView>> {
+    let base_url = input.base_url.trim().trim_end_matches('/').to_string();
+    if !valid_base_url(&base_url) {
+        return Err(bad(
+            "invalid_base_url",
+            "base_url must be an http(s) URL without credentials, query or fragment.",
+        ));
+    }
+    // NOT `guard_base_url`: the platform default is deployment configuration and legitimately
+    // points at an in-cluster gateway. Only tenant-supplied URLs are held to public hosts.
+    let model = input.model.trim().to_string();
+    if model.is_empty() || model.chars().count() > 200 {
+        return Err(bad("invalid_model", "model must be 1 to 200 characters."));
+    }
+    let (replace, stored) = match input.token {
+        None => (false, None),
+        Some(t) => {
+            let t = t.trim();
+            if t.chars().count() > MAX_TOKEN_CHARS {
+                return Err(bad("invalid_token", "token is too long."));
+            }
+            if t.is_empty() {
+                (true, None)
+            } else {
+                (
+                    true,
+                    Some(crate::provider_secret::seal_platform(s.cfg.secrets(), t)?),
+                )
+            }
+        }
+    };
+    sqlx::query(
+        "INSERT INTO platform_llm_default
+             (id, base_url, model, secret_sealed, secret_fpr, secret_updated_at, version, updated_at, updated_by)
+         VALUES (true, $1, $2, $3, $4, $5, 1, now(), $6)
+         ON CONFLICT (id) DO UPDATE SET
+             base_url = EXCLUDED.base_url,
+             model = EXCLUDED.model,
+             secret_sealed = CASE WHEN $7 THEN EXCLUDED.secret_sealed ELSE platform_llm_default.secret_sealed END,
+             secret_fpr = CASE WHEN $7 THEN EXCLUDED.secret_fpr ELSE platform_llm_default.secret_fpr END,
+             secret_updated_at = CASE WHEN $7 THEN EXCLUDED.secret_updated_at ELSE platform_llm_default.secret_updated_at END,
+             version = platform_llm_default.version + 1,
+             updated_at = now(),
+             updated_by = EXCLUDED.updated_by",
+    )
+    .bind(&base_url)
+    .bind(&model)
+    .bind(stored.as_ref().map(|v| v.sealed.as_str()))
+    .bind(stored.as_ref().map(|v| v.fingerprint.as_str()))
+    .bind(stored.as_ref().map(|_| Utc::now()))
+    .bind(&caller.actor)
+    .bind(replace)
+    .execute(&s.db)
+    .await?;
+    s.platform.forget();
+    tracing::info!(actor = %caller.actor, "platform LLM default updated");
+    Ok(Json(platform_view(&s.db).await?))
 }
 
 /// Sets the tenant's LLM settings (tenant_admin). `external_llm_allowed: false` makes the researcher fail a run whose
@@ -475,17 +633,31 @@ async fn create(
     let c = check(input)?;
     guard_base_url(&s, &c.base_url)?;
     let id = Uuid::new_v4();
-    let secret_enc = sealed(&s, id, c.token.flatten().as_deref())?;
+    // Always the `v2:` keyring form: a new row must not land in the legacy `secret_enc` envelope that
+    // the keyring does not manage (0031 binds the secret to `<tenant>:llm_key:<id>`).
+    let stored = match c.token.flatten().as_deref() {
+        None => None,
+        Some(t) => Some(crate::provider_secret::seal(
+            s.cfg.secrets(),
+            ctx.tenant,
+            id,
+            t,
+        )?),
+    };
     let mut tx = ctx.begin(&s.db).await?;
     sqlx::query(
-        "INSERT INTO llm_providers (id, name, kind, base_url, secret_enc, updated_at, updated_by)
-         VALUES ($1, $2, $3, $4, $5, now(), $6)",
+        "INSERT INTO llm_providers
+             (id, name, kind, base_url, models, secret_sealed, secret_fpr, secret_updated_at, updated_at, updated_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now(), $9)",
     )
     .bind(id)
     .bind(&c.name)
     .bind(c.kind.as_str())
     .bind(&c.base_url)
-    .bind(&secret_enc)
+    .bind(&c.models)
+    .bind(stored.as_ref().map(|v| v.sealed.as_str()))
+    .bind(stored.as_ref().map(|v| v.fingerprint.as_str()))
+    .bind(stored.as_ref().map(|_| Utc::now()))
     .bind(&ctx.caller.actor)
     .execute(&mut *tx)
     .await?;
@@ -512,9 +684,20 @@ async fn update(
 ) -> ApiResult<Json<ProviderView>> {
     let c = check(input)?;
     guard_base_url(&s, &c.base_url)?;
-    let (replace, secret_enc) = match &c.token {
+    // `None` keeps the stored secret, `Some(None)` clears it, `Some(Some(t))` re-seals under the
+    // current kid. A re-seal also clears `secret_enc`, so a row never carries two live secrets.
+    let (replace, stored) = match &c.token {
         None => (false, None),
-        Some(t) => (true, sealed(&s, id, t.as_deref())?),
+        Some(None) => (true, None),
+        Some(Some(t)) => (
+            true,
+            Some(crate::provider_secret::seal(
+                s.cfg.secrets(),
+                ctx.tenant,
+                id,
+                t,
+            )?),
+        ),
     };
     let mut tx = ctx.begin(&s.db).await?;
     let current = one(&mut tx, id).await?;
@@ -533,17 +716,24 @@ async fn update(
     }
     sqlx::query(
         "UPDATE llm_providers
-            SET name = $2, kind = $3, base_url = $4,
-                secret_enc = CASE WHEN $5 THEN $6 ELSE secret_enc END,
-                updated_at = now(), updated_by = $7
+            SET name = $2, kind = $3, base_url = $4, models = $5,
+                secret_enc = CASE WHEN $6 THEN NULL ELSE secret_enc END,
+                secret_sealed = CASE WHEN $6 THEN $7 ELSE secret_sealed END,
+                secret_fpr = CASE WHEN $6 THEN $8 ELSE secret_fpr END,
+                secret_updated_at = CASE WHEN $6 THEN $9 ELSE secret_updated_at END,
+                version = version + 1,
+                updated_at = now(), updated_by = $10
           WHERE id = $1",
     )
     .bind(id)
     .bind(&c.name)
     .bind(c.kind.as_str())
     .bind(&c.base_url)
+    .bind(&c.models)
     .bind(replace)
-    .bind(&secret_enc)
+    .bind(stored.as_ref().map(|v| v.sealed.as_str()))
+    .bind(stored.as_ref().map(|v| v.fingerprint.as_str()))
+    .bind(stored.as_ref().map(|_| Utc::now()))
     .bind(&ctx.caller.actor)
     .execute(&mut *tx)
     .await?;
@@ -570,24 +760,29 @@ async fn remove(
 ) -> ApiResult<StatusCode> {
     let mut tx = ctx.begin(&s.db).await?;
     let view = one(&mut tx, id).await?;
-    let uses = bound_uses(&mut tx, id).await?;
-    if !uses.is_empty() {
-        return Err(in_use(&uses));
-    }
-    match sqlx::query("DELETE FROM llm_providers WHERE id = $1")
-        .bind(id)
-        .execute(&mut *tx)
-        .await
-    {
-        Ok(_) => {}
-        // Bound by a concurrent request between the check and the delete.
-        Err(sqlx::Error::Database(d)) if d.is_foreign_key_violation() => {
-            return Err(ApiError::Conflict(
-                "provider_in_use",
-                "This provider is bound to a use; unbind it first.".into(),
-            ));
+    // 0031 soft delete: the row stays so a binding that still names it keeps resolving to an explicit
+    // refusal rather than to a silent platform fallback, but its secret never survives the removal
+    // (the `llm_providers_deleted_check` constraint enforces that, so it is cleared here, not by a
+    // trigger). `NOT EXISTS` makes the bound check part of the write, so a concurrent bind cannot win.
+    let done = sqlx::query(
+        "UPDATE llm_providers
+            SET deleted_at = now(), secret_enc = NULL, secret_sealed = NULL,
+                secret_fpr = NULL, secret_updated_at = NULL,
+                updated_at = now(), updated_by = $2
+          WHERE id = $1 AND deleted_at IS NULL
+            AND NOT EXISTS (SELECT 1 FROM llm_provider_uses u WHERE u.provider_id = $1)",
+    )
+    .bind(id)
+    .bind(&ctx.caller.actor)
+    .execute(&mut *tx)
+    .await?;
+    if done.rows_affected() == 0 {
+        // Already removed (404 via `one` above having succeeded it is not), or bound after all.
+        let uses = bound_uses(&mut tx, id).await?;
+        if !uses.is_empty() {
+            return Err(in_use(&uses));
         }
-        Err(e) => return Err(e.into()),
+        return Err(ApiError::NotFound("provider".into()));
     }
     audit_provider(
         &mut tx,
@@ -634,30 +829,44 @@ async fn test(
     State(s): State<AppState>,
     ApiPath(id): ApiPath<Uuid>,
 ) -> ApiResult<Json<TestResult>> {
-    let (kind, base_url, secret_enc): (String, String, Option<String>) = {
+    type Stored = (String, String, Option<String>, Option<String>);
+    let (kind, base_url, secret_enc, secret_sealed): Stored = {
         let mut tx = ctx.begin(&s.db).await?;
-        sqlx::query_as("SELECT kind, base_url, secret_enc FROM llm_providers WHERE id = $1")
-            .bind(id)
-            .fetch_optional(&mut *tx)
-            .await?
-            .ok_or_else(|| ApiError::NotFound("provider".into()))?
+        sqlx::query_as(
+            "SELECT kind, base_url, secret_enc, secret_sealed FROM llm_providers WHERE id = $1",
+        )
+        .bind(id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("provider".into()))?
     };
     let kind = Kind::parse(&kind).ok_or_else(|| {
         ApiError::Internal(anyhow::anyhow!("llm_providers.kind has an unknown value"))
     })?;
-    let token = match secret_enc {
-        None => None,
-        Some(enc) => Some(
-            open_token(crypto::require(s.cfg.source_key.as_ref())?, id, &enc).map_err(|_| {
-                ApiError::Internal(anyhow::anyhow!(
-                    "a stored llm provider token cannot be decrypted"
-                ))
-            })?,
-        ),
-    };
+    let token = crate::provider_secret::open(
+        s.cfg.secrets(),
+        ctx.tenant,
+        id,
+        secret_sealed.as_deref(),
+        secret_enc.as_deref(),
+    )?;
     let result = probe(&s, kind, &base_url, token.as_deref()).await?;
+    // 0031 `last_test`: the most recent probe result, so the UI can show "last tested" without re-probing.
+    let last_test = json!({
+        "ok": result.ok,
+        "status": result.status,
+        "latency_ms": result.latency_ms,
+        "models": result.models.len(),
+        "at": Utc::now(),
+        "by": ctx.caller.actor,
+    });
     // One row per test: the admin action succeeded even when the provider is down.
     let mut tx = ctx.begin(&s.db).await?;
+    sqlx::query("UPDATE llm_providers SET last_test = $2 WHERE id = $1")
+        .bind(id)
+        .bind(&last_test)
+        .execute(&mut *tx)
+        .await?;
     audit_provider(
         &mut tx,
         &ctx,
@@ -764,32 +973,32 @@ async fn test_unsaved(
         (Some(t), _) => Some(t),
         (None, None) => None,
         (None, Some(id)) => {
-            let (stored_url, secret_enc): (String, Option<String>) = {
+            let (stored_url, secret_enc, secret_sealed): (String, Option<String>, Option<String>) = {
                 let mut tx = ctx.begin(&s.db).await?;
-                sqlx::query_as("SELECT base_url, secret_enc FROM llm_providers WHERE id = $1")
-                    .bind(id)
-                    .fetch_optional(&mut *tx)
-                    .await?
-                    .ok_or_else(|| ApiError::NotFound("provider".into()))?
+                sqlx::query_as(
+                    "SELECT base_url, secret_enc, secret_sealed FROM llm_providers WHERE id = $1",
+                )
+                .bind(id)
+                .fetch_optional(&mut *tx)
+                .await?
+                .ok_or_else(|| ApiError::NotFound("provider".into()))?
             };
-            match secret_enc {
-                None => None,
-                Some(_) if stored_url != base_url => {
-                    return Err(ApiError::Unprocessable(
-                        "token_required_for_new_base_url",
-                        "Testing another base_url needs the token again; the stored token is never sent to a new host."
-                            .into(),
-                    ));
-                }
-                Some(enc) => Some(
-                    open_token(crypto::require(s.cfg.source_key.as_ref())?, id, &enc).map_err(
-                        |_| {
-                            ApiError::Internal(anyhow::anyhow!(
-                                "a stored llm provider token cannot be decrypted"
-                            ))
-                        },
-                    )?,
-                ),
+            if secret_enc.is_none() && secret_sealed.is_none() {
+                None
+            } else if stored_url != base_url {
+                return Err(ApiError::Unprocessable(
+                    "token_required_for_new_base_url",
+                    "Testing another base_url needs the token again; the stored token is never sent to a new host."
+                        .into(),
+                ));
+            } else {
+                crate::provider_secret::open(
+                    s.cfg.secrets(),
+                    ctx.tenant,
+                    id,
+                    secret_sealed.as_deref(),
+                    secret_enc.as_deref(),
+                )?
             }
         }
     };
@@ -839,12 +1048,20 @@ async fn bind(
     };
     let mut tx = ctx.begin(&s.db).await?;
     if let Some(pid) = input.provider_id {
-        let kind: Option<String> =
-            sqlx::query_scalar("SELECT kind FROM llm_providers WHERE id = $1")
+        // A soft-deleted row still satisfies the FK, so without this check a binding could name a
+        // provider that no longer resolves — and the turn would silently use the platform model.
+        let found: Option<(String, bool)> =
+            sqlx::query_as("SELECT kind, deleted_at IS NOT NULL FROM llm_providers WHERE id = $1")
                 .bind(pid)
                 .fetch_optional(&mut *tx)
                 .await?;
-        let kind = kind.ok_or_else(|| ApiError::NotFound("provider".into()))?;
+        let (kind, deleted) = found.ok_or_else(|| ApiError::NotFound("provider".into()))?;
+        if deleted {
+            return Err(ApiError::Conflict(
+                "provider_deleted",
+                "This provider was removed; bind a live one.".into(),
+            ));
+        }
         if Kind::parse(&kind) != Some(u.kind()) {
             return Err(ApiError::BadRequest(
                 "provider_kind_mismatch",
@@ -891,6 +1108,11 @@ async fn bind(
 #[cfg(test)]
 mod tests {
     use super::*;
+    // The legacy envelope's own test lives here because this is where it used to be defined; the
+    // module that now owns it (crate::provider_secret) tests the `v2:` form.
+    use crate::crypto::{SourceKey, Unreadable};
+    use base64::Engine;
+    use base64::engine::general_purpose::STANDARD;
 
     fn key() -> SourceKey {
         SourceKey::from_base64(&STANDARD.encode((0u8..32).collect::<Vec<u8>>())).unwrap()
@@ -991,6 +1213,7 @@ mod tests {
             name: " Local ".into(),
             kind: "openai".into(),
             base_url: "https://h/v1/".into(),
+            models: vec!["jev-latest".into()],
             token: token.map(String::from),
         };
         let c = check(base(None)).unwrap();
@@ -1007,6 +1230,43 @@ mod tests {
         assert!(matches!(
             check(wrong),
             Err(ApiError::BadRequest("invalid_kind", _))
+        ));
+    }
+
+    #[test]
+    fn models_are_required_trimmed_unique_and_bounded() {
+        let base = |models: Vec<&str>| ProviderInput {
+            name: "P".into(),
+            kind: "openai".into(),
+            base_url: "https://h/v1".into(),
+            models: models.into_iter().map(String::from).collect(),
+            token: None,
+        };
+        assert_eq!(
+            check(base(vec![" a ", "b"])).unwrap().models,
+            vec!["a".to_string(), "b".to_string()]
+        );
+        for bad in [vec![], vec!["a", "a"], vec![""], vec!["   "]] {
+            assert!(
+                matches!(
+                    check(base(bad.clone())),
+                    Err(ApiError::BadRequest("invalid_models", _))
+                ),
+                "{bad:?} must be refused"
+            );
+        }
+        let long = "x".repeat(201);
+        assert!(matches!(
+            check(base(vec![long.as_str()])),
+            Err(ApiError::BadRequest("invalid_models", _))
+        ));
+        let hundred: Vec<String> = (0..MAX_PROVIDER_MODELS).map(|i| format!("m{i}")).collect();
+        assert!(check(base(hundred.iter().map(String::as_str).collect())).is_ok());
+        let mut too_many = hundred;
+        too_many.push("extra".into());
+        assert!(matches!(
+            check(base(too_many.iter().map(String::as_str).collect())),
+            Err(ApiError::BadRequest("invalid_models", _))
         ));
     }
 }

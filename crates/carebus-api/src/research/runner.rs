@@ -67,6 +67,8 @@ pub struct RunnerConfig {
     /// Per model call; keep it well under `lease_s`.
     pub llm_timeout: Duration,
     pub source_key: Option<SourceKey>,
+    /// `PROVIDER_SECRET_KEYS`: the `v2:` keyring a provider secret written since 0031 is sealed under.
+    pub provider_keyring: Option<crate::provider_keyring::Keyring>,
     /// Test-only (loopback provider URLs); never settable from the environment.
     pub allow_loopback: bool,
     /// Model call attempts on a transient failure, and the first backoff (doubling).
@@ -94,6 +96,7 @@ impl RunnerConfig {
             default_llm,
             llm_timeout: Duration::from_secs(300),
             source_key: None,
+            provider_keyring: None,
             allow_loopback: false,
             llm_attempts: 3,
             llm_backoff: Duration::from_secs(2),
@@ -102,6 +105,14 @@ impl RunnerConfig {
             heartbeat: None,
             metering_emit: false,
             service_actor: None,
+        }
+    }
+
+    /// The key material a bound provider's secret may be sealed under (both stored forms).
+    pub fn secrets(&self) -> crate::provider_secret::Secrets<'_> {
+        crate::provider_secret::Secrets {
+            source_key: self.source_key.as_ref(),
+            keyring: self.provider_keyring.as_ref(),
         }
     }
 
@@ -886,7 +897,7 @@ impl<L: Llm, T: ToolSet, R: Resolver> Runner<L, T, R> {
                     &self.db,
                     s.tenant,
                     use_name,
-                    self.cfg.source_key.as_ref(),
+                    self.cfg.secrets(),
                     self.cfg.allow_loopback,
                     &self.cfg.default_llm,
                     self.cfg.llm_timeout,

@@ -9,6 +9,8 @@ import type {
 	LlmUse,
 	LlmUseBinding,
 	LlmUseInput,
+	PlatformDefault,
+	PlatformDefaultInput,
 	ProviderInput,
 	ProviderSlots,
 } from './providers';
@@ -221,6 +223,10 @@ export function createClient(o: Opts) {
 		case: (id: string) => req<T.CaseDetail>('GET', J(`/cases/${seg(id)}`)),
 		/** The tenant's LLM providers, the qualify/gates bindings and the platform default (spec §2). */
 		llmProviders: () => req<LlmProviders>('GET', '/api/providers'),
+		/** The deployment-wide default (0033). Members read it; a super_admin changes it. */
+		platformDefault: () => req<PlatformDefault>('GET', '/api/providers/platform'),
+		setPlatformDefault: (input: PlatformDefaultInput) =>
+			req<PlatformDefault>('PUT', '/api/providers/platform', input),
 		/** `token` is write-only. */
 		createLlmProvider: (input: LlmProviderInput) => req<LlmProvider>('POST', '/api/providers', input),
 		/** `token` absent = keep the stored one, `""` = clear it. */

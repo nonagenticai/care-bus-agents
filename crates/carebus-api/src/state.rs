@@ -8,7 +8,7 @@ use sqlx::postgres::PgPoolOptions;
 use uuid::Uuid;
 
 use crate::auth::Verifier;
-use crate::chat_q::{AnyQualifier, PlatformLlm, TenantQualifiers};
+use crate::chat_q::{PlatformQualifier, TenantQualifiers};
 use crate::config::Config;
 use crate::licence::LicenceGate;
 
@@ -32,11 +32,10 @@ pub struct AppState {
     pub mcp_catalog: Option<Arc<HttpMcp>>,
     /// Binding provisioning behind `mcp_catalog` and `POST /api/internal/mcp-credentials {kind: binding}`.
     pub bindings: Option<Arc<crate::mcp_binding::Bindings>>,
-    /// The platform default chat qualifier (a tenant without a `qualify` binding): the rig extractor when
-    /// `VLLM_LICENSE_TOKEN` is set, keyword rules otherwise. Resolved per turn by `chat_q::qualifier_for`.
-    pub qualifier: Arc<AnyQualifier>,
-    /// What the platform default runs on (`GET /api/providers` `platform_default`).
-    pub platform_llm: Arc<PlatformLlm>,
+    /// The platform default chat qualifier (a tenant without a `qualify` binding): migration 0033's
+    /// row, or keyword rules when it is absent. Resolved per turn by `chat_q::qualifier_for`, and
+    /// invalidated by `PUT /api/providers/platform`.
+    pub platform: Arc<PlatformQualifier>,
     /// Qualifiers built from tenants' `qualify` bindings.
     pub qualifiers: Arc<TenantQualifiers>,
     /// Licence gate 2; a no-op unless `LICENSE_GATE_2_ENABLED=true`.
@@ -64,6 +63,13 @@ pub async fn build(cfg: Config) -> Result<AppState> {
         .await
         .context("connect DATABASE_APP_URL (runtime role)")?;
     refuse_rls_bypass(&db).await?;
+    // 0033: the platform default is a row. Seed it once from the bootstrap env (never over a
+    // super_admin's edit); from here on the env variables are not read at runtime.
+    if cfg.seed_platform_default
+        && let Err(e) = carebus::provider_db::ensure_platform_default(&db, cfg.secrets()).await
+    {
+        tracing::warn!("platform default not seeded: {e:#}");
+    }
     let bus = Bus::connect(&cfg.redis_url, &cfg.prefix).await?;
     reconcile_scopes(&db, &bus).await?;
     let http = reqwest::Client::builder()
@@ -142,8 +148,7 @@ pub async fn build(cfg: Config) -> Result<AppState> {
         mcp,
         mcp_catalog,
         bindings,
-        qualifier: Arc::new(AnyQualifier::from_env()?),
-        platform_llm: Arc::new(PlatformLlm::from_env()),
+        platform: Arc::new(PlatformQualifier::new(cfg.service_actor)),
         qualifiers: Arc::new(TenantQualifiers::default()),
         licence,
         signup,
@@ -199,8 +204,10 @@ async fn reconcile_scopes(db: &PgPool, bus: &Bus) -> Result<()> {
 /// `main` never calls this.
 pub async fn build_for_tests(cfg: Config) -> Result<AppState> {
     let mut st = build(cfg).await?;
-    st.qualifier = Arc::new(AnyQualifier::Rules(carebus::interaction::RuleQualifier)); // never the live LLM
-    st.platform_llm = Arc::new(PlatformLlm::default());
+    // Never the live LLM in tests: the platform default is the keyword rules unless a test says otherwise.
+    st.platform = Arc::new(PlatformQualifier::fixed(Arc::new(
+        crate::chat_q::AnyQualifier::Rules(carebus::interaction::RuleQualifier),
+    )));
     st.mcp = None; // tests inject a stub explicitly, never the developer's env
     st.mcp_catalog = None;
     st.bindings = None;

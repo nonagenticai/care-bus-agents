@@ -1,68 +1,124 @@
 //! The qualifier carebus-api uses for chat, resolved per tenant on every turn ([`qualifier_for`]):
 //! 1. the tenant's `qualify` binding (`llm_provider_uses` → an `openai` provider in `llm_providers`, token decrypted
-//!    with `CAREBUS_SOURCE_KEY`), cached per tenant and keyed by (provider id, provider `updated_at`, model);
-//! 2. no binding: the platform default, the rig extractor from env when `VLLM_LICENSE_TOKEN` is set;
-//! 3. no binding and no env: keyword rules.
+//!    with `CAREBUS_SOURCE_KEY`), cached per tenant and keyed by (provider id, provider `version`, model);
+//! 2. no binding: [`PlatformQualifier`] — migration 0033's singleton row, seeded once from the old env;
+//! 3. no binding and no row: keyword rules.
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
 use carebus::interaction::{
-    DEFAULT_LLM_BASE_URL, DEFAULT_MODEL, Draft, Extraction, Qualifier, RigQualifier, RuleQualifier,
-    StartData,
+    DEFAULT_MODEL, Draft, Extraction, Qualifier, RigQualifier, RuleQualifier, StartData,
 };
 use carebus::spaces::SpaceCatalog;
-use chrono::{DateTime, Utc};
+
 use futures_util::future::BoxFuture;
 use uuid::Uuid;
 
-use crate::crypto;
 use crate::error::{ApiError, ApiResult};
-use crate::routes::llm_providers::{PlatformDefaultView, open_token};
 use crate::state::AppState;
 
-/// The platform default qualifier LLM as configured by env, for `GET /api/providers` (`platform_default`).
-#[derive(Clone, Debug, Default)]
-pub struct PlatformLlm {
-    /// `Some((base_url, model))` when `VLLM_LICENSE_TOKEN` is set; the token itself is never kept here.
-    pub endpoint: Option<(String, String)>,
+/// The platform default (0033), built per row version and cached: a super_admin's PUT is picked up
+/// on the next turn without a restart.
+///
+/// The platform model is deployment configuration, not tenant input: its base_url is the internal
+/// inference gateway, so it is deliberately **not** run through `crate::netguard` (which refuses
+/// every cluster-internal name). A tenant's provider is. `fixed` is the test override — when set,
+/// the row is never read and this is exactly the qualifier returned.
+pub struct PlatformQualifier {
+    fixed: Option<Arc<AnyQualifier>>,
+    cache: Mutex<Option<(i64, Arc<AnyQualifier>)>>,
+    service_actor: Option<Uuid>,
 }
 
-impl PlatformLlm {
-    /// Mirrors [`AnyQualifier::from_env`] and `RigQualifier::from_env`.
-    pub fn from_env() -> Self {
-        if std::env::var("VLLM_LICENSE_TOKEN").is_err() {
-            return Self::default();
-        }
-        let base_url =
-            std::env::var("CAREBUS_LLM_BASE_URL").unwrap_or_else(|_| DEFAULT_LLM_BASE_URL.into());
-        let model = std::env::var("CAREBUS_MODEL").unwrap_or_else(|_| DEFAULT_MODEL.into());
+impl PlatformQualifier {
+    pub fn new(service_actor: Option<Uuid>) -> Self {
         Self {
-            endpoint: Some((base_url, model)),
+            fixed: None,
+            cache: Mutex::new(None),
+            service_actor,
         }
     }
 
-    pub fn view(&self) -> PlatformDefaultView {
-        match &self.endpoint {
-            Some((base_url, model)) => PlatformDefaultView {
-                base_url: Some(base_url.clone()),
-                model: Some(model.clone()),
-                configured: true,
-            },
-            None => PlatformDefaultView {
-                base_url: None,
-                model: None,
-                configured: false,
-            },
+    /// Tests: a fixed qualifier instead of the row (rules, a recording stub, …).
+    pub fn fixed(q: Arc<AnyQualifier>) -> Self {
+        Self {
+            fixed: Some(q),
+            cache: Mutex::new(None),
+            service_actor: None,
         }
+    }
+
+    /// `AppState::platform` is an `Arc`; tests install a fixed qualifier by replacing that Arc.
+    pub fn test_fixed(q: AnyQualifier) -> Arc<Self> {
+        Arc::new(Self::fixed(Arc::new(q)))
+    }
+
+    /// The fixed qualifier, when this was built for a test (pointer-identity assertions).
+    pub fn fixed_qualifier(&self) -> Option<Arc<AnyQualifier>> {
+        self.fixed.clone()
+    }
+
+    /// Drop the cached build: the row changed under us (`PUT /api/providers/platform`).
+    pub fn forget(&self) {
+        *self.cache.lock().expect("platform qualifier cache") = None;
+    }
+
+    /// The platform default for the next turn. No row (or a database that predates 0033) is the
+    /// keyword rules, never an error.
+    pub async fn resolve(&self, st: &AppState) -> ApiResult<Arc<AnyQualifier>> {
+        if let Some(q) = &self.fixed {
+            return Ok(q.clone());
+        }
+        let row: Option<(String, String, Option<String>, i64)> = sqlx::query_as(
+            "SELECT base_url, model, secret_sealed, version FROM platform_llm_default WHERE id",
+        )
+        .fetch_optional(&st.db)
+        .await
+        .or_else(|e| {
+            if matches!(&e, sqlx::Error::Database(d) if d.code().as_deref() == Some("42P01")) {
+                Ok(None)
+            } else {
+                Err(e)
+            }
+        })?;
+        let Some((base_url, model, sealed, version)) = row else {
+            return Ok(rules());
+        };
+        if let Some((_, q)) = self
+            .cache
+            .lock()
+            .expect("platform qualifier cache")
+            .as_ref()
+            .filter(|(v, _)| *v == version)
+        {
+            return Ok(q.clone());
+        }
+        let token = crate::provider_secret::open_platform(st.cfg.secrets(), sealed.as_deref())?
+            .unwrap_or_default();
+        let q = Arc::new(AnyQualifier::Rig(Box::new(
+            RigQualifier::with_service_actor(token, base_url, model, self.service_actor)
+                .map_err(ApiError::Internal)?,
+        )));
+        let mut cache = self.cache.lock().expect("platform qualifier cache");
+        if cache.as_ref().is_none_or(|(v, _)| version >= *v) {
+            *cache = Some((version, q.clone()));
+        }
+        Ok(q)
     }
 }
 
-/// What a cached tenant qualifier was built from; any change rebuilds it.
+fn rules() -> Arc<AnyQualifier> {
+    Arc::new(AnyQualifier::Rules(RuleQualifier))
+}
+
+/// What a cached tenant qualifier was built from; any change rebuilds it. `version` (0032) is
+/// bumped inside every provider UPDATE, so it orders two concurrent admins' writes correctly;
+/// `updated_at` is the transaction's start time and can commit out of order.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct BuiltFrom {
     provider: Uuid,
-    updated_at: DateTime<Utc>,
+    version: i64,
     model: Option<String>,
 }
 
@@ -93,42 +149,48 @@ impl TenantQualifiers {
     }
 }
 
-/// The qualifier for one turn in `tenant`: its `qualify` binding, else the platform default (`st.qualifier`).
+/// The qualifier for one turn in `tenant`: its `qualify` binding, else [`PlatformQualifier`].
 /// A bound provider whose token cannot be used is an error, never a silent fallback to another model.
 pub async fn qualifier_for(st: &AppState, tenant: Uuid) -> ApiResult<Arc<AnyQualifier>> {
-    type Bound = (Uuid, String, Option<String>, DateTime<Utc>, Option<String>);
+    type Bound = (
+        Uuid,
+        String,
+        Option<String>,
+        Option<String>,
+        i64,
+        Option<String>,
+    );
     let row: Option<Bound> = {
         let mut tx = crate::tenancy::begin_scoped(&st.db, tenant, None).await?;
         sqlx::query_as(
-            "SELECT p.id, p.base_url, p.secret_enc, p.updated_at, u.model
+            "SELECT p.id, p.base_url, p.secret_enc, p.secret_sealed, p.version, u.model
                FROM llm_provider_uses u
                JOIN llm_providers p ON p.tenant_id = u.tenant_id AND p.id = u.provider_id
-              WHERE u.\"use\" = 'qualify' AND p.kind = 'openai'",
+              WHERE u.\"use\" = 'qualify' AND p.kind = 'openai' AND p.deleted_at IS NULL",
         )
         .fetch_optional(&mut *tx)
         .await?
     };
-    let Some((provider, base_url, secret_enc, updated_at, model)) = row else {
+    let Some((provider, base_url, secret_enc, secret_sealed, version, model)) = row else {
         st.qualifiers.forget(tenant);
-        return Ok(st.qualifier.clone());
+        return st.platform.resolve(st).await;
     };
     let from = BuiltFrom {
         provider,
-        updated_at,
+        version,
         model: model.clone(),
     };
     if let Some(q) = st.qualifiers.get(tenant, &from) {
         return Ok(q);
     }
-    let token = match secret_enc {
-        None => String::new(),
-        Some(enc) => open_token(crypto::require(st.cfg.source_key.as_ref())?, provider, &enc)
-            .map_err(|_| {
-                ApiError::Internal(anyhow::anyhow!(
-                    "the qualify provider's stored token cannot be decrypted"
-                ))
-            })?,
-    };
+    let token = crate::provider_secret::open(
+        st.cfg.secrets(),
+        tenant,
+        provider,
+        secret_sealed.as_deref(),
+        secret_enc.as_deref(),
+    )?
+    .unwrap_or_default();
     let model = model.unwrap_or_else(|| DEFAULT_MODEL.to_string());
     // The stored base_url passed the literal guard on save; per cache entry its host is resolved, every answer
     // checked and the client pinned to the checked address, with no redirects and no proxy (crate::netguard).
@@ -178,16 +240,6 @@ pub enum AnyQualifier {
         std::time::Duration,
         std::sync::Arc<std::sync::atomic::AtomicUsize>,
     ),
-}
-
-impl AnyQualifier {
-    pub fn from_env() -> Result<Self> {
-        Ok(if std::env::var("VLLM_LICENSE_TOKEN").is_ok() {
-            AnyQualifier::Rig(Box::new(RigQualifier::from_env()?))
-        } else {
-            AnyQualifier::Rules(RuleQualifier)
-        })
-    }
 }
 
 impl Qualifier for AnyQualifier {

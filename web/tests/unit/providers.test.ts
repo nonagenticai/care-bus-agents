@@ -36,9 +36,23 @@ import {
 	validateLlmDraft,
 	type LlmProvider,
 	type LlmProviders,
+	type PlatformDefault,
 	type ProviderCapability,
 } from '../../src/lib/api/providers';
 import { createClient } from '../../src/lib/api/client';
+
+/** A platform default with only the fields a case cares about; the rest read as "not configured". */
+const platformDefault = (over: Partial<PlatformDefault> = {}): PlatformDefault => ({
+	base_url: null,
+	model: null,
+	configured: false,
+	has_token: false,
+	secret_fpr: null,
+	secret_updated_at: null,
+	updated_at: null,
+	updated_by: null,
+	...over,
+});
 
 const read = (name: string) =>
 	JSON.parse(readFileSync(`src/lib/api/fixtures/providers/${name}.json`, 'utf8'));
@@ -290,7 +304,8 @@ describe('LLM providers fixtures match providers.ts', () => {
 			expect(LLM_USES).toContain(u.use);
 		}
 		expect(keys(body.platform_default)).toEqual(mapKeys(LLM_SHAPES.PLATFORM_DEFAULT));
-		expect(JSON.stringify(body)).not.toMatch(/"token"|"secret/);
+		// The secret itself never leaves the server: only its fingerprint and rotation time do.
+		expect(JSON.stringify(body)).not.toMatch(/"(token|secret_enc|secret_sealed|api_key)"\s*:/u);
 	});
 
 	it('the test result carries ok, status, latency and the model names', () => {
@@ -321,12 +336,16 @@ describe('LLM provider uses', () => {
 	});
 
 	it('unbound qualify falls back to the platform default, or to keyword rules without one', () => {
-		const pd = { base_url: 'http://vllm.example:8001/v1', model: 'local-llm', configured: true };
+		const pd = platformDefault({
+			base_url: 'http://vllm.example:8001/v1',
+			model: 'local-llm',
+			configured: true,
+		});
 		expect(useSummary(unbound(pd), 'qualify')).toEqual({
 			word: 'idle',
 			text: 'Platform default: local-llm @ http://vllm.example:8001/v1',
 		});
-		expect(useSummary(unbound({ base_url: null, model: null, configured: false }), 'qualify')).toEqual({
+		expect(useSummary(unbound(platformDefault()), 'qualify')).toEqual({
 			word: 'warn',
 			text: 'No LLM — keyword rules',
 		});
@@ -360,12 +379,16 @@ describe('LLM provider uses', () => {
 	});
 
 	it('unbound research runs on the platform default; unbound research_write borrows research', () => {
-		const pd = { base_url: 'http://vllm.example:8001/v1', model: 'local-llm', configured: true };
+		const pd = platformDefault({
+			base_url: 'http://vllm.example:8001/v1',
+			model: 'local-llm',
+			configured: true,
+		});
 		expect(useSummary(unbound(pd), 'research')).toEqual({
 			word: 'idle',
 			text: 'Platform default: local-llm @ http://vllm.example:8001/v1',
 		});
-		expect(useSummary(unbound({ base_url: null, model: null, configured: false }), 'research')).toEqual({
+		expect(useSummary(unbound(platformDefault()), 'research')).toEqual({
 			word: 'warn',
 			text: 'No LLM — research runs fail',
 		});
@@ -399,7 +422,10 @@ describe('LLM provider form', () => {
 		name: 'Laya',
 		kind: 'laya',
 		base_url: 'https://laya.example.eu',
+		models: ['jev-system1'],
 		has_token: true,
+		secret_fpr: '7f3a1c2e',
+		secret_updated_at: '2026-10-18T09:00:00Z',
 		updated_at: '2026-10-18T09:00:00Z',
 		updated_by: 'admin',
 	};
@@ -407,8 +433,18 @@ describe('LLM provider form', () => {
 	it('the token is never pre-filled, and blank on edit keeps the stored one', () => {
 		const d = llmDraftFor(stored);
 		expect(d.token).toBe('');
-		expect(toLlmInput(d)).toEqual({ name: 'Laya', kind: 'laya', base_url: 'https://laya.example.eu' });
+		expect(toLlmInput(d)).toEqual({
+			name: 'Laya',
+			kind: 'laya',
+			base_url: 'https://laya.example.eu',
+			models: ['jev-system1'],
+		});
 		expect(toLlmInput(d)).not.toHaveProperty('token');
+	});
+
+	it('models are comma-separated in the form and split, trimmed and de-blanked on save', () => {
+		const d = { ...llmDraftFor(stored), models: ' a , b ,, c ' };
+		expect(toLlmInput(d).models).toEqual(['a', 'b', 'c']);
 	});
 
 	it('a typed token is sent trimmed; Clear token sends an empty string even if one was typed', () => {
@@ -475,7 +511,18 @@ describe('LLM provider form', () => {
 	it('validation names each bad field', () => {
 		expect(validateLlmDraft(llmDraftFor(stored))).toEqual({});
 		const e = validateLlmDraft({ ...llmDraftFor(null), kind: 'other' as never });
-		expect(Object.keys(e).sort()).toEqual(['base_url', 'kind', 'name']);
+		expect(Object.keys(e).sort()).toEqual(['base_url', 'kind', 'models', 'name']);
+	});
+
+	it('models: at least one, at most 100, no repeats, each at most 200 characters', () => {
+		const base = llmDraftFor(stored);
+		expect(validateLlmDraft({ ...base, models: '' }).models).toMatch(/at least one/);
+		expect(validateLlmDraft({ ...base, models: 'a, a' }).models).toMatch(/not repeat/);
+		expect(validateLlmDraft({ ...base, models: 'x'.repeat(201) }).models).toMatch(/200/);
+		expect(
+			validateLlmDraft({ ...base, models: Array.from({ length: 101 }, (_, i) => `m${i}`).join(',') }).models,
+		).toMatch(/At most 100/);
+		expect(validateLlmDraft({ ...base, models: 'a, b' }).models).toBeUndefined();
 	});
 });
 
@@ -579,21 +626,15 @@ describe('LLM provider form: Test and Use for', () => {
 		expect(unboundNotice(none, 'qualify')).toBe(
 			'qualify: not bound — chat uses the platform default (local-llm @ http://vllm.example:8001/v1)',
 		);
-		expect(
-			unboundNotice(
-				{ ...none, platform_default: { base_url: null, model: null, configured: false } },
-				'qualify',
-			),
-		).toBe('qualify: not bound — requests are qualified by keyword rules, no LLM');
+		expect(unboundNotice({ ...none, platform_default: platformDefault() }, 'qualify')).toBe(
+			'qualify: not bound — requests are qualified by keyword rules, no LLM',
+		);
 		expect(unboundNotice(none, 'research')).toBe(
 			'research: not bound — research runs use the platform default (local-llm @ http://vllm.example:8001/v1)',
 		);
-		expect(
-			unboundNotice(
-				{ ...none, platform_default: { base_url: null, model: null, configured: false } },
-				'research',
-			),
-		).toBe('research: not bound — no platform default is configured, research runs cannot start');
+		expect(unboundNotice({ ...none, platform_default: platformDefault() }, 'research')).toBe(
+			'research: not bound — no platform default is configured, research runs cannot start',
+		);
 		expect(unboundNotice(none, 'research_write')).toBe(
 			'research_write: not bound — the research binding writes the memo (Platform default: local-llm @ http://vllm.example:8001/v1)',
 		);
@@ -609,8 +650,20 @@ describe('LLM providers client', () => {
 		}) as unknown as typeof globalThis.fetch;
 		const c = createClient({ baseUrl: 'http://api', token: async () => 't', job: () => 'j', fetch });
 		await c.llmProviders();
-		await c.createLlmProvider({ name: 'L', kind: 'laya', base_url: 'https://l.example', token: 'x' });
-		await c.updateLlmProvider('p 1', { name: 'L', kind: 'laya', base_url: 'https://l.example', token: '' });
+		await c.createLlmProvider({
+			name: 'L',
+			kind: 'laya',
+			base_url: 'https://l.example',
+			models: ['jev-system1'],
+			token: 'x',
+		});
+		await c.updateLlmProvider('p 1', {
+			name: 'L',
+			kind: 'laya',
+			base_url: 'https://l.example',
+			models: ['jev-system1'],
+			token: '',
+		});
 		await c.deleteLlmProvider('p1');
 		await c.testLlmProvider('p1');
 		await c.testLlmProviderDraft({ kind: 'laya', base_url: 'https://l.example', provider_id: 'p1' });
@@ -628,7 +681,13 @@ describe('LLM providers client', () => {
 			'GET http://api/api/providers/slots',
 			'DELETE http://api/api/providers/slots/ocr',
 		]);
-		expect(calls[2]!.body).toEqual({ name: 'L', kind: 'laya', base_url: 'https://l.example', token: '' });
+		expect(calls[2]!.body).toEqual({
+			name: 'L',
+			kind: 'laya',
+			base_url: 'https://l.example',
+			models: ['jev-system1'],
+			token: '',
+		});
 		expect(calls[5]!.body).toEqual({ kind: 'laya', base_url: 'https://l.example', provider_id: 'p1' });
 		expect(calls[6]!.body).toEqual({ provider_id: 'p1', model: 'jev-system1' });
 	});
