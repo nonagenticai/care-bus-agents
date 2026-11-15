@@ -12,22 +12,9 @@ export type StepKind = 'model' | 'tool';
 export type StepStatus = 'ok' | 'error' | 'denied';
 export type ClaimStatus = 'pending' | 'supported' | 'unsupported';
 export type SourceKind =
-	| 'strata'
-	| 'web'
-	| 'eli'
-	| 'saos'
-	| 'eurlex'
-	| 'krs'
-	| 'literature'
-	| 'stats'
-	| 'other';
+	'strata' | 'web' | 'eli' | 'saos' | 'eurlex' | 'krs' | 'literature' | 'stats' | 'other';
 export type VerifyStatus =
-	| 'pending'
-	| 'verified'
-	| 'quote_mismatch'
-	| 'source_unresolved'
-	| 'not_in_force'
-	| 'unverifiable';
+	'pending' | 'verified' | 'quote_mismatch' | 'source_unresolved' | 'not_in_force' | 'unverifiable';
 
 export const PROFILES: readonly ResearchProfile[] = ['research', 'legal'];
 export const PROFILE_LABEL: Record<ResearchProfile, string> = { research: 'Research', legal: 'Legal (PL)' };
