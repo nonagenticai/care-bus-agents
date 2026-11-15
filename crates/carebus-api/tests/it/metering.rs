@@ -33,7 +33,8 @@ async fn metered_env(test: &str, emit: bool) -> crate::common::TestEnv {
 /// One chat turn whose qualifier records `usage()`; returns the conversation id.
 async fn metered_turn(e: &crate::common::TestEnv) -> String {
     let mut state = e.state.clone();
-    state.qualifier = std::sync::Arc::new(AnyQualifier::Metered(usage()));
+    state.platform =
+        carebus_api::chat_q::PlatformQualifier::test_fixed(AnyQualifier::Metered(usage()));
     let app = carebus_api::router(state);
     let t = crate::common::user();
     let (s, c) = crate::common::send(

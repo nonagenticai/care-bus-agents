@@ -28,6 +28,7 @@
 		usesForKind,
 		useForPlan,
 		draftModels,
+		platformUrlProblem,
 		useSummary,
 		usesOf,
 		validateLlmDraft,
@@ -38,6 +39,7 @@
 		type LlmProviderTest,
 		type LlmProviders,
 		type LlmUse,
+		type PlatformDefaultInput,
 	} from '$lib/api/providers';
 	import Card from '$lib/ui/Card.svelte';
 	import Status from '$lib/ui/Status.svelte';
@@ -223,6 +225,56 @@
 		const p = editing;
 		if (!p) return;
 		void write(() => api().deleteLlmProvider(p.id), `Deleted ${p.name}.`);
+	}
+
+	// ---- platform default (migration 0033) ----------------------------------------------------------------------
+
+	const canEditPlatform = $derived(session.superAdmin);
+	let pdOpen = $state(false);
+	let pdDraft = $state({ base_url: '', model: '', token: '', clear: false });
+	let pdBusy = $state(false);
+	let pdFailure = $state('');
+
+	function editPlatform() {
+		if (!data) return;
+		pdDraft = {
+			base_url: data.platform_default.base_url ?? '',
+			model: data.platform_default.model ?? '',
+			token: '',
+			clear: false,
+		};
+		pdFailure = '';
+		pdOpen = true;
+	}
+
+	async function savePlatform() {
+		if (!canEditPlatform || pdBusy) return;
+		const base_url = pdDraft.base_url.trim().replace(/\/+$/u, '');
+		const problem = platformUrlProblem(base_url);
+		if (problem) {
+			pdFailure = problem;
+			return;
+		}
+		const model = pdDraft.model.trim();
+		if (!model) {
+			pdFailure = 'Enter a model.';
+			return;
+		}
+		pdBusy = true;
+		pdFailure = '';
+		try {
+			const input: PlatformDefaultInput = { base_url, model };
+			if (pdDraft.clear) input.token = '';
+			else if (pdDraft.token.trim()) input.token = pdDraft.token.trim();
+			await api().setPlatformDefault(input);
+			toast('Platform default saved.');
+			pdOpen = false;
+			await llm.refresh();
+		} catch (e) {
+			pdFailure = errText(e);
+		} finally {
+			pdBusy = false;
+		}
 	}
 
 	// ---- uses -------------------------------------------------------------------------------------------------
@@ -453,6 +505,100 @@
 				</div>
 			</section>
 		{/each}
+	</Card>
+
+	<Card
+		title="Platform default"
+		sub="The deployment-wide model a tenant gets when it binds no provider of its own. Changing it needs a super_admin."
+	>
+		{#snippet actions()}
+			{#if canEditPlatform}
+				<button class="btn sm" type="button" onclick={editPlatform}>Edit</button>
+			{/if}
+		{/snippet}
+		{#if data.platform_default.configured}
+			<div class="tbl-wrap">
+				<table class="tbl" aria-label="Platform default">
+					<tbody>
+						<tr><th>Base URL</th><td class="mono">{data.platform_default.base_url}</td></tr>
+						<tr><th>Model</th><td class="mono">{data.platform_default.model}</td></tr>
+						<tr>
+							<th>Token</th>
+							<td
+								>{data.platform_default.has_token ? 'Set' : 'Not set'}
+								{#if data.platform_default.secret_fpr}
+									<span class="muted mono"> · {data.platform_default.secret_fpr}</span>
+								{/if}
+								{#if data.platform_default.secret_updated_at}
+									<div class="muted">rotated {stamp(data.platform_default.secret_updated_at)}</div>
+								{/if}
+							</td>
+						</tr>
+						<tr>
+							<th>Updated</th>
+							<td
+								>{data.platform_default.updated_at
+									? stamp(data.platform_default.updated_at)
+									: '—'}{#if data.platform_default.updated_by}
+									· {data.platform_default.updated_by}{/if}</td
+							>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+		{:else}
+			<div class="empty">
+				No platform default is configured; a tenant that binds no <span class="mono">qualify</span> provider uses
+				the keyword rules.
+			</div>
+		{/if}
+		{#if pdOpen}
+			<fieldset class="llm-fields" disabled={pdBusy}>
+				<div class="form-grid">
+					<label class="field"
+						><span class="label">Base URL</span><input
+							class="input mono"
+							bind:value={pdDraft.base_url}
+							placeholder="http://llm-gateway:8000/v1"
+							autocomplete="off"
+							spellcheck="false"
+						/><span class="muted"
+							>The platform default may be an in-cluster address; a tenant's provider may not.</span
+						></label
+					>
+					<label class="field"
+						><span class="label">Model</span><input class="input mono" bind:value={pdDraft.model} /></label
+					>
+					<label class="field"
+						><span class="label">Token</span><input
+							class="input mono"
+							type="password"
+							bind:value={pdDraft.token}
+							disabled={pdDraft.clear}
+							placeholder={data.platform_default.has_token ? 'stored; leave blank to keep it' : 'optional'}
+							autocomplete="new-password"
+							spellcheck="false"
+						/>
+						{#if data.platform_default.has_token}
+							<span
+								><label class="toggle"
+									><input type="checkbox" bind:checked={pdDraft.clear} /> Remove the stored token</label
+								></span
+							>
+						{/if}</label
+					>
+				</div>
+			</fieldset>
+			<div class="actions">
+				<button class="btn" type="button" disabled={pdBusy} onclick={() => (pdOpen = false)}>Cancel</button>
+				<button class="btn primary" type="button" disabled={pdBusy} onclick={savePlatform}
+					>{pdBusy ? 'Saving…' : 'Save platform default'}</button
+				>
+			</div>
+		{/if}
+		{#if pdFailure}
+			<Callout kind="err" title="Not saved">{pdFailure}</Callout>
+		{/if}
 	</Card>
 
 	{#if RESEARCH_ENABLED}

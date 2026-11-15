@@ -42,11 +42,26 @@ export interface LlmUseBinding {
 	model: string | null;
 }
 
-/** The deployment's own LLM (env), used for `qualify` when the tenant binds none. Where it runs is shown. */
+/**
+ * The deployment's own LLM (migration 0033's row), used for `qualify` when the tenant binds none.
+ * Members read it; only a super_admin may change it (`PUT /api/providers/platform`).
+ */
 export interface PlatformDefault {
 	base_url: string | null;
 	model: string | null;
 	configured: boolean;
+	has_token: boolean;
+	secret_fpr: string | null;
+	secret_updated_at: string | null;
+	updated_at: string | null;
+	updated_by: string | null;
+}
+
+/** PUT /api/providers/platform (super_admin): `token` absent = keep, `""` = clear. */
+export interface PlatformDefaultInput {
+	base_url: string;
+	model: string;
+	token?: string;
 }
 
 export interface LlmProviders {
@@ -102,7 +117,16 @@ const LLM_PROVIDER = keyMap<LlmProvider>()({
 	updated_by: true,
 });
 const LLM_USE = keyMap<LlmUseBinding>()({ use: true, provider_id: true, model: true });
-const PLATFORM_DEFAULT = keyMap<PlatformDefault>()({ base_url: true, model: true, configured: true });
+const PLATFORM_DEFAULT = keyMap<PlatformDefault>()({
+	base_url: true,
+	model: true,
+	configured: true,
+	has_token: true,
+	secret_fpr: true,
+	secret_updated_at: true,
+	updated_at: true,
+	updated_by: true,
+});
 const LLM_ROOT = keyMap<LlmProviders>()({
 	providers: true,
 	uses: true,
@@ -386,6 +410,29 @@ export function baseUrlProblem(raw: string): string {
 	if (u.search || s.includes('?')) return 'No query string.';
 	if (u.hash || s.includes('#')) return 'No fragment.';
 	return hostProblem(u.hostname);
+}
+
+/**
+ * carebus-api's `valid_base_url` for the platform default: http(s), a host, no userinfo, query or
+ * fragment. Unlike [`baseUrlProblem`] it does NOT require a public host — the platform default is
+ * deployment configuration and legitimately points at the in-cluster inference gateway.
+ */
+export function platformUrlProblem(raw: string): string {
+	const s = raw.trim();
+	if (!s) return 'Enter the base URL.';
+	if (/\s/u.test(s)) return 'No spaces in the URL.';
+	let u: URL;
+	try {
+		u = new URL(s);
+	} catch {
+		return 'Not a URL; it starts with http:// or https://.';
+	}
+	if (u.protocol !== 'http:' && u.protocol !== 'https:') return 'Use an http or https URL.';
+	if (!u.hostname) return 'The URL needs a host.';
+	if (u.username || u.password || s.includes('@')) return 'No user or password in the URL.';
+	if (u.search || s.includes('?')) return 'No query string.';
+	if (u.hash || s.includes('#')) return 'No fragment.';
+	return '';
 }
 
 export type LlmField = 'name' | 'kind' | 'base_url' | 'models';

@@ -69,6 +69,10 @@ pub struct Config {
     /// `SERVICE_ACTOR_ID` (carebus::identity): care-bus' Keycloak service-account sub, sent as `X-Actor-Id` on a
     /// strata_rag call no person is behind. `None` = no `X-Actor-Id` then; a malformed value stops startup.
     pub service_actor: Option<Uuid>,
+    /// Migration 0033's row is seeded once from the bootstrap env at boot. A real process always
+    /// does (the env is the deployment's); tests set this false so no developer's environment can
+    /// create a platform default inside a test database.
+    pub seed_platform_default: bool,
 }
 
 /// Comma-separated list; surrounding whitespace trimmed, blanks dropped.
@@ -204,6 +208,7 @@ impl Config {
             service_actor: carebus::identity::parse_service_actor(
                 get(carebus::identity::SERVICE_ACTOR_ENV).as_deref(),
             )?,
+            seed_platform_default: true,
         })
     }
 }

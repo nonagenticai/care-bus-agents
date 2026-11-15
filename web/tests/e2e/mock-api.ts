@@ -291,6 +291,26 @@ function llmProviderStore() {
 					...(b.kind === 'openai' ? { models: ['local-llm', 'qwen3-27b'] } : {}),
 				});
 			}
+			// The deployment-wide default (0033): members read it, a super_admin writes it.
+			if (id === 'platform' && !sub && method === 'GET') return ok(route, body.platform_default);
+			if (id === 'platform' && !sub && method === 'PUT') {
+				const b = route.request().postDataJSON();
+				if (!b.base_url || !b.model)
+					return bad(route, 400, 'invalid_body', 'base_url and model are required');
+				const pd = { ...body.platform_default };
+				pd.base_url = b.base_url;
+				pd.model = b.model;
+				pd.configured = true;
+				if (b.token !== undefined) {
+					pd.has_token = b.token !== '';
+					pd.secret_fpr = pd.has_token ? 'bbbbbbbb' : null;
+					pd.secret_updated_at = pd.has_token ? '2026-10-18T12:00:00Z' : null;
+				}
+				pd.updated_at = '2026-10-18T12:00:00Z';
+				pd.updated_by = E2E_ACTOR;
+				body.platform_default = pd;
+				return ok(route, pd);
+			}
 			if (id === 'uses' && sub && method === 'PUT') {
 				const b = route.request().postDataJSON();
 				const want = sub === 'gates' ? 'laya' : 'openai';

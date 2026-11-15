@@ -6,7 +6,8 @@
 //! tenant, with that tenant's care-bus licence and strata-rag token from carebus-api
 //! `POST /api/internal/mcp-credentials`; carebus::mcp_http; `strata_search` uses the same per-tenant strata-rag
 //! token, so without `MCP_URL` there is no `strata_search`),
-//! the platform model (`RESEARCH_LLM_*`, see research::llm::DefaultLlm), `RESEARCHER_CONCURRENCY` (default 2),
+//! the platform model (migration 0033's row; `RESEARCH_LLM_*` / `CAREBUS_LLM_*` / `VLLM_LICENSE_TOKEN`
+//! are only the bootstrap fallback, see research::llm::DefaultLlm), `RESEARCHER_CONCURRENCY` (default 2),
 //! `RESEARCHER_LEASE_S` (default 600), `RESEARCHER_POLL_MS` (default 2000), `RESEARCH_LLM_TIMEOUT_S` (default 300),
 //! `RESEARCHER_MAX_ATTEMPTS` (default 3: a run claimed more often fails with `too_many_attempts`),
 //! `RESEARCHER_HEARTBEAT_S` (default lease / 3: lease renewal while a model or tool call is in flight),
@@ -95,6 +96,10 @@ async fn main() -> Result<()> {
         env("PROVIDER_SECRET_KEYS"),
         env("PROVIDER_SECRET_KEY_CURRENT"),
     )?;
+    let secrets = carebus::provider_secret::Secrets {
+        source_key: source_key.as_ref(),
+        keyring: provider_keyring.as_ref(),
+    };
     let service_actor = carebus::identity::service_actor_from_env()?;
     let mcp = match env("MCP_URL") {
         None => {
@@ -147,11 +152,35 @@ async fn main() -> Result<()> {
         None => {}
     }
     let tools = Arc::new(tools);
-    let default_llm = DefaultLlm::from_lookup(&|k| std::env::var(k).ok());
+    // The platform model is migration 0033's row (carebus-api seeds it; this may start first, so
+    // seed it here too when absent). The env variables are bootstrap only: they are the fallback
+    // when no row can exist yet (a database older than 0033), never the runtime source.
+    if let Err(e) = carebus::provider_db::ensure_platform_default(&db, secrets).await {
+        tracing::warn!("platform default not seeded here: {e:#}");
+    }
+    let default_llm = match carebus::provider_db::platform_default(&db, secrets).await {
+        Ok(Some(p)) => DefaultLlm {
+            base_url: p.base_url,
+            model: p
+                .model
+                .unwrap_or_else(|| carebus::interaction::DEFAULT_MODEL.to_string()),
+            token: (!p.token.is_empty()).then_some(p.token),
+        },
+        Ok(None) => {
+            tracing::warn!(
+                "the platform default row is absent (no VLLM_LICENSE_TOKEN to seed it): falling back to the bootstrap env"
+            );
+            DefaultLlm::from_lookup(&|k| std::env::var(k).ok())
+        }
+        Err(e) => {
+            tracing::warn!(
+                "reading the platform default failed: {e:#}; falling back to the bootstrap env"
+            );
+            DefaultLlm::from_lookup(&|k| std::env::var(k).ok())
+        }
+    };
     if default_llm.token.is_none() {
-        tracing::warn!(
-            "neither RESEARCH_LLM_TOKEN nor VLLM_LICENSE_TOKEN is set: the platform model is called without a bearer"
-        );
+        tracing::warn!("the platform model is called without a bearer");
     }
     tracing::info!(concurrency, lease_s, metering_emit, base_url = %default_llm.base_url, model = %default_llm.model, "researcher starting");
 

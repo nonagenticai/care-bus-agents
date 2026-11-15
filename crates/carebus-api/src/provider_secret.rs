@@ -7,7 +7,8 @@
 use crate::config::Config;
 use crate::error::ApiError;
 pub use carebus::provider_secret::{
-    SecretError, Secrets, Stored, open, open_token, seal, seal_token,
+    PLATFORM_SCOPE, SecretError, Secrets, Stored, open, open_platform, open_token, seal,
+    seal_platform, seal_token,
 };
 
 impl Config {

@@ -11,14 +11,7 @@ use crate::common::{app_pool, env_with, insert_tenant, pool};
 
 /// A test keyring (the `v2:` form); tests that need one opt in exactly as production does.
 fn keyring() -> carebus_api::provider_keyring::Keyring {
-    use base64::Engine;
-    let key = base64::engine::general_purpose::STANDARD.encode((7u8..39).collect::<Vec<u8>>());
-    carebus_api::config::parse_provider_keyring(
-        Some(format!(r#"{{"k1":"{key}"}}"#)),
-        Some("k1".to_string()),
-    )
-    .unwrap()
-    .unwrap()
+    crate::common::test_keyring()
 }
 
 /// An environment whose provider keyring is configured (the default test config keeps it off).

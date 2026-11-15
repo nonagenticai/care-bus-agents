@@ -224,7 +224,7 @@ mod tests {
         assert!(s.sealed.starts_with("v2:k1:"), "{}", s.sealed);
         assert_eq!(s.fingerprint.len(), 8);
         assert_eq!(k.open("t:llm_key:p", &s.sealed).unwrap(), "hunter2");
-        assert_eq!(format!("{s:?}").contains("hunter2"), false);
+        assert!(!format!("{s:?}").contains("hunter2"));
     }
 
     #[test]

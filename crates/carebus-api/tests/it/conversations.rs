@@ -187,10 +187,12 @@ async fn messages_sent_during_a_slow_turn_are_coalesced_into_one_qualifier_call(
     let e = crate::common::env("conv-coalesce").await;
     let seen = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
     let mut state = e.state.clone();
-    state.qualifier = std::sync::Arc::new(carebus_api::chat_q::AnyQualifier::Record(
-        std::time::Duration::from_millis(500),
-        seen.clone(),
-    ));
+    state.platform = carebus_api::chat_q::PlatformQualifier::test_fixed(
+        carebus_api::chat_q::AnyQualifier::Record(
+            std::time::Duration::from_millis(500),
+            seen.clone(),
+        ),
+    );
     let app = carebus_api::router(state);
     let t = crate::common::user();
     let (_, c) = crate::common::send(
@@ -300,7 +302,9 @@ async fn a_text_queued_while_the_last_batch_is_qualified_is_still_answered() {
         })
     });
     let mut state = e.state.clone();
-    state.qualifier = std::sync::Arc::new(carebus_api::chat_q::AnyQualifier::Then(hook));
+    state.platform = carebus_api::chat_q::PlatformQualifier::test_fixed(
+        carebus_api::chat_q::AnyQualifier::Then(hook),
+    );
     let app = carebus_api::router(state);
     let (s, b) = crate::common::send(
         &app,
@@ -611,9 +615,9 @@ async fn daemon_reply_path_reaches_the_conversation_without_stdin() {
 async fn dropping_the_request_mid_handle_releases_the_lock_and_publishes_exactly_once() {
     let e = crate::common::env_with("conv-cancel", |_| {}).await;
     let mut state = e.state.clone();
-    state.qualifier = std::sync::Arc::new(carebus_api::chat_q::AnyQualifier::Slow(
-        std::time::Duration::from_millis(400),
-    ));
+    state.platform = carebus_api::chat_q::PlatformQualifier::test_fixed(
+        carebus_api::chat_q::AnyQualifier::Slow(std::time::Duration::from_millis(400)),
+    );
     let app = carebus_api::router(state.clone());
     let t = crate::common::user();
     let (_, c) = crate::common::send(
@@ -735,7 +739,9 @@ async fn a_failing_qualifier_is_a_503_naming_the_llm_and_leaves_the_draft() {
         .await
         .unwrap();
     let mut state = e.state.clone();
-    state.qualifier = std::sync::Arc::new(carebus_api::chat_q::AnyQualifier::Failing);
+    state.platform = carebus_api::chat_q::PlatformQualifier::test_fixed(
+        carebus_api::chat_q::AnyQualifier::Failing,
+    );
     let app = carebus_api::router(state);
     let (s, b) = crate::common::send(
         &app,
@@ -804,7 +810,9 @@ async fn a_published_turn_answers_published_and_links_even_when_saving_the_draft
         })
     });
     let mut state = e.state.clone();
-    state.qualifier = std::sync::Arc::new(carebus_api::chat_q::AnyQualifier::Then(hook));
+    state.platform = carebus_api::chat_q::PlatformQualifier::test_fixed(
+        carebus_api::chat_q::AnyQualifier::Then(hook),
+    );
     let app = carebus_api::router(state);
     let (s, b) = crate::common::send(
         &app,
@@ -852,7 +860,9 @@ async fn a_chat_turn_qualifies_with_the_conversations_tenant_as_effective_tenant
         Box::pin(async {})
     });
     let mut state = e.state.clone();
-    state.qualifier = std::sync::Arc::new(carebus_api::chat_q::AnyQualifier::Then(hook));
+    state.platform = carebus_api::chat_q::PlatformQualifier::test_fixed(
+        carebus_api::chat_q::AnyQualifier::Then(hook),
+    );
     let app = carebus_api::router(state);
     let t = crate::common::user();
     let (_, c) = crate::common::send(
@@ -928,11 +938,13 @@ async fn a_queued_turn_that_fails_tells_the_conversation_and_releases_the_lock()
     let e = crate::common::env("conv-queued-fail").await;
     let calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
     let mut state = e.state.clone();
-    state.qualifier = std::sync::Arc::new(carebus_api::chat_q::AnyQualifier::FailAfter(
-        1,
-        std::time::Duration::from_millis(400),
-        calls.clone(),
-    ));
+    state.platform = carebus_api::chat_q::PlatformQualifier::test_fixed(
+        carebus_api::chat_q::AnyQualifier::FailAfter(
+            1,
+            std::time::Duration::from_millis(400),
+            calls.clone(),
+        ),
+    );
     let app = carebus_api::router(state);
     let t = crate::common::user();
     let (_, c) = crate::common::send(
@@ -982,10 +994,9 @@ async fn the_sweeper_drains_an_inbox_whose_holder_died() {
     let e = crate::common::env("conv-sweep").await;
     let seen = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
     let mut state = e.state.clone();
-    state.qualifier = std::sync::Arc::new(carebus_api::chat_q::AnyQualifier::Record(
-        std::time::Duration::ZERO,
-        seen.clone(),
-    ));
+    state.platform = carebus_api::chat_q::PlatformQualifier::test_fixed(
+        carebus_api::chat_q::AnyQualifier::Record(std::time::Duration::ZERO, seen.clone()),
+    );
     let app = carebus_api::router(state.clone());
     let t = crate::common::user();
     let mut ids = Vec::new();

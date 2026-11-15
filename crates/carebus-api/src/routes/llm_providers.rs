@@ -8,8 +8,13 @@
 //! `external_llm_allowed` (default false), which gates research runs to the platform's own model unless set. It
 //! applies ONLY to research runs for now; `qualify` and `gates` ignore it. `GET /api/providers` returns it.
 //!
-//! `token` is write-only end to end: sealed with `CAREBUS_SOURCE_KEY` (crate::crypto, bound to the provider id) into
-//! `secret_enc`, never returned (only `has_token`), never logged, audited or echoed.
+//! `token` is write-only end to end: sealed under `PROVIDER_SECRET_KEYS` into `secret_sealed` (the
+//! `v2:` form; rows that predate 0031 keep opening from `secret_enc`), never returned — only
+//! `has_token`, the fingerprint `secret_fpr` and `secret_updated_at` — never logged, audited or echoed.
+//!
+//! `GET/PUT /api/providers/platform` is the deployment-wide default (migration 0033): any
+//! authenticated caller reads it, a super_admin writes it. Its base_url is deployment
+//! configuration and may be in-cluster; a tenant's provider must be a public host.
 use std::time::{Duration, Instant};
 
 use axum::extract::State;
@@ -26,7 +31,7 @@ use crate::audit;
 use crate::error::{ApiError, ApiJson, ApiPath, ApiResult};
 use crate::netguard;
 use crate::state::AppState;
-use crate::tenancy::{Member, TenantAdmin, TenantCtx};
+use crate::tenancy::{Member, Provisioner, TenantAdmin, TenantCtx};
 
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -38,6 +43,11 @@ pub fn routes() -> Router<AppState> {
         .route("/api/providers/uses/{use_name}", put(bind))
         // Static, so it never reaches `/api/providers/{id}`.
         .route("/api/providers/settings", put(set_settings))
+        // The deployment-wide default (0033): members read it, a super_admin changes it.
+        .route(
+            "/api/providers/platform",
+            get(platform_default).put(set_platform_default),
+        )
 }
 
 /// The provider test's whole budget (connect + answer).
@@ -146,12 +156,82 @@ pub struct UseView {
     pub model: Option<String>,
 }
 
-/// The deployment's own qualifier LLM from env (`VLLM_LICENSE_TOKEN`, `CAREBUS_LLM_BASE_URL`, `CAREBUS_MODEL`).
+/// The deployment's own qualifier LLM: migration 0033's singleton row (seeded once from
+/// `VLLM_LICENSE_TOKEN`, `CAREBUS_LLM_BASE_URL`, `CAREBUS_MODEL`, then data).
 #[derive(Clone, Debug, Serialize)]
 pub struct PlatformDefaultView {
     pub base_url: Option<String>,
     pub model: Option<String>,
     pub configured: bool,
+    pub has_token: bool,
+    pub secret_fpr: Option<String>,
+    pub secret_updated_at: Option<DateTime<Utc>>,
+    pub updated_at: Option<DateTime<Utc>>,
+    pub updated_by: Option<String>,
+}
+
+/// 0033's row as the API shows it. A database that predates the migration reads as "not
+/// configured" rather than an error (the API is the binary that applies it, so this is only a
+/// rolling-deploy window).
+async fn platform_view(pool: &sqlx::PgPool) -> ApiResult<PlatformDefaultView> {
+    type Row = (
+        String,
+        String,
+        bool,
+        Option<String>,
+        Option<DateTime<Utc>>,
+        DateTime<Utc>,
+        String,
+    );
+    let row: Option<Row> = sqlx::query_as(
+        "SELECT base_url, model, secret_sealed IS NOT NULL, secret_fpr, secret_updated_at,
+                updated_at, updated_by
+           FROM platform_llm_default WHERE id",
+    )
+    .fetch_optional(pool)
+    .await
+    .or_else(|e| {
+        if matches!(&e, sqlx::Error::Database(d) if d.code().as_deref() == Some("42P01")) {
+            Ok(None)
+        } else {
+            Err(e)
+        }
+    })?;
+    Ok(match row {
+        Some((base_url, model, has_token, secret_fpr, secret_updated_at, updated_at, by)) => {
+            PlatformDefaultView {
+                base_url: Some(base_url),
+                model: Some(model),
+                configured: true,
+                has_token,
+                secret_fpr,
+                secret_updated_at,
+                updated_at: Some(updated_at),
+                updated_by: Some(by),
+            }
+        }
+        None => PlatformDefaultView {
+            base_url: None,
+            model: None,
+            configured: false,
+            has_token: false,
+            secret_fpr: None,
+            secret_updated_at: None,
+            updated_at: None,
+            updated_by: None,
+        },
+    })
+}
+
+/// `PUT /api/providers/platform` (super_admin): the deployment-wide default. `token` absent keeps
+/// the stored one, `""` clears it.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PlatformInput {
+    base_url: String,
+    model: String,
+    #[serde(default)]
+    token: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -429,9 +509,83 @@ async fn list(Member(ctx): Member, State(s): State<AppState>) -> ApiResult<Json<
     Ok(Json(ProvidersView {
         providers,
         uses,
-        platform_default: s.platform_llm.view(),
+        platform_default: platform_view(&s.db).await?,
         external_llm_allowed: external,
     }))
+}
+
+/// `GET /api/providers/platform`: the deployment default, readable by any authenticated caller
+/// (it is shown next to the tenant providers it backs).
+async fn platform_default(
+    _caller: crate::auth::Caller,
+    State(s): State<AppState>,
+) -> ApiResult<Json<PlatformDefaultView>> {
+    Ok(Json(platform_view(&s.db).await?))
+}
+
+/// `PUT /api/providers/platform` (super_admin): set the deployment default. Sealed under the
+/// platform scope, version bumped inside the write so every reader's cache invalidates.
+async fn set_platform_default(
+    Provisioner(caller): Provisioner,
+    State(s): State<AppState>,
+    ApiJson(input): ApiJson<PlatformInput>,
+) -> ApiResult<Json<PlatformDefaultView>> {
+    let base_url = input.base_url.trim().trim_end_matches('/').to_string();
+    if !valid_base_url(&base_url) {
+        return Err(bad(
+            "invalid_base_url",
+            "base_url must be an http(s) URL without credentials, query or fragment.",
+        ));
+    }
+    // NOT `guard_base_url`: the platform default is deployment configuration and legitimately
+    // points at an in-cluster gateway. Only tenant-supplied URLs are held to public hosts.
+    let model = input.model.trim().to_string();
+    if model.is_empty() || model.chars().count() > 200 {
+        return Err(bad("invalid_model", "model must be 1 to 200 characters."));
+    }
+    let (replace, stored) = match input.token {
+        None => (false, None),
+        Some(t) => {
+            let t = t.trim();
+            if t.chars().count() > MAX_TOKEN_CHARS {
+                return Err(bad("invalid_token", "token is too long."));
+            }
+            if t.is_empty() {
+                (true, None)
+            } else {
+                (
+                    true,
+                    Some(crate::provider_secret::seal_platform(s.cfg.secrets(), t)?),
+                )
+            }
+        }
+    };
+    sqlx::query(
+        "INSERT INTO platform_llm_default
+             (id, base_url, model, secret_sealed, secret_fpr, secret_updated_at, version, updated_at, updated_by)
+         VALUES (true, $1, $2, $3, $4, $5, 1, now(), $6)
+         ON CONFLICT (id) DO UPDATE SET
+             base_url = EXCLUDED.base_url,
+             model = EXCLUDED.model,
+             secret_sealed = CASE WHEN $7 THEN EXCLUDED.secret_sealed ELSE platform_llm_default.secret_sealed END,
+             secret_fpr = CASE WHEN $7 THEN EXCLUDED.secret_fpr ELSE platform_llm_default.secret_fpr END,
+             secret_updated_at = CASE WHEN $7 THEN EXCLUDED.secret_updated_at ELSE platform_llm_default.secret_updated_at END,
+             version = platform_llm_default.version + 1,
+             updated_at = now(),
+             updated_by = EXCLUDED.updated_by",
+    )
+    .bind(&base_url)
+    .bind(&model)
+    .bind(stored.as_ref().map(|v| v.sealed.as_str()))
+    .bind(stored.as_ref().map(|v| v.fingerprint.as_str()))
+    .bind(stored.as_ref().map(|_| Utc::now()))
+    .bind(&caller.actor)
+    .bind(replace)
+    .execute(&s.db)
+    .await?;
+    s.platform.forget();
+    tracing::info!(actor = %caller.actor, "platform LLM default updated");
+    Ok(Json(platform_view(&s.db).await?))
 }
 
 /// Sets the tenant's LLM settings (tenant_admin). `external_llm_allowed: false` makes the researcher fail a run whose

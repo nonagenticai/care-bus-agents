@@ -36,9 +36,23 @@ import {
 	validateLlmDraft,
 	type LlmProvider,
 	type LlmProviders,
+	type PlatformDefault,
 	type ProviderCapability,
 } from '../../src/lib/api/providers';
 import { createClient } from '../../src/lib/api/client';
+
+/** A platform default with only the fields a case cares about; the rest read as "not configured". */
+const platformDefault = (over: Partial<PlatformDefault> = {}): PlatformDefault => ({
+	base_url: null,
+	model: null,
+	configured: false,
+	has_token: false,
+	secret_fpr: null,
+	secret_updated_at: null,
+	updated_at: null,
+	updated_by: null,
+	...over,
+});
 
 const read = (name: string) =>
 	JSON.parse(readFileSync(`src/lib/api/fixtures/providers/${name}.json`, 'utf8'));
@@ -322,12 +336,16 @@ describe('LLM provider uses', () => {
 	});
 
 	it('unbound qualify falls back to the platform default, or to keyword rules without one', () => {
-		const pd = { base_url: 'http://vllm.example:8001/v1', model: 'local-llm', configured: true };
+		const pd = platformDefault({
+			base_url: 'http://vllm.example:8001/v1',
+			model: 'local-llm',
+			configured: true,
+		});
 		expect(useSummary(unbound(pd), 'qualify')).toEqual({
 			word: 'idle',
 			text: 'Platform default: local-llm @ http://vllm.example:8001/v1',
 		});
-		expect(useSummary(unbound({ base_url: null, model: null, configured: false }), 'qualify')).toEqual({
+		expect(useSummary(unbound(platformDefault()), 'qualify')).toEqual({
 			word: 'warn',
 			text: 'No LLM — keyword rules',
 		});
@@ -361,12 +379,16 @@ describe('LLM provider uses', () => {
 	});
 
 	it('unbound research runs on the platform default; unbound research_write borrows research', () => {
-		const pd = { base_url: 'http://vllm.example:8001/v1', model: 'local-llm', configured: true };
+		const pd = platformDefault({
+			base_url: 'http://vllm.example:8001/v1',
+			model: 'local-llm',
+			configured: true,
+		});
 		expect(useSummary(unbound(pd), 'research')).toEqual({
 			word: 'idle',
 			text: 'Platform default: local-llm @ http://vllm.example:8001/v1',
 		});
-		expect(useSummary(unbound({ base_url: null, model: null, configured: false }), 'research')).toEqual({
+		expect(useSummary(unbound(platformDefault()), 'research')).toEqual({
 			word: 'warn',
 			text: 'No LLM — research runs fail',
 		});
@@ -604,21 +626,15 @@ describe('LLM provider form: Test and Use for', () => {
 		expect(unboundNotice(none, 'qualify')).toBe(
 			'qualify: not bound — chat uses the platform default (local-llm @ http://vllm.example:8001/v1)',
 		);
-		expect(
-			unboundNotice(
-				{ ...none, platform_default: { base_url: null, model: null, configured: false } },
-				'qualify',
-			),
-		).toBe('qualify: not bound — requests are qualified by keyword rules, no LLM');
+		expect(unboundNotice({ ...none, platform_default: platformDefault() }, 'qualify')).toBe(
+			'qualify: not bound — requests are qualified by keyword rules, no LLM',
+		);
 		expect(unboundNotice(none, 'research')).toBe(
 			'research: not bound — research runs use the platform default (local-llm @ http://vllm.example:8001/v1)',
 		);
-		expect(
-			unboundNotice(
-				{ ...none, platform_default: { base_url: null, model: null, configured: false } },
-				'research',
-			),
-		).toBe('research: not bound — no platform default is configured, research runs cannot start');
+		expect(unboundNotice({ ...none, platform_default: platformDefault() }, 'research')).toBe(
+			'research: not bound — no platform default is configured, research runs cannot start',
+		);
 		expect(unboundNotice(none, 'research_write')).toBe(
 			'research_write: not bound — the research binding writes the memo (Platform default: local-llm @ http://vllm.example:8001/v1)',
 		);
