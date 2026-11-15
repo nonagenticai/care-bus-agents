@@ -500,7 +500,10 @@
 					disabled={!canWrite || !deletable}
 					title={why || deleteWhy}
 					onclick={() => (
-						(confirmDelete = true), (confirmCancel = false), (refusal = null), (refusedParent = null)
+						(confirmDelete = true),
+						(confirmCancel = false),
+						(refusal = null),
+						(refusedParent = null)
 					)}>{cur.status === 'deleting' && bgDeleting !== cur.id ? 'Retry delete' : 'Delete job'}</button
 				>
 			{/if}

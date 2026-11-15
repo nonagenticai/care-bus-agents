@@ -652,14 +652,7 @@ export interface SourceDeleted {
  * `deleting` = an ended job whose DELETE has not finished (a storage failure leaves it there; DELETE again finishes).
  */
 export type IngestStatus =
-	| 'queued'
-	| 'running'
-	| 'cancelling'
-	| 'deleting'
-	| 'completed'
-	| 'failed'
-	| 'rejected'
-	| 'cancelled';
+	'queued' | 'running' | 'cancelling' | 'deleting' | 'completed' | 'failed' | 'rejected' | 'cancelled';
 // ingest::DeletedJob (DELETE /api/ingest/jobs/{id}): the job is gone, its documents are not
 export interface IngestJobDeleted {
 	job_id: string;
@@ -895,11 +888,7 @@ export interface JobSettingsView {
 	effective: Record<string, string | null>;
 }
 export type ConflictKind =
-	| 'base_changed'
-	| 'base_removed'
-	| 'base_added'
-	| 'parent_missing'
-	| 'base_shadowed';
+	'base_changed' | 'base_removed' | 'base_added' | 'parent_missing' | 'base_shadowed';
 // routes::releases::ConflictItem (GET /api/jobs/{job}/release-conflicts?status=open|all)
 export interface ReleaseConflict {
 	id: number;
