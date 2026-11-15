@@ -467,3 +467,169 @@ async fn hidden_seeded_entity_becomes_a_tombstone() {
     assert_eq!(tenant, 1);
     db.close().await;
 }
+
+/// The SHA-384 of every migration that production's `carebus._sqlx_migrations` records, so an edit
+/// to an applied migration fails here rather than at boot.
+///
+/// sqlx validates these when the service starts and refuses to come up on a mismatch (`migration N
+/// was previously applied but has been modified`). Nothing else in this suite can see that: a fresh
+/// database has no applied rows to disagree with, so the mismatch only ever appears in production,
+/// on every pod, while the previous revision keeps serving.
+///
+/// This is not hypothetical. `0002_seed` was rewritten during the 2026-11-13 re-foundation of this
+/// repo and `carebus-api` could not deploy an image for two days.
+///
+/// Version 2 needed one further reconciliation, recorded here because a checksum alone does not
+/// explain it. The pre-re-foundation bytes named an internal host in a seed row, and
+/// `scripts/ci/no-private-refs.sh` — correctly — forbids that in a public repo, so those bytes
+/// cannot be restored. The row seeds `model_routes`, which migration 0015 DROPS, so the two
+/// versions cannot leave a different surviving schema; production's recorded checksum for version 2
+/// was moved to this file's value on 2026-11-15 (previously `59096b39…`). That is the only
+/// circumstance in which the recorded checksum may be edited, and it is not a pattern to repeat.
+///
+/// Never edit an applied migration. If this test fails, you have edited one: put your change in a
+/// new migration instead.
+const APPLIED: &[(i64, &str)] = &[
+    (
+        1,
+        "bb98a0dcfe5c1d2cef66a3802cd63b1e9e0ed9e1be78ee84c072d6734b17cb0abfb2637773affbad0691540059bce8f1",
+    ),
+    (
+        2,
+        "fe8da91e3060bc651af51f36054e700bf37e151370a2d943ca34942f11c8fc015489a4522b76b2f1d5d29711d3f49831",
+    ),
+    (
+        3,
+        "e36eb17e8eff69024d596a4a6c0387a33c9434cfdada4a87b52b87b2d98994f48bcbd04c2e8563a8bd6210fc7074c6e4",
+    ),
+    (
+        4,
+        "263005a48b41e0a0e9c34b67bd5ac113ebcb14199534fc467385e9d8c11ae2b7176e9df6b6828b8e5ee809ac0b86a3d4",
+    ),
+    (
+        5,
+        "a5377b33ec2ff4644ed927b81ac829883df08f892bb1ea4e0146009411aec7066a43059c3a8625b07f5babc1240ef8ec",
+    ),
+    (
+        6,
+        "23470deccec72e431f87139234538537f45a0b51aff5f86e087b14f79dd86bd5f48e518ff362c7d8eeb678ba9ccbf07e",
+    ),
+    (
+        7,
+        "3eebb19e79921996b72073bb84af0a8a82ace4bd19446ffbf86c39a8c0f6224323f11ebbfcfd2ca2841533cf5fe2e817",
+    ),
+    (
+        8,
+        "835de21c69f57d824b3fd4d1e1b548e1ce9511fedc451f699e9e845c78bf0e06e854e593f0a4ee77377461c8cc5b27bb",
+    ),
+    (
+        9,
+        "e2a9e3ce227be95f34103e3d96dd45759298469b71d7b77c440c9d537bfb46a213eeefd2fdc58ad13736be3e4a12e30a",
+    ),
+    (
+        10,
+        "23a4a5a907934a4e31c9767a12d0e7e699ec49f6f4b855a95aafe4e5891bbc49e48f1f3d631035f36e5ecc7a4f5dec78",
+    ),
+    (
+        11,
+        "b92cefc485b656f7ff100699c45d74f69fd09079e96082d0125bb90f48931c345e70618869670048e92044f39f4d149b",
+    ),
+    (
+        13,
+        "cb888f700c2096c1a70cb31900ac6652e81d2cd17c1745889ca3bc6122db86d7c20a841c5072f3d039f4935b4d8f1b5f",
+    ),
+    (
+        14,
+        "4791567668d4f318dcbcbdd425b1643aa2dff2827ac69c007887586f380fd33ffe81da3d812b7159e10502253498b392",
+    ),
+    (
+        15,
+        "9f76f80b3fa0f5034595a2cf2dae404afc5140896727f3c3d1c4f8f91edbd6dffe2355489a7324280bba278784f81d5d",
+    ),
+    (
+        16,
+        "9620a83e9eeb82cd05345a46984cade0cb7787ad2a72bc93b12facb540736df168396f0dc9b8732b1b675c7c2765b79f",
+    ),
+    (
+        17,
+        "e0d8163a8dfd41cf2b1ef3fac170a959df9dc4002b9bf0a97a72945caf0a447a725dae70a1f4def635242be3b944d0bd",
+    ),
+    (
+        18,
+        "ca8801f37109598ac3f7f84c06e8fc003d3524fdc98036ec480c94fd6e6414527ed9c6888b90d6d09a40a7210198aae4",
+    ),
+    (
+        19,
+        "c9151f257cc3f24fa3da4917f325a34688014a8ecc188e6f0722452156bcc8a2b38e4c0c426950cb3eb0213183e29740",
+    ),
+    (
+        20,
+        "8bc6630f81d350a1229ccc507f229cf3cec8fb7c18b0ce0f16cb65a92f51dbb341fa4b29479110f28d99113f49c8cebc",
+    ),
+    (
+        21,
+        "4815637c0c77b44f0d730498bb31cbdc9a10b5abf46d99b7a0c7cae74b71b884bf964e4b1397af61222eb4b2d6e27103",
+    ),
+    (
+        22,
+        "29b73bb151a0d17ba834a64871ff43f4655b7e6a10be37c112632b0d61a1ddc667f31b03996e8d7fce6a19d3425b0ee9",
+    ),
+    (
+        23,
+        "43604fc8731ca5880af3027421ce386ac634ab150ca4775bd33b1d6ab827948252fdcb214d6ca744e5fcf551e248970b",
+    ),
+    (
+        24,
+        "1003073bc557b79c249f4316b22cce2c49aada682b3142cc36822f07413c9d9ac56c7e382b862870a200b55334ea9d75",
+    ),
+    (
+        25,
+        "3db72113a3853f930a8963ce57abeedeb7e3c5b727bcdffd0d9f23a80ba64fd6b24155d58e9cf99f43085d7023aae243",
+    ),
+    (
+        26,
+        "77b5d5f0435973cac1b26c75fd63c6c6129a7a29f06c72b0a75807167edb568c68ffe7e8269a3d0c3f6dd1287ee90004",
+    ),
+    (
+        27,
+        "e370d99f6e121c2579469d4fffa32bbd08ca3163e514cd55397d7ab6a51fc47f3c81ee8c4ef4eda4e9555e117256c443",
+    ),
+    (
+        28,
+        "43bc7b3e7634400f88231874a29d979e1ff0710a059e9320da1cd2d0917a9ac32692584f75657c7c6180c633653465b1",
+    ),
+    (
+        29,
+        "5f4e4d81b670ab88ba4df6dc58e5786fc2dd91b3dfcf659e8d39b88315e885aeed410c32161a7f00fb536b01ebb6815f",
+    ),
+    (
+        30,
+        "e5522f5d57a9ead6a91dfb98c6d47c69398fc70b51e457aaa6b188dbb170a4c08fa9615ceca18875c5346385ffb8043b",
+    ),
+];
+
+#[test]
+fn applied_migrations_are_never_edited() {
+    static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");
+    for (version, expected) in APPLIED {
+        let migration = MIGRATOR.migrations.iter().find(|m| m.version == *version);
+        let Some(migration) = migration else {
+            panic!(
+                "migration {version} was applied in production but is absent from ./migrations; \
+                 deleting an applied migration is as fatal as editing one"
+            );
+        };
+        let actual: String = migration
+            .checksum
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect();
+        assert_eq!(
+            actual.as_str(),
+            *expected,
+            "migration {version} ({}) was edited after it was applied, so sqlx will refuse to boot \
+             against production. Restore its original bytes and put the change in a new migration.",
+            migration.description
+        );
+    }
+}
