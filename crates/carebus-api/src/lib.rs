@@ -15,6 +15,7 @@ pub mod metering;
 pub mod netguard;
 pub mod page;
 pub mod provider_keyring;
+pub mod provider_secret;
 pub mod recorder;
 pub mod redis_admin;
 pub mod refine;

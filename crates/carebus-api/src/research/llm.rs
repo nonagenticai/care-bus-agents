@@ -14,8 +14,6 @@ use serde_json::{Value, json};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::crypto::SourceKey;
-use crate::routes::llm_providers::open_token;
 use crate::tenancy::begin_scoped;
 
 pub const USE_RESEARCH: &str = "research";
@@ -249,30 +247,38 @@ pub async fn resolve_endpoint(
     db: &PgPool,
     tenant: Uuid,
     use_name: &str,
-    key: Option<&SourceKey>,
+    secrets: crate::provider_secret::Secrets<'_>,
     allow_loopback: bool,
     default: &DefaultLlm,
     timeout: Duration,
 ) -> Result<LlmEndpoint> {
-    type Bound = (Uuid, String, Option<String>, Option<String>, String);
+    type Bound = (
+        Uuid,
+        String,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        String,
+    );
     let rows: Vec<Bound> = {
         let mut tx = begin_scoped(db, tenant, None).await?;
         sqlx::query_as(
-            "SELECT p.id, p.base_url, p.secret_enc, u.model, u.\"use\"
+            "SELECT p.id, p.base_url, p.secret_enc, p.secret_sealed, u.model, u.\"use\"
                FROM llm_provider_uses u
                JOIN llm_providers p ON p.tenant_id = u.tenant_id AND p.id = u.provider_id
-              WHERE u.\"use\" IN ('research', 'research_write') AND p.kind = 'openai'",
+              WHERE u.\"use\" IN ('research', 'research_write') AND p.kind = 'openai'
+                AND p.deleted_at IS NULL",
         )
         .fetch_all(&mut *tx)
         .await?
     };
-    let pick = |u: &str| rows.iter().find(|r| r.4 == u);
+    let pick = |u: &str| rows.iter().find(|r| r.5 == u);
     let bound = if use_name == USE_RESEARCH_WRITE {
         pick(USE_RESEARCH_WRITE).or_else(|| pick(USE_RESEARCH))
     } else {
         pick(USE_RESEARCH)
     };
-    let Some((id, base_url, secret_enc, model, _)) = bound else {
+    let Some((id, base_url, secret_enc, secret_sealed, model, _)) = bound else {
         let client = reqwest::Client::builder()
             .timeout(timeout)
             .build()
@@ -287,17 +293,13 @@ pub async fn resolve_endpoint(
             actor: None,
         });
     };
-    let token = match secret_enc {
-        None => None,
-        Some(enc) => {
-            let key = key.context(
-                "CAREBUS_SOURCE_KEY is not set, so the research provider's token cannot be used",
-            )?;
-            Some(open_token(key, *id, enc).map_err(|_| {
-                anyhow::anyhow!("the research provider's token cannot be decrypted")
-            })?)
-        }
-    };
+    let token = crate::provider_secret::open(
+        secrets,
+        tenant,
+        *id,
+        secret_sealed.as_deref(),
+        secret_enc.as_deref(),
+    )?;
     let (_, builder) = crate::netguard::check_and_pin(base_url, allow_loopback)
         .await
         .map_err(|r| {

@@ -134,7 +134,9 @@ impl Keyring {
             keys.insert(kid, cipher);
         }
         if !keys.contains_key(current) {
-            return Err(format!("{CURRENT_VAR} names {current}, which is not in {KEYS_VAR}"));
+            return Err(format!(
+                "{CURRENT_VAR} names {current}, which is not in {KEYS_VAR}"
+            ));
         }
         Ok(Some(Self {
             current: current.to_string(),
@@ -254,9 +256,16 @@ mod tests {
         let old = keyring();
         let s = old.seal("t:llm_key:p", "hunter2");
         // Add k2, move current to it: values sealed under k1 still open.
-        let rotated = Keyring::parse(Some(&keys_json()), Some("k2")).unwrap().unwrap();
+        let rotated = Keyring::parse(Some(&keys_json()), Some("k2"))
+            .unwrap()
+            .unwrap();
         assert_eq!(rotated.open("t:llm_key:p", &s.sealed).unwrap(), "hunter2");
-        assert!(rotated.seal("t:llm_key:p", "x").sealed.starts_with("v2:k2:"));
+        assert!(
+            rotated
+                .seal("t:llm_key:p", "x")
+                .sealed
+                .starts_with("v2:k2:")
+        );
     }
 
     #[test]
@@ -269,21 +278,34 @@ mod tests {
     #[test]
     fn bad_configuration_is_named_without_echoing_a_key() {
         assert!(Keyring::parse(None, None).unwrap().is_none());
-        assert!(Keyring::parse(Some("{}"), None)
+        assert!(
+            Keyring::parse(Some("{}"), None)
+                .unwrap_err()
+                .contains(KEYS_VAR)
+        );
+        assert!(
+            Keyring::parse(Some("not json"), Some("k1"))
+                .unwrap_err()
+                .contains(KEYS_VAR)
+        );
+        assert!(
+            Keyring::parse(Some(&format!(r#"{{"k1":"{}"}}"#, b64(0u8..16))), Some("k1"))
+                .unwrap_err()
+                .contains("exactly 32 bytes")
+        );
+        assert!(
+            Keyring::parse(Some(&keys_json()), Some("nope"))
+                .unwrap_err()
+                .contains(CURRENT_VAR)
+        );
+        assert!(
+            Keyring::parse(
+                Some(&format!(r#"{{"bad kid!":"{}"}}"#, b64(0u8..32))),
+                Some("bad kid!")
+            )
             .unwrap_err()
-            .contains(KEYS_VAR));
-        assert!(Keyring::parse(Some("not json"), Some("k1"))
-            .unwrap_err()
-            .contains(KEYS_VAR));
-        assert!(Keyring::parse(Some(&format!(r#"{{"k1":"{}"}}"#, b64(0u8..16))), Some("k1"))
-            .unwrap_err()
-            .contains("exactly 32 bytes"));
-        assert!(Keyring::parse(Some(&keys_json()), Some("nope"))
-            .unwrap_err()
-            .contains(CURRENT_VAR));
-        assert!(Keyring::parse(Some(&format!(r#"{{"bad kid!":"{}"}}"#, b64(0u8..32))), Some("bad kid!"))
-            .unwrap_err()
-            .contains("kid must match"));
+            .contains("kid must match")
+        );
         let k = keyring();
         assert!(!format!("{k:?}").contains(&b64(0u8..32)));
         assert!(format!("{k:?}").contains("k1"));

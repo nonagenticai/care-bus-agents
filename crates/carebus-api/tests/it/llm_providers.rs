@@ -1110,7 +1110,7 @@ async fn a_research_call_sends_the_tenant_only_to_the_platform_model() {
             &e.state.db,
             tenant,
             USE_RESEARCH,
-            e.state.cfg.source_key.as_ref(),
+            e.state.cfg.secrets(),
             true,
             default,
             std::time::Duration::from_secs(5),

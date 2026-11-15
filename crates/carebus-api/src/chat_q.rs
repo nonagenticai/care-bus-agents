@@ -16,9 +16,8 @@ use chrono::{DateTime, Utc};
 use futures_util::future::BoxFuture;
 use uuid::Uuid;
 
-use crate::crypto;
 use crate::error::{ApiError, ApiResult};
-use crate::routes::llm_providers::{PlatformDefaultView, open_token};
+use crate::routes::llm_providers::PlatformDefaultView;
 use crate::state::AppState;
 
 /// The platform default qualifier LLM as configured by env, for `GET /api/providers` (`platform_default`).
@@ -96,19 +95,26 @@ impl TenantQualifiers {
 /// The qualifier for one turn in `tenant`: its `qualify` binding, else the platform default (`st.qualifier`).
 /// A bound provider whose token cannot be used is an error, never a silent fallback to another model.
 pub async fn qualifier_for(st: &AppState, tenant: Uuid) -> ApiResult<Arc<AnyQualifier>> {
-    type Bound = (Uuid, String, Option<String>, DateTime<Utc>, Option<String>);
+    type Bound = (
+        Uuid,
+        String,
+        Option<String>,
+        Option<String>,
+        DateTime<Utc>,
+        Option<String>,
+    );
     let row: Option<Bound> = {
         let mut tx = crate::tenancy::begin_scoped(&st.db, tenant, None).await?;
         sqlx::query_as(
-            "SELECT p.id, p.base_url, p.secret_enc, p.updated_at, u.model
+            "SELECT p.id, p.base_url, p.secret_enc, p.secret_sealed, p.updated_at, u.model
                FROM llm_provider_uses u
                JOIN llm_providers p ON p.tenant_id = u.tenant_id AND p.id = u.provider_id
-              WHERE u.\"use\" = 'qualify' AND p.kind = 'openai'",
+              WHERE u.\"use\" = 'qualify' AND p.kind = 'openai' AND p.deleted_at IS NULL",
         )
         .fetch_optional(&mut *tx)
         .await?
     };
-    let Some((provider, base_url, secret_enc, updated_at, model)) = row else {
+    let Some((provider, base_url, secret_enc, secret_sealed, updated_at, model)) = row else {
         st.qualifiers.forget(tenant);
         return Ok(st.qualifier.clone());
     };
@@ -120,15 +126,14 @@ pub async fn qualifier_for(st: &AppState, tenant: Uuid) -> ApiResult<Arc<AnyQual
     if let Some(q) = st.qualifiers.get(tenant, &from) {
         return Ok(q);
     }
-    let token = match secret_enc {
-        None => String::new(),
-        Some(enc) => open_token(crypto::require(st.cfg.source_key.as_ref())?, provider, &enc)
-            .map_err(|_| {
-                ApiError::Internal(anyhow::anyhow!(
-                    "the qualify provider's stored token cannot be decrypted"
-                ))
-            })?,
-    };
+    let token = crate::provider_secret::open(
+        st.cfg.secrets(),
+        tenant,
+        provider,
+        secret_sealed.as_deref(),
+        secret_enc.as_deref(),
+    )?
+    .unwrap_or_default();
     let model = model.unwrap_or_else(|| DEFAULT_MODEL.to_string());
     // The stored base_url passed the literal guard on save; per cache entry its host is resolved, every answer
     // checked and the client pinned to the checked address, with no redirects and no proxy (crate::netguard).

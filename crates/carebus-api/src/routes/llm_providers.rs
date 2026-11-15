@@ -16,8 +16,6 @@ use axum::extract::State;
 use axum::http::StatusCode;
 use axum::routing::{get, post, put};
 use axum::{Json, Router};
-use base64::Engine;
-use base64::engine::general_purpose::STANDARD;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -25,7 +23,6 @@ use sqlx::PgConnection;
 use uuid::Uuid;
 
 use crate::audit;
-use crate::crypto::{self, SourceKey, Unreadable};
 use crate::error::{ApiError, ApiJson, ApiPath, ApiResult};
 use crate::netguard;
 use crate::state::AppState;
@@ -302,44 +299,13 @@ fn check(i: ProviderInput) -> ApiResult<Checked> {
     })
 }
 
-fn aad(id: Uuid) -> Vec<u8> {
-    format!("llm_provider:{id}").into_bytes()
-}
-
-/// `secret_enc`: standard base64 of nonce (12 bytes) followed by the AES-256-GCM ciphertext, bound to `id`.
-pub fn seal_token(key: &SourceKey, id: Uuid, token: &str) -> String {
-    let s = key.seal(&aad(id), token.as_bytes());
-    let mut out = s.nonce;
-    out.extend_from_slice(&s.ciphertext);
-    STANDARD.encode(out)
-}
-
-/// The token sealed by [`seal_token`] for the same provider id.
-pub fn open_token(key: &SourceKey, id: Uuid, secret_enc: &str) -> Result<String, Unreadable> {
-    let raw = STANDARD.decode(secret_enc).map_err(|_| Unreadable)?;
-    if raw.len() < 12 {
-        return Err(Unreadable);
-    }
-    let (nonce, ciphertext) = raw.split_at(12);
-    let plain = key.open(&aad(id), nonce, ciphertext)?;
-    String::from_utf8(plain).map_err(|_| Unreadable)
-}
-
-/// The sealed token for a change, or 503 `not_configured` when a token is given without `CAREBUS_SOURCE_KEY`.
-fn sealed(s: &AppState, id: Uuid, token: Option<&str>) -> ApiResult<Option<String>> {
-    match token {
-        None => Ok(None),
-        Some(t) => Ok(Some(seal_token(
-            crypto::require(s.cfg.source_key.as_ref())?,
-            id,
-            t,
-        ))),
-    }
-}
+// The legacy envelope lives in `crate::provider_secret` with its `v2:` counterpart, so a reader and a
+// writer can never disagree about which form a row is in. Re-exported here for the existing callers.
+pub use crate::provider_secret::{open_token, seal_token};
 
 const SELECT_ONE: &str =
-    "SELECT id, name, kind, base_url, secret_enc IS NOT NULL AS has_token, updated_at, updated_by
-                            FROM llm_providers WHERE id = $1";
+    "SELECT id, name, kind, base_url, (secret_enc IS NOT NULL OR secret_sealed IS NOT NULL) AS has_token, updated_at, updated_by
+                            FROM llm_providers WHERE id = $1 AND deleted_at IS NULL";
 
 async fn one(conn: &mut PgConnection, id: Uuid) -> ApiResult<ProviderView> {
     sqlx::query_as(SELECT_ONE)
@@ -396,8 +362,8 @@ async fn audit_provider(
 async fn list(Member(ctx): Member, State(s): State<AppState>) -> ApiResult<Json<ProvidersView>> {
     let mut tx = ctx.begin(&s.db).await?;
     let providers: Vec<ProviderView> = sqlx::query_as(
-        "SELECT id, name, kind, base_url, secret_enc IS NOT NULL AS has_token, updated_at, updated_by
-           FROM llm_providers ORDER BY name, id",
+        "SELECT id, name, kind, base_url, (secret_enc IS NOT NULL OR secret_sealed IS NOT NULL) AS has_token, updated_at, updated_by
+           FROM llm_providers WHERE deleted_at IS NULL ORDER BY name, id",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -475,17 +441,30 @@ async fn create(
     let c = check(input)?;
     guard_base_url(&s, &c.base_url)?;
     let id = Uuid::new_v4();
-    let secret_enc = sealed(&s, id, c.token.flatten().as_deref())?;
+    // Always the `v2:` keyring form: a new row must not land in the legacy `secret_enc` envelope that
+    // the keyring does not manage (0031 binds the secret to `<tenant>:llm_key:<id>`).
+    let stored = match c.token.flatten().as_deref() {
+        None => None,
+        Some(t) => Some(crate::provider_secret::seal(
+            s.cfg.secrets(),
+            ctx.tenant,
+            id,
+            t,
+        )?),
+    };
     let mut tx = ctx.begin(&s.db).await?;
     sqlx::query(
-        "INSERT INTO llm_providers (id, name, kind, base_url, secret_enc, updated_at, updated_by)
-         VALUES ($1, $2, $3, $4, $5, now(), $6)",
+        "INSERT INTO llm_providers
+             (id, name, kind, base_url, secret_sealed, secret_fpr, secret_updated_at, updated_at, updated_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, now(), $8)",
     )
     .bind(id)
     .bind(&c.name)
     .bind(c.kind.as_str())
     .bind(&c.base_url)
-    .bind(&secret_enc)
+    .bind(stored.as_ref().map(|v| v.sealed.as_str()))
+    .bind(stored.as_ref().map(|v| v.fingerprint.as_str()))
+    .bind(stored.as_ref().map(|_| Utc::now()))
     .bind(&ctx.caller.actor)
     .execute(&mut *tx)
     .await?;
@@ -512,9 +491,20 @@ async fn update(
 ) -> ApiResult<Json<ProviderView>> {
     let c = check(input)?;
     guard_base_url(&s, &c.base_url)?;
-    let (replace, secret_enc) = match &c.token {
+    // `None` keeps the stored secret, `Some(None)` clears it, `Some(Some(t))` re-seals under the
+    // current kid. A re-seal also clears `secret_enc`, so a row never carries two live secrets.
+    let (replace, stored) = match &c.token {
         None => (false, None),
-        Some(t) => (true, sealed(&s, id, t.as_deref())?),
+        Some(None) => (true, None),
+        Some(Some(t)) => (
+            true,
+            Some(crate::provider_secret::seal(
+                s.cfg.secrets(),
+                ctx.tenant,
+                id,
+                t,
+            )?),
+        ),
     };
     let mut tx = ctx.begin(&s.db).await?;
     let current = one(&mut tx, id).await?;
@@ -534,8 +524,11 @@ async fn update(
     sqlx::query(
         "UPDATE llm_providers
             SET name = $2, kind = $3, base_url = $4,
-                secret_enc = CASE WHEN $5 THEN $6 ELSE secret_enc END,
-                updated_at = now(), updated_by = $7
+                secret_enc = CASE WHEN $5 THEN NULL ELSE secret_enc END,
+                secret_sealed = CASE WHEN $5 THEN $6 ELSE secret_sealed END,
+                secret_fpr = CASE WHEN $5 THEN $7 ELSE secret_fpr END,
+                secret_updated_at = CASE WHEN $5 THEN $8 ELSE secret_updated_at END,
+                updated_at = now(), updated_by = $9
           WHERE id = $1",
     )
     .bind(id)
@@ -543,7 +536,9 @@ async fn update(
     .bind(c.kind.as_str())
     .bind(&c.base_url)
     .bind(replace)
-    .bind(&secret_enc)
+    .bind(stored.as_ref().map(|v| v.sealed.as_str()))
+    .bind(stored.as_ref().map(|v| v.fingerprint.as_str()))
+    .bind(stored.as_ref().map(|_| Utc::now()))
     .bind(&ctx.caller.actor)
     .execute(&mut *tx)
     .await?;
@@ -570,24 +565,29 @@ async fn remove(
 ) -> ApiResult<StatusCode> {
     let mut tx = ctx.begin(&s.db).await?;
     let view = one(&mut tx, id).await?;
-    let uses = bound_uses(&mut tx, id).await?;
-    if !uses.is_empty() {
-        return Err(in_use(&uses));
-    }
-    match sqlx::query("DELETE FROM llm_providers WHERE id = $1")
-        .bind(id)
-        .execute(&mut *tx)
-        .await
-    {
-        Ok(_) => {}
-        // Bound by a concurrent request between the check and the delete.
-        Err(sqlx::Error::Database(d)) if d.is_foreign_key_violation() => {
-            return Err(ApiError::Conflict(
-                "provider_in_use",
-                "This provider is bound to a use; unbind it first.".into(),
-            ));
+    // 0031 soft delete: the row stays so a binding that still names it keeps resolving to an explicit
+    // refusal rather than to a silent platform fallback, but its secret never survives the removal
+    // (the `llm_providers_deleted_check` constraint enforces that, so it is cleared here, not by a
+    // trigger). `NOT EXISTS` makes the bound check part of the write, so a concurrent bind cannot win.
+    let done = sqlx::query(
+        "UPDATE llm_providers
+            SET deleted_at = now(), secret_enc = NULL, secret_sealed = NULL,
+                secret_fpr = NULL, secret_updated_at = NULL,
+                updated_at = now(), updated_by = $2
+          WHERE id = $1 AND deleted_at IS NULL
+            AND NOT EXISTS (SELECT 1 FROM llm_provider_uses u WHERE u.provider_id = $1)",
+    )
+    .bind(id)
+    .bind(&ctx.caller.actor)
+    .execute(&mut *tx)
+    .await?;
+    if done.rows_affected() == 0 {
+        // Already removed (404 via `one` above having succeeded it is not), or bound after all.
+        let uses = bound_uses(&mut tx, id).await?;
+        if !uses.is_empty() {
+            return Err(in_use(&uses));
         }
-        Err(e) => return Err(e.into()),
+        return Err(ApiError::NotFound("provider".into()));
     }
     audit_provider(
         &mut tx,
@@ -634,30 +634,44 @@ async fn test(
     State(s): State<AppState>,
     ApiPath(id): ApiPath<Uuid>,
 ) -> ApiResult<Json<TestResult>> {
-    let (kind, base_url, secret_enc): (String, String, Option<String>) = {
+    type Stored = (String, String, Option<String>, Option<String>);
+    let (kind, base_url, secret_enc, secret_sealed): Stored = {
         let mut tx = ctx.begin(&s.db).await?;
-        sqlx::query_as("SELECT kind, base_url, secret_enc FROM llm_providers WHERE id = $1")
-            .bind(id)
-            .fetch_optional(&mut *tx)
-            .await?
-            .ok_or_else(|| ApiError::NotFound("provider".into()))?
+        sqlx::query_as(
+            "SELECT kind, base_url, secret_enc, secret_sealed FROM llm_providers WHERE id = $1",
+        )
+        .bind(id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("provider".into()))?
     };
     let kind = Kind::parse(&kind).ok_or_else(|| {
         ApiError::Internal(anyhow::anyhow!("llm_providers.kind has an unknown value"))
     })?;
-    let token = match secret_enc {
-        None => None,
-        Some(enc) => Some(
-            open_token(crypto::require(s.cfg.source_key.as_ref())?, id, &enc).map_err(|_| {
-                ApiError::Internal(anyhow::anyhow!(
-                    "a stored llm provider token cannot be decrypted"
-                ))
-            })?,
-        ),
-    };
+    let token = crate::provider_secret::open(
+        s.cfg.secrets(),
+        ctx.tenant,
+        id,
+        secret_sealed.as_deref(),
+        secret_enc.as_deref(),
+    )?;
     let result = probe(&s, kind, &base_url, token.as_deref()).await?;
+    // 0031 `last_test`: the most recent probe result, so the UI can show "last tested" without re-probing.
+    let last_test = json!({
+        "ok": result.ok,
+        "status": result.status,
+        "latency_ms": result.latency_ms,
+        "models": result.models.len(),
+        "at": Utc::now(),
+        "by": ctx.caller.actor,
+    });
     // One row per test: the admin action succeeded even when the provider is down.
     let mut tx = ctx.begin(&s.db).await?;
+    sqlx::query("UPDATE llm_providers SET last_test = $2 WHERE id = $1")
+        .bind(id)
+        .bind(&last_test)
+        .execute(&mut *tx)
+        .await?;
     audit_provider(
         &mut tx,
         &ctx,
@@ -764,32 +778,32 @@ async fn test_unsaved(
         (Some(t), _) => Some(t),
         (None, None) => None,
         (None, Some(id)) => {
-            let (stored_url, secret_enc): (String, Option<String>) = {
+            let (stored_url, secret_enc, secret_sealed): (String, Option<String>, Option<String>) = {
                 let mut tx = ctx.begin(&s.db).await?;
-                sqlx::query_as("SELECT base_url, secret_enc FROM llm_providers WHERE id = $1")
-                    .bind(id)
-                    .fetch_optional(&mut *tx)
-                    .await?
-                    .ok_or_else(|| ApiError::NotFound("provider".into()))?
+                sqlx::query_as(
+                    "SELECT base_url, secret_enc, secret_sealed FROM llm_providers WHERE id = $1",
+                )
+                .bind(id)
+                .fetch_optional(&mut *tx)
+                .await?
+                .ok_or_else(|| ApiError::NotFound("provider".into()))?
             };
-            match secret_enc {
-                None => None,
-                Some(_) if stored_url != base_url => {
-                    return Err(ApiError::Unprocessable(
-                        "token_required_for_new_base_url",
-                        "Testing another base_url needs the token again; the stored token is never sent to a new host."
-                            .into(),
-                    ));
-                }
-                Some(enc) => Some(
-                    open_token(crypto::require(s.cfg.source_key.as_ref())?, id, &enc).map_err(
-                        |_| {
-                            ApiError::Internal(anyhow::anyhow!(
-                                "a stored llm provider token cannot be decrypted"
-                            ))
-                        },
-                    )?,
-                ),
+            if secret_enc.is_none() && secret_sealed.is_none() {
+                None
+            } else if stored_url != base_url {
+                return Err(ApiError::Unprocessable(
+                    "token_required_for_new_base_url",
+                    "Testing another base_url needs the token again; the stored token is never sent to a new host."
+                        .into(),
+                ));
+            } else {
+                crate::provider_secret::open(
+                    s.cfg.secrets(),
+                    ctx.tenant,
+                    id,
+                    secret_sealed.as_deref(),
+                    secret_enc.as_deref(),
+                )?
             }
         }
     };
@@ -891,6 +905,11 @@ async fn bind(
 #[cfg(test)]
 mod tests {
     use super::*;
+    // The legacy envelope's own test lives here because this is where it used to be defined; the
+    // module that now owns it (crate::provider_secret) tests the `v2:` form.
+    use crate::crypto::{SourceKey, Unreadable};
+    use base64::Engine;
+    use base64::engine::general_purpose::STANDARD;
 
     fn key() -> SourceKey {
         SourceKey::from_base64(&STANDARD.encode((0u8..32).collect::<Vec<u8>>())).unwrap()

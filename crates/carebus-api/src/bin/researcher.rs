@@ -22,7 +22,7 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use carebus::mcp_http::HttpMcp;
-use carebus_api::config::parse_source_key;
+use carebus_api::config::{parse_provider_keyring, parse_source_key};
 use carebus_api::mcp_tasks::TaskPoller;
 use carebus_api::research::llm::{DefaultLlm, OpenAiLlm};
 use carebus_api::research::runner::{Runner, RunnerConfig, owner_label};
@@ -91,6 +91,10 @@ async fn main() -> Result<()> {
     }
 
     let source_key = parse_source_key(env("CAREBUS_SOURCE_KEY"))?;
+    let provider_keyring = parse_provider_keyring(
+        env("PROVIDER_SECRET_KEYS"),
+        env("PROVIDER_SECRET_KEY_CURRENT"),
+    )?;
     let service_actor = carebus::identity::service_actor_from_env()?;
     let mcp = match env("MCP_URL") {
         None => {
@@ -158,6 +162,7 @@ async fn main() -> Result<()> {
         cfg.lease_s = lease_s;
         cfg.llm_timeout = llm_timeout;
         cfg.source_key = source_key.clone();
+        cfg.provider_keyring = provider_keyring.clone();
         cfg.max_attempts = max_attempts;
         cfg.heartbeat = heartbeat;
         cfg.metering_emit = metering_emit;
