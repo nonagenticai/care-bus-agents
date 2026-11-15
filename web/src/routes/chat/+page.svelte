@@ -68,8 +68,8 @@
 		<div class="chat-title">
 			<h1>Customer chat</h1>
 			<p class="muted">
-				Chat as the demo customer{chat.customer?.name ? ` (${chat.customer.name})` : ''} in a {lookName} look.
-				Live feed: <span class="conn" data-s={chat.feedStatus} role="status">{FEED[chat.feedStatus]}</span>
+				Chat as the demo customer{chat.customer?.name ? ` (${chat.customer.name})` : ''} in a {lookName} look. Live
+				feed: <span class="conn" data-s={chat.feedStatus} role="status">{FEED[chat.feedStatus]}</span>
 			</p>
 		</div>
 		<div class="chat-actions">

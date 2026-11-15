@@ -312,7 +312,8 @@
 		flex-direction: column;
 		gap: 4px;
 		background-color: var(--wa-wall);
-		background-image: radial-gradient(circle at 20% 30%, var(--wa-wall-dot) 0 8px, transparent 9px),
+		background-image:
+			radial-gradient(circle at 20% 30%, var(--wa-wall-dot) 0 8px, transparent 9px),
 			radial-gradient(circle at 70% 60%, var(--wa-wall-dot) 0 6px, transparent 7px),
 			radial-gradient(circle at 45% 85%, var(--wa-wall-dot) 0 10px, transparent 11px),
 			radial-gradient(circle at 90% 20%, var(--wa-wall-dot) 0 7px, transparent 8px);
