@@ -172,12 +172,9 @@ async fn main() -> Result<()> {
             );
             DefaultLlm::from_lookup(&|k| std::env::var(k).ok())
         }
-        Err(e) => {
-            tracing::warn!(
-                "reading the platform default failed: {e:#}; falling back to the bootstrap env"
-            );
-            DefaultLlm::from_lookup(&|k| std::env::var(k).ok())
-        }
+        // A real database error is not "no row": falling back to the env here would pin this
+        // process to a different model than chat uses. Fail the start; the pod retries.
+        Err(e) => return Err(e.context("reading the platform default (migration 0033)")),
     };
     if default_llm.token.is_none() {
         tracing::warn!("the platform model is called without a bearer");

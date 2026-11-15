@@ -1318,3 +1318,31 @@ async fn the_platform_default_is_a_row_a_super_admin_writes() {
     let q = qualifier_for(&st, tenant).await.unwrap();
     assert!(matches!(*q, AnyQualifier::Rig(_)));
 }
+
+/// A binding that names a soft-deleted provider is 409 `provider_deleted`, never a binding that
+/// resolves to the platform default on the next turn.
+#[tokio::test]
+async fn a_soft_deleted_provider_cannot_be_bound() {
+    let e = crate::common::env("llm-deleted-bind").await;
+    let (s, p) = create(
+        &e,
+        input("Gone", "openai", "https://gone.example.test/v1", None),
+    )
+    .await;
+    assert_eq!(s, StatusCode::CREATED, "{p}");
+    let id = p["id"].clone();
+    let (s, _) = crate::common::send(
+        &e.app,
+        crate::common::json(
+            "DELETE",
+            &format!("/api/providers/{}", id.as_str().unwrap()),
+            Some(&admin()),
+            json!({}),
+        ),
+    )
+    .await;
+    assert_eq!(s, StatusCode::NO_CONTENT);
+    let (s, b) = bind(&e, "qualify", id, json!("their-model")).await;
+    assert_eq!(s, StatusCode::CONFLICT, "{b}");
+    assert_eq!(b["error"]["code"], "provider_deleted");
+}
