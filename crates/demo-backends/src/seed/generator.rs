@@ -1,8 +1,9 @@
 //! ~500 plausible Dutch customers from a seeded ChaCha RNG. Same seed → byte-identical data.
 use chrono::{Duration, NaiveDate, NaiveTime, TimeZone, Utc};
+use rand::RngExt;
 use rand::seq::IndexedRandom;
-use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
+use rand_chacha::rand_core::SeedableRng;
 use sqlx::{PgConnection, Postgres, QueryBuilder};
 
 use crate::Result;
