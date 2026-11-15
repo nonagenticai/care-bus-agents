@@ -355,6 +355,9 @@ pub fn test_config(database_url: String, test: &str) -> Config {
         strata_tenant: Some(BOOT_TENANT.parse().unwrap()),
         strata_bundle: None,
         source_key: Some(source_key()),
+        // Provider secrets stay on the legacy `secret_enc` envelope here; the `v2:` keyring is opted into by
+        // configuration (`PROVIDER_SECRET_KEYS`), and the tests that exercise it build their own.
+        provider_keyring: None,
         source_fetch_allow_loopback: false,
         demo_backends_url: None,
         demo_backends_token: None,
