@@ -373,7 +373,8 @@ fn check(i: ProviderInput) -> ApiResult<Checked> {
             "models must name at least one model, at most 100.",
         ));
     }
-    let mut models: Vec<String> = Vec::with_capacity(i.models.len());
+    // Bounded by MAX_PROVIDER_MODELS above; no capacity is reserved from the user's length.
+    let mut models: Vec<String> = Vec::new();
     for m in &i.models {
         let m = m.trim();
         if m.is_empty() || m.chars().count() > 200 {
