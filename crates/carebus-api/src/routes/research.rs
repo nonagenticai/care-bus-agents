@@ -206,7 +206,9 @@ fn store_ids(ids: Option<Vec<String>>) -> ApiResult<Vec<String>> {
     if ids.len() > STORES_MAX {
         return Err(bad(format!("store_ids takes at most {STORES_MAX} stores.")));
     }
-    let mut out: Vec<String> = Vec::with_capacity(ids.len());
+    // no preallocation from the caller's store count: the check above caps it at STORES_MAX,
+    // so grow from empty instead of sizing the vector to input.
+    let mut out: Vec<String> = Vec::new();
     for s in &ids {
         let c = canonical_store(s).ok_or_else(|| bad(format!("store_ids: {s} is not a uuid.")))?;
         if !out.contains(&c) {

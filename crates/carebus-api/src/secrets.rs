@@ -158,14 +158,23 @@ mod forms_tests {
     fn a_secret_is_scrubbed_raw_base64_and_percent_encoded() {
         let sec = "s3cr/t+VAL=ue?&";
         let forms = secret_forms(sec);
-        for want in [
-            sec,
-            "czNjci90K1ZBTD11ZT8m",
-            "czNjci90K1ZBTD11ZT8m",
-            "s3cr%2Ft%2BVAL%3Due%3F%26",
-            "s3cr%2ft%2bVAL%3due%3f%26",
+        for (kind, want) in [
+            ("raw", sec),
+            ("base64 form 1", "czNjci90K1ZBTD11ZT8m"),
+            ("base64 form 2", "czNjci90K1ZBTD11ZT8m"),
+            (
+                "percent-encoded upper-case hex",
+                "s3cr%2Ft%2BVAL%3Due%3F%26",
+            ),
+            (
+                "percent-encoded lower-case hex",
+                "s3cr%2ft%2bVAL%3due%3f%26",
+            ),
         ] {
-            assert!(forms.iter().any(|f| f == want), "missing {want}: {forms:?}");
+            assert!(
+                forms.iter().any(|f| f == want),
+                "missing the {kind} form of the secret"
+            );
         }
         let text = format!("got {sec}, b64 czNjci90K1ZBTD11ZT8m, url s3cr%2Ft%2BVAL%3Due%3F%26");
         let clean = super::scrub_secret(&text, sec);
