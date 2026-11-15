@@ -48,6 +48,8 @@ const MAX_MODELS_BODY: usize = 1 << 20;
 const MAX_MODELS: usize = 200;
 const MAX_TOKEN_CHARS: usize = 4096;
 const MAX_URL_CHARS: usize = 2048;
+/// The provider's declared catalogue bound (0031's `cardinality(models) <= 100` restates this).
+const MAX_PROVIDER_MODELS: usize = 100;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kind {
@@ -118,14 +120,19 @@ impl Use {
     }
 }
 
-/// A provider as every read returns it: no token, only whether one is stored.
+/// A provider as every read returns it: no token, only whether one is stored, plus the fingerprint of
+/// the stored secret (so a rotation is visible without ever returning it). `models` is the declared
+/// catalogue (0031); a binding's `model` is free text and is not restricted to it.
 #[derive(Clone, Debug, Serialize, sqlx::FromRow)]
 pub struct ProviderView {
     pub id: Uuid,
     pub name: String,
     pub kind: String,
     pub base_url: String,
+    pub models: Vec<String>,
     pub has_token: bool,
+    pub secret_fpr: Option<String>,
+    pub secret_updated_at: Option<DateTime<Utc>>,
     pub updated_at: DateTime<Utc>,
     pub updated_by: String,
 }
@@ -184,6 +191,9 @@ pub struct ProviderInput {
     name: String,
     kind: String,
     base_url: String,
+    /// The provider's declared catalogue (0031): at least one, at most 100. Required on every write,
+    /// because a provider a use cannot name a model for is not usable.
+    models: Vec<String>,
     /// Absent = keep the stored token, `""` = clear it.
     #[serde(default)]
     token: Option<String>,
@@ -258,11 +268,12 @@ fn guard_base_url(s: &AppState, base_url: &str) -> ApiResult<()> {
     }
 }
 
-/// The validated input: (name, kind, base_url without trailing `/`, token change).
+/// The validated input: (name, kind, base_url without trailing `/`, models, token change).
 struct Checked {
     name: String,
     kind: Kind,
     base_url: String,
+    models: Vec<String>,
     /// `None` keep, `Some(None)` clear, `Some(Some(t))` replace.
     token: Option<Option<String>>,
 }
@@ -274,6 +285,28 @@ fn check(i: ProviderInput) -> ApiResult<Checked> {
     }
     let kind =
         Kind::parse(&i.kind).ok_or_else(|| bad("invalid_kind", "kind must be openai or laya."))?;
+    // The catalogue a use may bind to. Required: 0031 allows an empty array only so a pre-0031 row
+    // survives until its next write; a write without models would republish that gap.
+    if i.models.is_empty() || i.models.len() > MAX_PROVIDER_MODELS {
+        return Err(bad(
+            "invalid_models",
+            "models must name at least one model, at most 100.",
+        ));
+    }
+    let mut models: Vec<String> = Vec::with_capacity(i.models.len());
+    for m in &i.models {
+        let m = m.trim();
+        if m.is_empty() || m.chars().count() > 200 {
+            return Err(bad(
+                "invalid_models",
+                "each model must be 1 to 200 characters.",
+            ));
+        }
+        if models.iter().any(|seen| seen == m) {
+            return Err(bad("invalid_models", "models must not repeat a name."));
+        }
+        models.push(m.to_string());
+    }
     let base_url = i.base_url.trim().trim_end_matches('/').to_string();
     if !valid_base_url(&base_url) {
         return Err(bad(
@@ -295,6 +328,7 @@ fn check(i: ProviderInput) -> ApiResult<Checked> {
         name,
         kind,
         base_url,
+        models,
         token,
     })
 }
@@ -304,8 +338,10 @@ fn check(i: ProviderInput) -> ApiResult<Checked> {
 pub use crate::provider_secret::{open_token, seal_token};
 
 const SELECT_ONE: &str =
-    "SELECT id, name, kind, base_url, (secret_enc IS NOT NULL OR secret_sealed IS NOT NULL) AS has_token, updated_at, updated_by
-                            FROM llm_providers WHERE id = $1 AND deleted_at IS NULL";
+    "SELECT id, name, kind, base_url, models,
+            (secret_enc IS NOT NULL OR secret_sealed IS NOT NULL) AS has_token,
+            secret_fpr, secret_updated_at, updated_at, updated_by
+       FROM llm_providers WHERE id = $1 AND deleted_at IS NULL";
 
 async fn one(conn: &mut PgConnection, id: Uuid) -> ApiResult<ProviderView> {
     sqlx::query_as(SELECT_ONE)
@@ -362,7 +398,9 @@ async fn audit_provider(
 async fn list(Member(ctx): Member, State(s): State<AppState>) -> ApiResult<Json<ProvidersView>> {
     let mut tx = ctx.begin(&s.db).await?;
     let providers: Vec<ProviderView> = sqlx::query_as(
-        "SELECT id, name, kind, base_url, (secret_enc IS NOT NULL OR secret_sealed IS NOT NULL) AS has_token, updated_at, updated_by
+        "SELECT id, name, kind, base_url, models,
+                (secret_enc IS NOT NULL OR secret_sealed IS NOT NULL) AS has_token,
+                secret_fpr, secret_updated_at, updated_at, updated_by
            FROM llm_providers WHERE deleted_at IS NULL ORDER BY name, id",
     )
     .fetch_all(&mut *tx)
@@ -455,13 +493,14 @@ async fn create(
     let mut tx = ctx.begin(&s.db).await?;
     sqlx::query(
         "INSERT INTO llm_providers
-             (id, name, kind, base_url, secret_sealed, secret_fpr, secret_updated_at, updated_at, updated_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, now(), $8)",
+             (id, name, kind, base_url, models, secret_sealed, secret_fpr, secret_updated_at, updated_at, updated_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now(), $9)",
     )
     .bind(id)
     .bind(&c.name)
     .bind(c.kind.as_str())
     .bind(&c.base_url)
+    .bind(&c.models)
     .bind(stored.as_ref().map(|v| v.sealed.as_str()))
     .bind(stored.as_ref().map(|v| v.fingerprint.as_str()))
     .bind(stored.as_ref().map(|_| Utc::now()))
@@ -523,18 +562,20 @@ async fn update(
     }
     sqlx::query(
         "UPDATE llm_providers
-            SET name = $2, kind = $3, base_url = $4,
-                secret_enc = CASE WHEN $5 THEN NULL ELSE secret_enc END,
-                secret_sealed = CASE WHEN $5 THEN $6 ELSE secret_sealed END,
-                secret_fpr = CASE WHEN $5 THEN $7 ELSE secret_fpr END,
-                secret_updated_at = CASE WHEN $5 THEN $8 ELSE secret_updated_at END,
-                updated_at = now(), updated_by = $9
+            SET name = $2, kind = $3, base_url = $4, models = $5,
+                secret_enc = CASE WHEN $6 THEN NULL ELSE secret_enc END,
+                secret_sealed = CASE WHEN $6 THEN $7 ELSE secret_sealed END,
+                secret_fpr = CASE WHEN $6 THEN $8 ELSE secret_fpr END,
+                secret_updated_at = CASE WHEN $6 THEN $9 ELSE secret_updated_at END,
+                version = version + 1,
+                updated_at = now(), updated_by = $10
           WHERE id = $1",
     )
     .bind(id)
     .bind(&c.name)
     .bind(c.kind.as_str())
     .bind(&c.base_url)
+    .bind(&c.models)
     .bind(replace)
     .bind(stored.as_ref().map(|v| v.sealed.as_str()))
     .bind(stored.as_ref().map(|v| v.fingerprint.as_str()))
@@ -853,12 +894,21 @@ async fn bind(
     };
     let mut tx = ctx.begin(&s.db).await?;
     if let Some(pid) = input.provider_id {
-        let kind: Option<String> =
-            sqlx::query_scalar("SELECT kind FROM llm_providers WHERE id = $1")
-                .bind(pid)
-                .fetch_optional(&mut *tx)
-                .await?;
-        let kind = kind.ok_or_else(|| ApiError::NotFound("provider".into()))?;
+        // A soft-deleted row still satisfies the FK, so without this check a binding could name a
+        // provider that no longer resolves — and the turn would silently use the platform model.
+        let found: Option<(String, bool)> = sqlx::query_as(
+            "SELECT kind, deleted_at IS NOT NULL FROM llm_providers WHERE id = $1",
+        )
+        .bind(pid)
+        .fetch_optional(&mut *tx)
+        .await?;
+        let (kind, deleted) = found.ok_or_else(|| ApiError::NotFound("provider".into()))?;
+        if deleted {
+            return Err(ApiError::Conflict(
+                "provider_deleted",
+                "This provider was removed; bind a live one.".into(),
+            ));
+        }
         if Kind::parse(&kind) != Some(u.kind()) {
             return Err(ApiError::BadRequest(
                 "provider_kind_mismatch",
@@ -1010,6 +1060,7 @@ mod tests {
             name: " Local ".into(),
             kind: "openai".into(),
             base_url: "https://h/v1/".into(),
+            models: vec!["jev-latest".into()],
             token: token.map(String::from),
         };
         let c = check(base(None)).unwrap();
@@ -1026,6 +1077,48 @@ mod tests {
         assert!(matches!(
             check(wrong),
             Err(ApiError::BadRequest("invalid_kind", _))
+        ));
+    }
+
+    #[test]
+    fn models_are_required_trimmed_unique_and_bounded() {
+        let base = |models: Vec<&str>| ProviderInput {
+            name: "P".into(),
+            kind: "openai".into(),
+            base_url: "https://h/v1".into(),
+            models: models.into_iter().map(String::from).collect(),
+            token: None,
+        };
+        assert_eq!(
+            check(base(vec![" a ", "b"])).unwrap().models,
+            vec!["a".to_string(), "b".to_string()]
+        );
+        for bad in [
+            vec![],
+            vec!["a", "a"],
+            vec![""],
+            vec!["   "],
+        ] {
+            assert!(
+                matches!(
+                    check(base(bad.clone())),
+                    Err(ApiError::BadRequest("invalid_models", _))
+                ),
+                "{bad:?} must be refused"
+            );
+        }
+        let long = "x".repeat(201);
+        assert!(matches!(
+            check(base(vec![long.as_str()])),
+            Err(ApiError::BadRequest("invalid_models", _))
+        ));
+        let hundred: Vec<String> = (0..MAX_PROVIDER_MODELS).map(|i| format!("m{i}")).collect();
+        assert!(check(base(hundred.iter().map(String::as_str).collect())).is_ok());
+        let mut too_many = hundred;
+        too_many.push("extra".into());
+        assert!(matches!(
+            check(base(too_many.iter().map(String::as_str).collect())),
+            Err(ApiError::BadRequest("invalid_models", _))
         ));
     }
 }

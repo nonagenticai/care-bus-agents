@@ -27,10 +27,12 @@
 		useForInitial,
 		usesForKind,
 		useForPlan,
+		draftModels,
 		useSummary,
 		usesOf,
 		validateLlmDraft,
 		type LlmDraft,
+		type LlmField,
 		type UseForChoice,
 		type LlmProvider,
 		type LlmProviderTest,
@@ -97,9 +99,12 @@
 	const formUses = $derived(usesForKind(draft.kind).filter((u) => SHOWN_LLM_USES.includes(u)));
 	const dirty = $derived(open && JSON.stringify({ draft, useFor }) !== baseline);
 	const errors = $derived(validateLlmDraft(draft));
-	const fieldMsg = (f: 'name' | 'kind' | 'base_url') => (touched ? (errors[f] ?? '') : '');
-	const faultAttrs = (f: 'name' | 'kind' | 'base_url') =>
+	const fieldMsg = (f: LlmField) => (touched ? (errors[f] ?? '') : '');
+	const faultAttrs = (f: LlmField) =>
 		fieldMsg(f) ? { 'aria-invalid': 'true' as const, 'aria-describedby': `llm-err-${f}` } : {};
+
+	/** "2026-11-15 10:22" for a timestamp the server sends as RFC 3339. */
+	const stamp = (iso: string) => iso.slice(0, 16).replace('T', ' ');
 
 	/** The in-form Test: the form's values, unsaved. */
 	let formTest = $state<LlmProviderTest | { error: string } | null>(null);
@@ -118,6 +123,9 @@
 		formTesting = true;
 		try {
 			formTest = await api().testLlmProviderDraft(toTestInput(draft, editing?.id ?? null));
+			// A successful probe lists the provider's models: fill an empty catalogue with them.
+			if (formTest && 'ok' in formTest && formTest.ok && draftModels(draft).length === 0)
+				draft.models = formTest.models.join(', ');
 		} catch (e) {
 			const known = e instanceof ApiError ? draftTestProblem(e.code) : null;
 			formTest = { error: known ?? errText(e) };
@@ -327,9 +335,19 @@
 								><td><button class="table-action" onclick={() => edit(p)}>{p.name}</button></td>
 								<td>{KIND_LABELS[p.kind] ?? p.kind}</td>
 								<td class="mono">{p.base_url}</td>
-								<td>{p.has_token ? 'Set' : 'Not set'}</td>
 								<td
-									>{p.updated_at.slice(0, 16).replace('T', ' ')}{#if p.updated_by}
+									>{p.has_token ? 'Set' : 'Not set'}
+									{#if p.secret_fpr}
+										<div class="muted mono" title="Fingerprint of the stored token">{p.secret_fpr}</div>
+									{/if}
+									{#if p.secret_updated_at}
+										<div class="muted" title="When the token was last sealed">
+											rotated {stamp(p.secret_updated_at)}
+										</div>
+									{/if}
+								</td>
+								<td
+									>{stamp(p.updated_at)}{#if p.updated_by}
 										· {p.updated_by}{/if}</td
 								>
 								<td>
@@ -495,6 +513,19 @@
 					spellcheck="false"
 				/>{#if fieldMsg('base_url')}<span class="field-err" id="llm-err-base_url">{fieldMsg('base_url')}</span
 					>{/if}</label
+			>
+			<label class="field"
+				><span class="label">Models</span><input
+					class="input mono"
+					bind:value={draft.models}
+					{...faultAttrs('models')}
+					placeholder="jev-latest, local-llm"
+					autocomplete="off"
+					spellcheck="false"
+				/>{#if fieldMsg('models')}<span class="field-err" id="llm-err-models">{fieldMsg('models')}</span
+					>{/if}<span class="muted"
+					>Comma-separated; a use picks from these. Test fills this when it is empty.</span
+				></label
 			>
 			<label class="field"
 				><span class="label">Token</span><input

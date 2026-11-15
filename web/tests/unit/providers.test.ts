@@ -290,7 +290,8 @@ describe('LLM providers fixtures match providers.ts', () => {
 			expect(LLM_USES).toContain(u.use);
 		}
 		expect(keys(body.platform_default)).toEqual(mapKeys(LLM_SHAPES.PLATFORM_DEFAULT));
-		expect(JSON.stringify(body)).not.toMatch(/"token"|"secret/);
+		// The secret itself never leaves the server: only its fingerprint and rotation time do.
+		expect(JSON.stringify(body)).not.toMatch(/"(token|secret_enc|secret_sealed|api_key)"\s*:/u);
 	});
 
 	it('the test result carries ok, status, latency and the model names', () => {
@@ -399,7 +400,10 @@ describe('LLM provider form', () => {
 		name: 'Laya',
 		kind: 'laya',
 		base_url: 'https://laya.example.eu',
+		models: ['jev-system1'],
 		has_token: true,
+		secret_fpr: '7f3a1c2e',
+		secret_updated_at: '2026-10-18T09:00:00Z',
 		updated_at: '2026-10-18T09:00:00Z',
 		updated_by: 'admin',
 	};
@@ -407,8 +411,18 @@ describe('LLM provider form', () => {
 	it('the token is never pre-filled, and blank on edit keeps the stored one', () => {
 		const d = llmDraftFor(stored);
 		expect(d.token).toBe('');
-		expect(toLlmInput(d)).toEqual({ name: 'Laya', kind: 'laya', base_url: 'https://laya.example.eu' });
+		expect(toLlmInput(d)).toEqual({
+			name: 'Laya',
+			kind: 'laya',
+			base_url: 'https://laya.example.eu',
+			models: ['jev-system1'],
+		});
 		expect(toLlmInput(d)).not.toHaveProperty('token');
+	});
+
+	it('models are comma-separated in the form and split, trimmed and de-blanked on save', () => {
+		const d = { ...llmDraftFor(stored), models: ' a , b ,, c ' };
+		expect(toLlmInput(d).models).toEqual(['a', 'b', 'c']);
 	});
 
 	it('a typed token is sent trimmed; Clear token sends an empty string even if one was typed', () => {
@@ -475,7 +489,18 @@ describe('LLM provider form', () => {
 	it('validation names each bad field', () => {
 		expect(validateLlmDraft(llmDraftFor(stored))).toEqual({});
 		const e = validateLlmDraft({ ...llmDraftFor(null), kind: 'other' as never });
-		expect(Object.keys(e).sort()).toEqual(['base_url', 'kind', 'name']);
+		expect(Object.keys(e).sort()).toEqual(['base_url', 'kind', 'models', 'name']);
+	});
+
+	it('models: at least one, at most 100, no repeats, each at most 200 characters', () => {
+		const base = llmDraftFor(stored);
+		expect(validateLlmDraft({ ...base, models: '' }).models).toMatch(/at least one/);
+		expect(validateLlmDraft({ ...base, models: 'a, a' }).models).toMatch(/not repeat/);
+		expect(validateLlmDraft({ ...base, models: 'x'.repeat(201) }).models).toMatch(/200/);
+		expect(
+			validateLlmDraft({ ...base, models: Array.from({ length: 101 }, (_, i) => `m${i}`).join(',') }).models,
+		).toMatch(/At most 100/);
+		expect(validateLlmDraft({ ...base, models: 'a, b' }).models).toBeUndefined();
 	});
 });
 
@@ -609,8 +634,20 @@ describe('LLM providers client', () => {
 		}) as unknown as typeof globalThis.fetch;
 		const c = createClient({ baseUrl: 'http://api', token: async () => 't', job: () => 'j', fetch });
 		await c.llmProviders();
-		await c.createLlmProvider({ name: 'L', kind: 'laya', base_url: 'https://l.example', token: 'x' });
-		await c.updateLlmProvider('p 1', { name: 'L', kind: 'laya', base_url: 'https://l.example', token: '' });
+		await c.createLlmProvider({
+			name: 'L',
+			kind: 'laya',
+			base_url: 'https://l.example',
+			models: ['jev-system1'],
+			token: 'x',
+		});
+		await c.updateLlmProvider('p 1', {
+			name: 'L',
+			kind: 'laya',
+			base_url: 'https://l.example',
+			models: ['jev-system1'],
+			token: '',
+		});
 		await c.deleteLlmProvider('p1');
 		await c.testLlmProvider('p1');
 		await c.testLlmProviderDraft({ kind: 'laya', base_url: 'https://l.example', provider_id: 'p1' });
@@ -628,7 +665,13 @@ describe('LLM providers client', () => {
 			'GET http://api/api/providers/slots',
 			'DELETE http://api/api/providers/slots/ocr',
 		]);
-		expect(calls[2]!.body).toEqual({ name: 'L', kind: 'laya', base_url: 'https://l.example', token: '' });
+		expect(calls[2]!.body).toEqual({
+			name: 'L',
+			kind: 'laya',
+			base_url: 'https://l.example',
+			models: ['jev-system1'],
+			token: '',
+		});
 		expect(calls[5]!.body).toEqual({ kind: 'laya', base_url: 'https://l.example', provider_id: 'p1' });
 		expect(calls[6]!.body).toEqual({ provider_id: 'p1', model: 'jev-system1' });
 	});

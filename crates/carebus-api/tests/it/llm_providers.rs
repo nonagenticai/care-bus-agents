@@ -15,7 +15,7 @@ use crate::common::{admin, user};
 const TOKEN: &str = "tok-sekrit-4f1d9a";
 
 fn input(name: &str, kind: &str, base_url: &str, token: Option<&str>) -> Value {
-    let mut v = json!({"name": name, "kind": kind, "base_url": base_url});
+    let mut v = json!({"name": name, "kind": kind, "base_url": base_url, "models": ["test-model"]});
     if let Some(t) = token {
         v["token"] = json!(t);
     }

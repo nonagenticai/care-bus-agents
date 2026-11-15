@@ -5,7 +5,10 @@
       "name": "Local vLLM",
       "kind": "openai",
       "base_url": "https://llm.example.eu/v1",
+      "models": ["local-llm", "local-llm-mini"],
       "has_token": true,
+      "secret_fpr": "7f3a1c2e",
+      "secret_updated_at": "2026-10-18T09:00:00Z",
       "updated_at": "2026-10-18T09:00:00Z",
       "updated_by": "admin"
     },
@@ -14,7 +17,10 @@
       "name": "Laya EU",
       "kind": "laya",
       "base_url": "https://laya.example.eu",
+      "models": ["jev-system1", "jev-system1-mini"],
       "has_token": false,
+      "secret_fpr": null,
+      "secret_updated_at": null,
       "updated_at": "2026-10-18T09:05:00Z",
       "updated_by": "admin"
     }

@@ -25,7 +25,12 @@ export interface LlmProvider {
 	name: string;
 	kind: LlmKind;
 	base_url: string;
+	/** The declared catalogue a use may bind to (0031). A binding's model is free text. */
+	models: string[];
 	has_token: boolean;
+	/** The stored secret's fingerprint (never the secret) and when it was last sealed. */
+	secret_fpr: string | null;
+	secret_updated_at: string | null;
 	updated_at: string;
 	updated_by: string | null;
 }
@@ -65,6 +70,8 @@ export interface LlmProviderInput {
 	name: string;
 	kind: LlmKind;
 	base_url: string;
+	/** Required: at least one model, at most 100, no repeats. */
+	models: string[];
 	token?: string;
 }
 
@@ -87,7 +94,10 @@ const LLM_PROVIDER = keyMap<LlmProvider>()({
 	name: true,
 	kind: true,
 	base_url: true,
+	models: true,
 	has_token: true,
+	secret_fpr: true,
+	secret_updated_at: true,
 	updated_at: true,
 	updated_by: true,
 });
@@ -237,14 +247,31 @@ export interface LlmDraft {
 	name: string;
 	kind: LlmKind;
 	base_url: string;
+	/** Comma-separated in the input; split on save. */
+	models: string;
 	token: string;
 	clearToken: boolean;
 }
 
 export function llmDraftFor(p: LlmProvider | null): LlmDraft {
 	return p
-		? { name: p.name, kind: p.kind, base_url: p.base_url, token: '', clearToken: false }
-		: { name: '', kind: 'openai', base_url: '', token: '', clearToken: false };
+		? {
+				name: p.name,
+				kind: p.kind,
+				base_url: p.base_url,
+				models: p.models.join(', '),
+				token: '',
+				clearToken: false,
+			}
+		: { name: '', kind: 'openai', base_url: '', models: '', token: '', clearToken: false };
+}
+
+/** The draft's models as the API takes them: split on commas, trimmed, blanks dropped. */
+export function draftModels(d: LlmDraft): string[] {
+	return d.models
+		.split(',')
+		.map((m) => m.trim())
+		.filter(Boolean);
 }
 
 /** Host-name suffixes carebus-api refuses (crate::netguard `INTERNAL_SUFFIXES`): cluster, tailnet and LAN names. */
@@ -361,19 +388,32 @@ export function baseUrlProblem(raw: string): string {
 	return hostProblem(u.hostname);
 }
 
+export type LlmField = 'name' | 'kind' | 'base_url' | 'models';
+
 /** Field → message; empty = nothing found. The server stays the authority. */
-export function validateLlmDraft(d: LlmDraft): Partial<Record<'name' | 'kind' | 'base_url', string>> {
-	const e: Partial<Record<'name' | 'kind' | 'base_url', string>> = {};
+export function validateLlmDraft(d: LlmDraft): Partial<Record<LlmField, string>> {
+	const e: Partial<Record<LlmField, string>> = {};
 	if (!d.name.trim()) e.name = 'Enter a name.';
 	if (!LLM_KINDS.includes(d.kind)) e.kind = 'Use openai or laya.';
 	const url = baseUrlProblem(d.base_url);
 	if (url) e.base_url = url;
+	const models = draftModels(d);
+	const unique = new Set(models);
+	if (models.length === 0) e.models = 'Name at least one model.';
+	else if (models.length > 100) e.models = 'At most 100 models.';
+	else if (models.some((m) => m.length > 200)) e.models = 'Each model is at most 200 characters.';
+	else if (unique.size !== models.length) e.models = 'Models must not repeat.';
 	return e;
 }
 
 /** The POST/PUT body: trimmed; `token` only when typed (set) or cleared (`""`), absent otherwise (keep). */
 export function toLlmInput(d: LlmDraft): LlmProviderInput {
-	const input: LlmProviderInput = { name: d.name.trim(), kind: d.kind, base_url: d.base_url.trim() };
+	const input: LlmProviderInput = {
+		name: d.name.trim(),
+		kind: d.kind,
+		base_url: d.base_url.trim(),
+		models: draftModels(d),
+	};
 	const t = d.token.trim();
 	if (d.clearToken) input.token = '';
 	else if (t) input.token = t;
