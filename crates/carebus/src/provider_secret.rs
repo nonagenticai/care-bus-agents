@@ -28,46 +28,6 @@ pub struct Secrets<'a> {
     pub keyring: Option<&'a Keyring>,
 }
 
-/// The same material, owned: a long-lived resolver (the interaction daemon's qualifier) keeps this
-/// and borrows a [`Secrets`] per call.
-#[derive(Clone, Default)]
-pub struct SecretsOwned {
-    pub source_key: Option<SourceKey>,
-    pub keyring: Option<Keyring>,
-}
-
-impl SecretsOwned {
-    /// `CAREBUS_SOURCE_KEY` (the legacy `secret_enc` envelope), `PROVIDER_SECRET_KEYS` and
-    /// `PROVIDER_SECRET_KEY_CURRENT` (the `v2:` ring). An unset pair is `None`; anything malformed is
-    /// an error naming the variable, never a key.
-    pub fn from_env() -> anyhow::Result<Self> {
-        let get = |k: &str| std::env::var(k).ok().filter(|v| !v.trim().is_empty());
-        let source_key = match get("CAREBUS_SOURCE_KEY") {
-            None => None,
-            Some(raw) => Some(
-                SourceKey::from_base64(&raw)
-                    .map_err(|e| anyhow::anyhow!("CAREBUS_SOURCE_KEY: {e}"))?,
-            ),
-        };
-        let keyring = Keyring::parse(
-            get("PROVIDER_SECRET_KEYS").as_deref(),
-            get("PROVIDER_SECRET_KEY_CURRENT").as_deref(),
-        )
-        .map_err(|e| anyhow::anyhow!("PROVIDER_SECRET_KEYS: {e}"))?;
-        Ok(Self {
-            source_key,
-            keyring,
-        })
-    }
-
-    pub fn borrow(&self) -> Secrets<'_> {
-        Secrets {
-            source_key: self.source_key.as_ref(),
-            keyring: self.keyring.as_ref(),
-        }
-    }
-}
-
 /// The platform default's AAD scope: there is one row and no tenant, so it cannot use
 /// [`provider_keyring::provider_scope`].
 pub const PLATFORM_SCOPE: &str = "platform:llm_key:default";

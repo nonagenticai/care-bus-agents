@@ -12,7 +12,7 @@
 # it, plus the fixtures that assert the block — the guard is searching for the strings the
 # feature exists to reject. Each rule is scoped to the file where that is true.
 
-crates/carebus/src/netguard.rs:\.internal|\.svc\.cluster\.local|100\.   # the SSRF block rule and the fixtures that assert it (moved from carebus-api 2026-11-15)
+crates/carebus-api/src/netguard.rs:\.internal|\.svc\.cluster\.local|100\.   # the SSRF block rule and the fixtures that assert it
 crates/carebus-api/src/routes/llm_providers.rs:\.internal|\.svc\.cluster\.local|100\.   # the provider base_url rule (doc comment) and fixtures asserting refusal
 crates/carebus-api/tests/it/llm_providers.rs:\.internal|\.svc\.cluster\.local|100\.   # fixtures asserting a private provider URL is refused
 crates/carebus-api/tests/it/source_test_connection.rs:\.internal|100\.   # fixtures asserting a private source URL is refused

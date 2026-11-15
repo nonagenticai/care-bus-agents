@@ -12,7 +12,7 @@ pub mod mcp_binding;
 pub mod mcp_credentials;
 pub mod mcp_tasks;
 pub mod metering;
-pub use carebus::netguard;
+pub mod netguard;
 pub mod page;
 pub mod provider_keyring;
 pub mod provider_secret;

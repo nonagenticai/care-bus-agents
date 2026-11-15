@@ -24,7 +24,6 @@ pub mod interaction;
 pub mod mcp;
 pub mod mcp_http;
 pub mod mcp_tasks;
-pub mod netguard;
 pub mod orchestrator;
 pub mod procedures;
 pub mod provider_db;
@@ -34,7 +33,6 @@ pub mod scope;
 pub mod scopes;
 pub mod spaces;
 pub mod supervisor;
-pub mod tenant_qualifier;
 pub mod tools;
 pub mod worker;
 

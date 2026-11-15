@@ -28,7 +28,6 @@ mod migrations;
 mod ontology;
 mod overview;
 mod procedures;
-mod provider_db;
 mod providers;
 mod recorder;
 mod refinement;
