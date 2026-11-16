@@ -1,6 +1,6 @@
 <script lang="ts">
 	import '../app.css';
-	import { env } from '$env/dynamic/public';
+	import * as env from '$app/env/public';
 	import { page } from '$app/state';
 	import { missingConfig, readConfig } from '$lib/config';
 	import { getToken, initAuth, logout } from '$lib/auth/keycloak';

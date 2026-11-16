@@ -1,7 +1,6 @@
 {
 	"extends": "$app/tsconfig",
 	"include": [
-		".svelte-kit/ambient.d.ts",
 		"src/**/*.js",
 		"src/**/*.ts",
 		"src/**/*.svelte",
