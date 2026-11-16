@@ -254,8 +254,7 @@
 					><span class="label">URLs, one per line</span><textarea
 						class="input mono"
 						rows="4"
-						bind:value={draft.urls}
-					></textarea></label
+						bind:value={draft.urls}></textarea></label
 				>
 			{:else}
 				<label class="field span"
@@ -296,8 +295,9 @@
 						class="input mono"
 						rows="2"
 						bind:value={draft.allowedDomains}
-						placeholder="help.example.nl"
-					></textarea><span class="cell-sub">Empty: strata_ingest's default.</span></label
+						placeholder="help.example.nl"></textarea><span class="cell-sub"
+						>Empty: strata_ingest's default.</span
+					></label
 				>
 				<label class="field"
 					><span class="label">Link query</span><input
@@ -324,16 +324,14 @@
 						class="input mono"
 						rows="2"
 						bind:value={draft.include}
-						placeholder="/help/"
-					></textarea></label
+						placeholder="/help/"></textarea></label
 				>
 				<label class="field"
 					><span class="label">Skip URLs containing, one per line</span><textarea
 						class="input mono"
 						rows="2"
 						bind:value={draft.exclude}
-						placeholder="/archive/"
-					></textarea></label
+						placeholder="/archive/"></textarea></label
 				>
 			{/if}
 		{/if}

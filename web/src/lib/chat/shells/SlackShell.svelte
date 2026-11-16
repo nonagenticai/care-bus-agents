@@ -108,8 +108,7 @@
 					rows="1"
 					placeholder="Message #support"
 					aria-label="Message"
-					onkeydown={(e) => enterSends(e, onsend)}
-				></textarea>
+					onkeydown={(e) => enterSends(e, onsend)}></textarea>
 				<div class="sk-foot">
 					<span class="sk-hint">Enter to send · Shift+Enter for a new line</span>
 					<button class="sk-send" type="submit" disabled={locked || !text.trim()} aria-label="Send">

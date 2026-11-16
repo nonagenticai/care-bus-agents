@@ -153,8 +153,7 @@
 								class="input"
 								rows="3"
 								value={draft(q.key)[f.name] ?? ''}
-								oninput={(e) => (draft(q.key)[f.name] = e.currentTarget.value)}
-							></textarea>
+								oninput={(e) => (draft(q.key)[f.name] = e.currentTarget.value)}></textarea>
 						</label>
 					{/if}
 				{/each}
