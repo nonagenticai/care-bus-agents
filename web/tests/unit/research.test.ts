@@ -35,10 +35,10 @@ vi.mock('../../src/lib/features', async () => {
 import RunDetail from '../../src/routes/admin/jobs/[job]/research/RunDetail.svelte';
 import ResearchPage from '../../src/routes/admin/jobs/[job]/research/+page.svelte';
 
-const RUN_ID = '0195f48b-d002-7000-8000-0000000000b1';
+const RUN_ID = 'aaaaaaaa-0000-4000-8000-0000000000b1';
 const STORE = '6f9619ff-8b86-d011-b42d-00cf4fc964ff';
 const OTHER_STORE = '7f9619ff-8b86-d011-b42d-00cf4fc964ff';
-const MATTER_ID = '0195f48b-d002-7000-8000-0000000000c1';
+const MATTER_ID = 'aaaaaaaa-0000-4000-8000-0000000000c1';
 
 const run = (over: Partial<ResearchRun> = {}): ResearchRun => ({
 	id: RUN_ID,

@@ -10,9 +10,9 @@ const SUPER = {
 	tenant: null,
 	active_tenant: E2E_TENANT,
 };
-const A = '0195f48b-5000-7000-8000-00000000000a';
-const B = '0195f48b-5000-7000-8000-00000000000b';
-const C = '0195f48b-5000-7000-8000-00000000000c';
+const A = 'aaaaaaaa-0000-4000-8000-00000000000a';
+const B = 'aaaaaaaa-0000-4000-8000-00000000000b';
+const C = 'aaaaaaaa-0000-4000-8000-00000000000c';
 const STEPS = ['keycloak_user', 'tenant', 'membership', 'licences_tenant', 'member_licence', 'invite_email'];
 const step = (s: string, status: string, code: string | null = null) => ({
 	step: s,
@@ -57,7 +57,7 @@ async function mockSignups(page: Page, opts: { off?: boolean; slow?: Record<stri
 			C,
 			row(C, {
 				status: 'approved',
-				tenant_id: '0195f48b-d000-7000-8000-0000000000cc',
+				tenant_id: 'aaaaaaaa-0000-4000-8000-0000000000cc',
 				decided_at: '2026-10-22T10:05:00Z',
 				decided_by: 'e2e',
 				decided_via: 'ui',
@@ -112,7 +112,7 @@ async function mockSignups(page: Page, opts: { off?: boolean; slow?: Record<stri
 				);
 			if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(b.email))
 				return ok(route, { error: { code: 'invalid_body', message: 'email must be an email address' } }, 400);
-			const r = row(`0195f48b-5000-7000-8000-00000000000d`, {
+			const r = row(`aaaaaaaa-0000-4000-8000-00000000000d`, {
 				...b,
 				source: 'invite',
 				status: 'approved',

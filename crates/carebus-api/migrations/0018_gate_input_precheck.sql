@@ -27,5 +27,5 @@ UPDATE gate_questions q
        updated_at = now(),
        updated_by = 'migration:0018'
   FROM (SELECT tenant_id, id AS job_id FROM jobs
-         WHERE tenant_id = '0195f48b-d000-7000-8000-000000000099' AND key = 'customer_care_agent') d
+         WHERE tenant_id = 'aaaaaaaa-0000-4000-8000-000000000099' AND key = 'customer_care_agent') d
  WHERE q.tenant_id = d.tenant_id AND q.job_id = d.job_id AND q.key = 'credentials_shared';

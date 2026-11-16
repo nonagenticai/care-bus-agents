@@ -456,6 +456,8 @@ fn signup_cfg(base: &str, login_licence: bool) -> SignupConfig {
             api_base: format!("{base}/tg"),
         }),
         login_licence,
+        // a source tenant that does not exist: the approve's `base_release` step is skipped (as before)
+        base_tenant: Some(Uuid::new_v4()),
         ..Default::default()
     }
 }
@@ -604,7 +606,7 @@ async fn without_a_base_release_the_step_is_skipped_and_the_signup_still_complet
     let e = crate::common::env_with("signup-no-base", |c| {
         c.signup = signup_cfg(&base, false);
         // a source tenant that does not exist has no base release
-        c.signup.base_tenant = Uuid::new_v4();
+        c.signup.base_tenant = Some(Uuid::new_v4());
     })
     .await;
     let id = submit(&e, "ann@globex.com").await;

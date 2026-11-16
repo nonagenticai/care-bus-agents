@@ -130,7 +130,7 @@ export async function bootstrapScope(a: Api, user: User): Promise<void> {
  */
 export async function switchTenant(tenantId: string): Promise<string | null> {
 	const id = tenantId.trim().toLowerCase();
-	if (!isTenantId(id)) return 'A tenant id is a uuid such as 0195f48b-d000-7000-8000-000000000099.';
+	if (!isTenantId(id)) return 'A tenant id is a uuid such as aaaaaaaa-0000-4000-8000-000000000099.';
 	const a = api();
 	const prev = app.activeTenant;
 	app.activeTenant = id;

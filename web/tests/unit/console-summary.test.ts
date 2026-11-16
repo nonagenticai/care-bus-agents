@@ -24,7 +24,7 @@ const ev = (topic: string, payload: unknown, procedure?: string, entry = '179206
 		from: 'orchestrator',
 		correlation_id: 'CASE-1',
 		published_at_ms: 1,
-		tenant_id: '0195f48b-d000-7000-8000-000000000099',
+		tenant_id: 'aaaaaaaa-0000-4000-8000-000000000099',
 		job: 'customer_care_agent',
 		payload,
 		procedure,

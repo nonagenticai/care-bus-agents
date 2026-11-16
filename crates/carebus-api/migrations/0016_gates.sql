@@ -136,4 +136,4 @@ SELECT j.tenant_id, j.id, q.key, q.point, q."type", q.instructions, q.criteria::
      'closed', NULL, 1)
  ) AS q(key, point, "type", instructions, criteria, fire_when, threshold, fire_values, action, message, fail, tools,
         ordinal)
- WHERE j.tenant_id = '0195f48b-d000-7000-8000-000000000099' AND j.key = 'customer_care_agent';
+ WHERE j.tenant_id = 'aaaaaaaa-0000-4000-8000-000000000099' AND j.key = 'customer_care_agent';

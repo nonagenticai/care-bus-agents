@@ -250,7 +250,7 @@ mod tests {
         let items: Vec<Value> = (0..n)
             .map(|i| {
                 json!({
-                    "id": format!("0195f48b-d000-7000-8000-{i:012}"),
+                    "id": format!("aaaaaaaa-0000-4000-8000-{i:012}"),
                     "doi": format!("10.1000/p.{i}"),
                     "pmid": (1000 + i).to_string(),
                     "title": format!("Paper {i}"),

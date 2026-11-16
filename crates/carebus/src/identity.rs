@@ -84,10 +84,14 @@ mod tests {
 
     #[test]
     fn the_project_id_is_the_tenant_hex_reversed() {
-        // the fixed vector strata_rag's metering tests use
+        // ⛔ A SYNTHETIC vector. It used to be the REAL tenant strata_rag's
+        // metering tests pin, which tied the two services together; this repo is
+        // public, so the id cannot be spelled here any more. The function under
+        // test (hex reversal) is unchanged; the cross-service agreement is now
+        // checked where both services run, not here.
         assert_eq!(
-            tenant_level_project_id(u("0195f48b-d000-7000-8000-000000000100")),
-            u("00100000-0000-0008-0007-000db84f5910")
+            tenant_level_project_id(u("aaaaaaaa-0000-4000-8000-000000000100")),
+            u("00100000-0000-0008-0004-0000aaaaaaaa")
         );
         for _ in 0..64 {
             let t = Uuid::new_v4();
@@ -99,19 +103,19 @@ mod tests {
 
     #[test]
     fn the_router_gets_exactly_the_four_headers() {
-        let tenant = u("0195f48b-d000-7000-8000-000000000100");
+        let tenant = u("aaaaaaaa-0000-4000-8000-000000000100");
         let actor = u("7f1c9a2e-0000-4000-8000-00000000ac70");
         assert_eq!(
             router_headers(tenant, Some(actor)),
             vec![
                 (
                     "x-effective-tenant-id",
-                    "0195f48b-d000-7000-8000-000000000100".to_string()
+                    "aaaaaaaa-0000-4000-8000-000000000100".to_string()
                 ),
                 ("x-app-id", "care-bus".to_string()),
                 (
                     "x-project-id",
-                    "00100000-0000-0008-0007-000db84f5910".to_string()
+                    "00100000-0000-0008-0004-0000aaaaaaaa".to_string()
                 ),
                 ("x-actor-id", actor.to_string()),
             ]

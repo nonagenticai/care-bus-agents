@@ -23,7 +23,7 @@ const envelope = (id: string, payload: unknown) => ({
 	from: 'f',
 	correlation_id: 'C',
 	published_at_ms: 0,
-	tenant_id: '0195f48b-d000-7000-8000-000000000099',
+	tenant_id: 'aaaaaaaa-0000-4000-8000-000000000099',
 	job: 'customer_care_agent',
 	payload,
 });

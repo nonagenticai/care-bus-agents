@@ -604,7 +604,7 @@ mod tests {
             "TELEGRAM_WEBHOOK_SECRET" => Some("s3cret_value-1"),
             "TELEGRAM_WEBHOOK_URL" => Some("https://bot.example.test/api/telegram/webhook"),
             "TELEGRAM_ALLOWED_USER_IDS" => Some("42, 7"),
-            "TELEGRAM_TENANT_ID" => Some("0195f48b-d000-7000-8000-000000000099"),
+            "TELEGRAM_TENANT_ID" => Some("aaaaaaaa-0000-4000-8000-000000000099"),
             "TELEGRAM_JOB" => Some("customer_care_agent"),
             _ => None,
         }

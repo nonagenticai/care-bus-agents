@@ -937,7 +937,7 @@ mod tests {
 
     /// The `request.resolved` payload of CASE-42b46a3b, captured from the FAQ bus
     /// (2026-10-16): faq_ask's real `{answer, citations, sources, timings_ms}`.
-    const LIVE_FAQ_RESOLVED: &str = r#"{"case_id":"CASE-42b46a3b","request_type":"faq","outcome":"completed","reason":null,"facts":{"faq":{"answer":"The email address of Leanne Graham is Sincere@april.biz [1].","citations":["01a1456d-6310-75e4-abd3-fff43ecec074"],"sources":[{"chunk_id":"01a1456d-6310-75e4-abd3-fff43ecec074","document_id":"01a1456d-62dc-72fd-8c0b-c4a0f28f99e4","store_path":["e2e-2026-10-16"]}],"timings_ms":{"embed":162,"route":0,"search":169,"rerank":367,"total":792,"generate":1701}}}}"#;
+    const LIVE_FAQ_RESOLVED: &str = r#"{"case_id":"CASE-42b46a3b","request_type":"faq","outcome":"completed","reason":null,"facts":{"faq":{"answer":"The email address of Leanne Graham is Sincere@april.biz [1].","citations":["bbbbbbbb-0000-4000-8000-00000000c4a1"],"sources":[{"chunk_id":"bbbbbbbb-0000-4000-8000-00000000c4a1","document_id":"bbbbbbbb-0000-4000-8000-00000000d0c1","store_path":["e2e-2026-10-16"]}],"timings_ms":{"embed":162,"route":0,"search":169,"rerank":367,"total":792,"generate":1701}}}}"#;
 
     #[test]
     fn faq_reply_is_the_cited_answer_from_the_live_faq_ask_contract() {

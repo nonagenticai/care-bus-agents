@@ -210,8 +210,8 @@ test('a lost answer is reconciled: the stored provider matches, so it counts as 
 
 // ---- LLM providers (spec 2026-10-18 §2) ----------------------------------------------------------------------------
 
-const LLM_ID = '0195f48b-d001-7000-8000-0000000000a1';
-const LAYA_ID = '0195f48b-d001-7000-8000-0000000000a2';
+const LLM_ID = 'aaaaaaaa-0000-4000-8000-0000000000a1';
+const LAYA_ID = 'aaaaaaaa-0000-4000-8000-0000000000a2';
 
 test('LLM providers sit above the slots: list, token state, uses and the gates-off warning', async ({
 	page,
@@ -432,7 +432,7 @@ test('Use for: a new Laya provider is bound to gates on Save, with a model from 
 	expect(JSON.parse(post!.body!)).toMatchObject({ name: 'Laya prod', kind: 'laya', token: 'lic-9' });
 	const bind = sent.find((s) => s.method === 'PUT' && s.path === '/api/providers/uses/gates');
 	expect(JSON.parse(bind!.body!)).toEqual({
-		provider_id: expect.stringMatching(/^0195f48b-d001-7000-8000-00000000f\d{3}$/),
+		provider_id: expect.stringMatching(/^aaaaaaaa-0000-4000-8000-00000000f\d{3}$/),
 		model: 'jev-system1',
 	});
 	const gates = page.getByRole('region', { name: 'Use Laya gates' });

@@ -470,7 +470,7 @@ mod tests {
     #[test]
     fn cost_event_carries_tenant_job_and_the_ledger_key() {
         let key = Uuid::new_v4();
-        let tenant: Uuid = "0195f48b-d000-7000-8000-000000000099".parse().unwrap();
+        let tenant: Uuid = "aaaaaaaa-0000-4000-8000-000000000099".parse().unwrap();
         let a = Attribution {
             tenant,
             job_id: Uuid::new_v4(),

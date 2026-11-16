@@ -102,7 +102,7 @@ export type Sent = {
 	body: string | null;
 };
 
-export const E2E_TENANT = '0195f48b-d000-7000-8000-000000000099';
+export const E2E_TENANT = 'aaaaaaaa-0000-4000-8000-000000000099';
 export const E2E_JOB = 'customer_care_agent';
 /** Routes carebus-api nests under `/api/jobs/{job}` (crates/carebus-api/src/routes/mod.rs `job_routes`). */
 const JOB_ROUTES = new Set([
@@ -260,7 +260,7 @@ function llmProviderStore() {
 					return bad(route, 400, 'invalid_models', 'models must name at least one model, at most 100.');
 				const row = apply(
 					{
-						id: `0195f48b-d001-7000-8000-00000000f${String(++n).padStart(3, '0')}`,
+						id: `aaaaaaaa-0000-4000-8000-00000000f${String(++n).padStart(3, '0')}`,
 						models: [],
 						has_token: false,
 						secret_fpr: null,

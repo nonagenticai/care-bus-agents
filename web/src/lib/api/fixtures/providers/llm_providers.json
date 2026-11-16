@@ -1,7 +1,7 @@
 {
   "providers": [
     {
-      "id": "0195f48b-d001-7000-8000-0000000000a2",
+      "id": "aaaaaaaa-0000-4000-8000-0000000000a2",
       "name": "Laya EU",
       "kind": "laya",
       "base_url": "https://laya.example.eu",
@@ -16,7 +16,7 @@
       "updated_by": "admin"
     },
     {
-      "id": "0195f48b-d001-7000-8000-0000000000a1",
+      "id": "aaaaaaaa-0000-4000-8000-0000000000a1",
       "name": "Local vLLM",
       "kind": "openai",
       "base_url": "https://llm.example.eu/v1",
@@ -34,7 +34,7 @@
   "uses": [
     {
       "use": "qualify",
-      "provider_id": "0195f48b-d001-7000-8000-0000000000a1",
+      "provider_id": "aaaaaaaa-0000-4000-8000-0000000000a1",
       "model": "local-llm"
     },
     {

@@ -22,8 +22,8 @@
 //!   `LICENSE_PLAN_CODE` (`standard`), `LICENSE_SUBJECT_REALM` (`care-bus`), `LICENSE_BUNDLE_KEY` (`care-bus`),
 //!   `LICENSE_BUNDLE_PLANS` (CSV, `standard`).
 //! - `SIGNUP_JOB_KEY` (`customer_care_agent`): the job every workspace is founded with; `SIGNUP_BASE_TENANT_ID`
-//!   (default the bootstrap tenant `0195f48b-d000-7000-8000-000000000099`): the tenant whose job of that key holds the
-//!   base release a new workspace's job is put on (the `base_release` step).
+//!   (no default): the tenant whose job of that key holds the base release a new workspace's job is put on (the
+//!   `base_release` step). Unset, a signup cannot found a workspace (the step fails closed).
 //! - `CAREBUS_TENANT_BUNDLE_RECONCILE` (default false): the signup tick registers every ACTIVE tenant in licences and
 //!   ensures its licence set (bundle) once, recorded in `tenant_bundle_reconcile` (migration 0022), retried with
 //!   backoff. Needs the licences settings above. Runs whether or not `CAREBUS_SIGNUP_ENABLED` is on.
@@ -118,12 +118,10 @@ pub struct SignupConfig {
     pub bundle_reconcile: bool,
     /// The job every approved workspace is founded with (`SIGNUP_JOB_KEY`, default `customer_care_agent`).
     pub job_key: String,
-    /// `SIGNUP_BASE_TENANT_ID`: whose `job_key` job's current release a new workspace starts on.
-    pub base_tenant: uuid::Uuid,
+    /// `SIGNUP_BASE_TENANT_ID`: whose `job_key` job's current release a new workspace starts on. Unset: a signup
+    /// cannot found a workspace (fail-closed).
+    pub base_tenant: Option<uuid::Uuid>,
 }
-
-/// `SIGNUP_BASE_TENANT_ID` when unset: the bootstrap tenant (migration 0006), the one job born with the base.
-pub const DEFAULT_BASE_TENANT: uuid::Uuid = uuid::uuid!("0195f48b-d000-7000-8000-000000000099");
 
 impl Default for SignupConfig {
     /// Off; the defaults of every name.
@@ -150,7 +148,7 @@ impl Default for SignupConfig {
             login_licence: false,
             bundle_reconcile: false,
             job_key: "customer_care_agent".into(),
-            base_tenant: DEFAULT_BASE_TENANT,
+            base_tenant: None,
         }
     }
 }
@@ -336,11 +334,13 @@ impl SignupConfig {
             bundle_reconcile,
             job_key: or("SIGNUP_JOB_KEY", "customer_care_agent"),
             base_tenant: match trimmed("SIGNUP_BASE_TENANT_ID") {
-                None => DEFAULT_BASE_TENANT,
-                Some(v) => uuid::Uuid::parse_str(&v)
-                    .ok()
-                    .filter(|u| !u.is_nil() && v.len() == 36)
-                    .context("SIGNUP_BASE_TENANT_ID must be a bare, non-nil tenant uuid")?,
+                None => None,
+                Some(v) => Some(
+                    uuid::Uuid::parse_str(&v)
+                        .ok()
+                        .filter(|u| !u.is_nil() && v.len() == 36)
+                        .context("SIGNUP_BASE_TENANT_ID must be a bare, non-nil tenant uuid")?,
+                ),
             },
         };
         let mut missing: Vec<&str> = Vec::new();

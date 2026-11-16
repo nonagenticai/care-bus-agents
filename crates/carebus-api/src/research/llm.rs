@@ -459,7 +459,7 @@ mod tests {
     /// (a tenant's own provider) it carries none of them, whatever `actor` holds.
     #[test]
     fn the_platform_model_gets_care_bus_identity_and_a_tenant_provider_none() {
-        let tenant = Uuid::parse_str("0195f48b-d000-7000-8000-000000000100").unwrap();
+        let tenant = Uuid::parse_str("aaaaaaaa-0000-4000-8000-000000000100").unwrap();
         let actor = Uuid::parse_str("7f1c9a2e-0000-4000-8000-00000000ac70").unwrap();
         let mut e = ep(ROUTER, None);
         e.effective_tenant = Some(tenant);
@@ -468,7 +468,7 @@ mod tests {
         assert_eq!(hv(&h, "X-App-Id"), Some("care-bus"));
         assert_eq!(
             hv(&h, "X-Project-Id"),
-            Some("00100000-0000-0008-0007-000db84f5910")
+            Some("00100000-0000-0008-0004-0000aaaaaaaa")
         );
         assert_eq!(hv(&h, "X-Actor-Id"), Some(actor.to_string().as_str()));
         assert_eq!(
