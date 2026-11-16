@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { jobPath } from '$lib/scope';
 	import Freshness from '$lib/ui/Freshness.svelte';
-	import { env } from '$env/dynamic/public';
+	import * as env from '$app/env/public';
 	import { api, app } from '$lib/app.svelte';
 	import { Resource } from '$lib/load.svelte';
 	import { fmt } from '$lib/format';

@@ -156,7 +156,7 @@
 
 	function setUrl(id: string | null) {
 		try {
-			const u = new URL(page.url);
+			const u = new URL(page.url.href);
 			if (id) u.searchParams.set('signup', id);
 			else u.searchParams.delete('signup');
 			u.searchParams.delete('action');

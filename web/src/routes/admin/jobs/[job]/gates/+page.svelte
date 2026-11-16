@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { env } from '$env/dynamic/public';
+	import * as env from '$app/env/public';
 	import { api, app, guard, guardOutcome } from '$lib/app.svelte';
 	import { getToken } from '$lib/auth/keycloak';
 	import { session } from '$lib/auth/session.svelte';

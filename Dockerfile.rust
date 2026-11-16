@@ -4,7 +4,7 @@
 # does), so a commit that touches only workspace code reuses the dependency layer and compiles just the workspace
 # crates.
 ARG BASE_REGISTRY=docker.io
-FROM ${BASE_REGISTRY}/library/rust:1.99.1-bookworm AS chef
+FROM ${BASE_REGISTRY}/library/rust:1.100.0-bookworm AS chef
 RUN cargo install cargo-chef --locked --version 0.1.78
 WORKDIR /src
 

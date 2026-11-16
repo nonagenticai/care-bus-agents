@@ -127,8 +127,7 @@
 					rows="1"
 					placeholder="Type a message"
 					aria-label="Message"
-					onkeydown={(e) => enterSends(e, onsend)}
-				></textarea>
+					onkeydown={(e) => enterSends(e, onsend)}></textarea>
 				<button class="wa-send" type="submit" disabled={locked || !text.trim()} aria-label="Send">
 					<svg viewBox="0 0 24 24" aria-hidden="true"><path d={ICON.send} /></svg>
 				</button>

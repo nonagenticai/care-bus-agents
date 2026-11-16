@@ -266,8 +266,7 @@
 					bind:value={draft.question}
 					maxlength={QUESTION_MAX}
 					aria-invalid={msg('question') ? 'true' : undefined}
-					aria-describedby={msg('question') ? 'rs-err-question' : undefined}
-				></textarea>
+					aria-describedby={msg('question') ? 'rs-err-question' : undefined}></textarea>
 				{#if msg('question')}<span class="field-err" id="rs-err-question">{msg('question')}</span>{/if}
 			</label>
 			<fieldset class="rs-stores">

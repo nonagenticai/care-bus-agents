@@ -368,15 +368,13 @@
 				><span class="label">Document ids</span><textarea
 					class="input"
 					rows="2"
-					bind:value={form.expected_document_ids}
-				></textarea></label
+					bind:value={form.expected_document_ids}></textarea></label
 			>
 			<label class="field"
 				><span class="label">Chunk ids</span><textarea
 					class="input"
 					rows="2"
-					bind:value={form.expected_chunk_ids}
-				></textarea></label
+					bind:value={form.expected_chunk_ids}></textarea></label
 			>
 			<p class="muted wide">
 				A result counts as a hit when it matches any expectation. The leaf store only scores routing.

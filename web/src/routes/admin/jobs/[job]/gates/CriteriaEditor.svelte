@@ -70,16 +70,14 @@
 				class="input"
 				rows="2"
 				bind:value={noulTrue}
-				oninput={emit}
-			></textarea></label
+				oninput={emit}></textarea></label
 		>
 		<label class="field"
 			><span class="label">False when</span><textarea
 				class="input"
 				rows="2"
 				bind:value={noulFalse}
-				oninput={emit}
-			></textarea></label
+				oninput={emit}></textarea></label
 		>
 	{:else if type === 'choice'}
 		<p class="muted">2–255 options. laya picks one and reports a probability per option.</p>
