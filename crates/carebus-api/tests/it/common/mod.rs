@@ -248,7 +248,7 @@ pub fn test_keyring() -> carebus_api::provider_keyring::Keyring {
 
 /// The bootstrap tenant migration 0006 adopts every pre-W3 row into (minted outside care-bus). The static strata
 /// tokens are pinned to it (`strata_tenant`), and the strata fakes refuse a request whose `X-Tenant-Id` is not this.
-pub const BOOT_TENANT: &str = "aaaaaaaa-0000-4000-8000-000000000099";
+pub const BOOT_TENANT: &str = "0195f48b-d000-7000-8000-000000000099";
 /// The bootstrap job's external key (migration 0006).
 pub const BOOT_JOB: &str = "customer_care_agent";
 /// A second tenant for isolation tests; never provisioned by a migration.

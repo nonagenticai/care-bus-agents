@@ -1,5 +1,5 @@
 -- Laya gates: `emergency` and `bereavement` read the customer's own words (`input = 'message'`), not the wrapped
--- request. Why (live 2026-10-24, tenant aaaaaaaa-0000-4000-8000-000000000099, verdict 31): a refund question got the
+-- request. Why (live 2026-10-24, tenant 0195f48b-d000-7000-8000-000000000099, verdict 31): a refund question got the
 -- emergency "call 112" handoff. Both questions kept 0018's default `input = 'request'`, so laya was asked about the
 -- request text a live turn builds (gates::request_text):
 --   Customer message: How long does a refund take?

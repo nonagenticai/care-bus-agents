@@ -456,8 +456,10 @@ fn signup_cfg(base: &str, login_licence: bool) -> SignupConfig {
             api_base: format!("{base}/tg"),
         }),
         login_licence,
-        // a source tenant that does not exist: the approve's `base_release` step is skipped (as before)
-        base_tenant: Some(Uuid::new_v4()),
+        // The deploy sets SIGNUP_BASE_TENANT_ID; here that is the bootstrap tenant, whose
+        // 0009 release the approve's `base_release` step adopts. Tests that need "no base
+        // release" override this with a source tenant that does not exist.
+        base_tenant: Some(crate::common::BOOT_TENANT.parse().unwrap()),
         ..Default::default()
     }
 }

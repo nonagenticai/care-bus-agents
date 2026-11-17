@@ -85,7 +85,7 @@ ALTER TABLE connector_field_mappings DROP CONSTRAINT connector_field_mappings_pk
 INSERT INTO job_releases (tenant_id, job_id, release_id, hash, bundle, is_current, applied_by)
 SELECT tenant_id, id, 'bootstrap-0009', 'sha256:bootstrap-0009', NULL, true, 'migration:0009'
   FROM jobs
- WHERE tenant_id = 'aaaaaaaa-0000-4000-8000-000000000099' AND key = 'customer_care_agent';
+ WHERE tenant_id = '0195f48b-d000-7000-8000-000000000099' AND key = 'customer_care_agent';
 
 CREATE TEMP TABLE boot_scope ON COMMIT DROP AS
 SELECT tenant_id, job_id FROM job_releases WHERE release_id = 'bootstrap-0009';

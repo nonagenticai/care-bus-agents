@@ -1,15 +1,8 @@
 -- W3 plan 10 Task 1: tenants, users, jobs, and a tenant_id + job_id on every table.
 -- care-bus never mints tenant ids: a tenant arrives by provision-down. Existing rows are adopted into the bootstrap
--- tenant seeded below and the bootstrap job `customer_care_agent`, so the live flow keeps working without a reseed.
+-- tenant 0195f48b-d000-7000-8000-000000000099 (the CAREBUS_TENANT_ID value strata_rag/ingest already hold care-bus's
+-- documents under) and the bootstrap job `customer_care_agent`, so the live flow keeps working without a reseed.
 -- RLS, the runtime role and the GUC column defaults follow in 0007.
---
--- ⛔ THE BOOTSTRAP TENANT HERE IS A FABRICATED `aaaaaaaa-…` VALUE, NOT A REAL ONE.
--- This repository is public, so a migration can no longer carry the production
--- estate's bootstrap uuid. A fresh database therefore seeds a bootstrap tenant
--- that no real licence names. A deployment that adopts existing documents points
--- `SIGNUP_BASE_TENANT_ID` (and `CAREBUS_TENANT_ID`) at its OWN tenant; the seed
--- exists so the schema, the jobs table and the RLS smoke tests have a valid row,
--- not so a production install inherits it.
 
 CREATE TABLE tenants (
     id         uuid PRIMARY KEY CHECK (id <> '00000000-0000-0000-0000-000000000000'),
@@ -53,15 +46,15 @@ CREATE TABLE super_admin_active (
 );
 
 INSERT INTO tenants (id, name, updated_by)
-VALUES ('aaaaaaaa-0000-4000-8000-000000000099', 'Bootstrap (adopted)', 'migration:0006');
+VALUES ('0195f48b-d000-7000-8000-000000000099', 'Bootstrap (adopted)', 'migration:0006');
 INSERT INTO jobs (tenant_id, key, label)
-VALUES ('aaaaaaaa-0000-4000-8000-000000000099', 'customer_care_agent', 'Customer care');
+VALUES ('0195f48b-d000-7000-8000-000000000099', 'customer_care_agent', 'Customer care');
 
 -- Adopt every existing row into the bootstrap pair. audit_events.job_id stays nullable: tenant-level actions
 -- (tenant switch, user provisioning) have no job.
 DO $$
 DECLARE
-    boot_tenant constant uuid := 'aaaaaaaa-0000-4000-8000-000000000099';
+    boot_tenant constant uuid := '0195f48b-d000-7000-8000-000000000099';
     boot_job uuid := (SELECT id FROM jobs WHERE tenant_id = boot_tenant AND key = 'customer_care_agent');
     t text;
 BEGIN
