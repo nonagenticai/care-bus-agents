@@ -25,9 +25,10 @@
 		{#if unavailable}
 			<span class="vs">Unavailable: {unavailable}</span>
 		{:else if delta != null}
-			<span class="delta" class:good={isGood} class:bad={!isGood}
-				>{delta >= 0 ? '▲' : '▼'} {Math.abs(delta * 100).toFixed(1)}%</span
-			>
+			<span class="delta" class:good={isGood} class:bad={!isGood}>
+				{delta >= 0 ? '▲' : '▼'}
+				{Math.abs(delta * 100).toFixed(1)}%
+			</span>
 			<span class="vs">vs prev. period</span>
 		{/if}
 		{#if note}<span class="vs">{note}</span>{/if}

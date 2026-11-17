@@ -101,12 +101,13 @@
 			<div class="tbl-wrap">
 				<table class="tbl dense">
 					<thead>
-						<tr
-							><th>Request type</th><th class="r">Cases</th><th class="r">Auto-resolved</th><th class="r"
-								>Not eligible</th
-							><th class="r">Handed to a person</th><th class="r">Retries</th><th class="r">Median time</th
-							></tr
-						>
+						<tr>
+							<th>Request type</th><th class="r">Cases</th><th class="r">Auto-resolved</th><th class="r">
+								Not eligible
+							</th><th class="r">Handed to a person</th><th class="r">Retries</th><th class="r">
+								Median time
+							</th>
+						</tr>
 					</thead>
 					<tbody>
 						{#each a.by_type as t}

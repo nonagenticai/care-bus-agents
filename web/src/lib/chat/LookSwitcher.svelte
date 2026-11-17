@@ -16,7 +16,9 @@
 			class="tab"
 			class:on={id === look}
 			aria-pressed={id === look}
-			onclick={() => pick(id)}>{label}</button
+			onclick={() => pick(id)}
 		>
+			{label}
+		</button>
 	{/each}
 </div>

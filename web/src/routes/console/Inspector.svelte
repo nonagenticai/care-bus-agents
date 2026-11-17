@@ -59,8 +59,10 @@
 					id="itab-{v.id}"
 					aria-selected={view === v.id}
 					aria-controls="ipanel"
-					onclick={() => (view = v.id)}>{v.label}</button
+					onclick={() => (view = v.id)}
 				>
+					{v.label}
+				</button>
 			{/each}
 		</div>
 	{/if}

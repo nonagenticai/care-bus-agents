@@ -149,25 +149,26 @@
 				<div class="tbl-wrap">
 					<table class="tbl clickable">
 						<thead>
-							<tr
-								><th>Stream</th><th>Bus</th><th class="r">Length</th><th>Consumer groups</th><th>Health</th
-								></tr
-							>
+							<tr>
+								<th>Stream</th><th>Bus</th><th class="r">Length</th><th>Consumer groups</th><th>Health</th>
+							</tr>
 						</thead>
 						<tbody>
 							{#each items as s}
 								{@const h = streamHealth(s)}
 								<tr onclick={() => openStream(s)}>
-									<td
-										><button
+									<td>
+										<button
 											type="button"
 											class="table-action cell-title"
 											onclick={(e) => {
 												e.stopPropagation();
 												openStream(s);
-											}}>{streamLabel(s.key)}</button
-										><span class="cell-sub mono">{s.key}</span></td
-									>
+											}}
+										>
+											{streamLabel(s.key)}
+										</button><span class="cell-sub mono">{s.key}</span>
+									</td>
 									<td><Chip text={busName(s.bus)} variant={busVariant[s.bus]} /></td>
 									<td class="r">{fmt.n(s.length)}</td>
 									<td>
@@ -215,16 +216,16 @@
 							{@const p = deadLetter(d)}
 							{@const replayWhy = replayBlocked(admin, !!p)}
 							<tr>
-								<td
-									><span class="cell-title mono">{d.envelope.correlation_id}</span><span class="cell-sub"
-										>{entryTime(d.entry_id)} · <span class="mono">{d.entry_id}</span></span
-									></td
-								>
-								<td
-									><span class="cell-title"
-										>{p ? streamLabel(p.stream) : '—'} · {publisherName(d.envelope.from)}</span
-									><span class="cell-sub mono">{p?.stream ?? '—'} · {d.envelope.from}</span></td
-								>
+								<td>
+									<span class="cell-title mono">{d.envelope.correlation_id}</span><span class="cell-sub">
+										{entryTime(d.entry_id)} · <span class="mono">{d.entry_id}</span>
+									</span>
+								</td>
+								<td>
+									<span class="cell-title">
+										{p ? streamLabel(p.stream) : '—'} · {publisherName(d.envelope.from)}
+									</span><span class="cell-sub mono">{p?.stream ?? '—'} · {d.envelope.from}</span>
+								</td>
 								<td>{p?.reason ?? 'not a dead letter'}</td>
 								<td class="r">{p?.deliveries ?? '—'}</td>
 								<td>
@@ -241,8 +242,10 @@
 												).then((ok) => {
 													if (!ok) return;
 													dead.refresh();
-												})}>Replay</button
+												})}
 										>
+											Replay
+										</button>
 										<button
 											class="btn sm danger"
 											type="button"
@@ -255,8 +258,10 @@
 												).then((ok) => {
 													if (!ok) return;
 													dead.refresh();
-												})}>Discard</button
+												})}
 										>
+											Discard
+										</button>
 									</div>
 									{#if admin && replayWhy}<span class="cell-sub">{replayWhy}</span>{/if}
 								</td>
@@ -294,37 +299,39 @@
 			<div class="tbl-wrap">
 				<table class="tbl dense">
 					<thead>
-						<tr
-							><th>Group</th><th class="r">Consumers</th><th class="r">Pending</th><th class="r">Lag</th><th
-								>Last delivered</th
-							><th></th></tr
-						>
+						<tr>
+							<th>Group</th><th class="r">Consumers</th><th class="r">Pending</th><th class="r">Lag</th><th>
+								Last delivered
+							</th><th></th>
+						</tr>
 					</thead>
 					<tbody>
 						{#each stream.groups as g}
 							{@const claimWhy = claimBlocked(admin, g.pending)}
 							<tr>
-								<td
-									><span class="cell-title">{agentName(g.name)}</span><span class="cell-sub mono"
-										>{g.name}</span
-									></td
-								>
+								<td>
+									<span class="cell-title">{agentName(g.name)}</span><span class="cell-sub mono">
+										{g.name}
+									</span>
+								</td>
 								<td class="r">{g.consumers}</td>
 								<td class="r">{g.pending}</td>
 								<td class="r">{g.lag ?? '—'}</td>
-								<td
-									>{entryTime(g.last_delivered_id) || '—'}<span class="cell-sub mono"
-										>{g.last_delivered_id}</span
-									></td
-								>
+								<td>
+									{entryTime(g.last_delivered_id) || '—'}<span class="cell-sub mono">
+										{g.last_delivered_id}
+									</span>
+								</td>
 								<td>
 									<button
 										class="btn sm"
 										type="button"
 										disabled={!!claimWhy}
 										title={claimWhy || 'Hand entries idle 30 s or more to another consumer'}
-										onclick={() => claim(stream.key, g.name)}>Claim stuck</button
+										onclick={() => claim(stream.key, g.name)}
 									>
+										Claim stuck
+									</button>
 									{#if admin && claimWhy}<span class="cell-sub">{claimWhy}</span>{/if}
 								</td>
 							</tr>
@@ -349,10 +356,10 @@
 							<summary>
 								<span class="mono muted">{l.time}</span>
 								<Chip text={l.event} variant={busVariant[stream.bus]} />
-								<span
-									>{l.from}{#if l.to}
-										→ {l.to}{/if}</span
-								>
+								<span>
+									{l.from}{#if l.to}
+										→ {l.to}{/if}
+								</span>
 								{#if l.detail}<span class="muted">· {l.detail}</span>{/if}
 								<span class="cell-sub mono">{e.envelope.correlation_id} · {e.entry_id}</span>
 							</summary>

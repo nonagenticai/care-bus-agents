@@ -142,9 +142,9 @@
 	<div class="empty">
 		{#if filtered}
 			No cases match these filters.
-			<button class="btn" onclick={() => setQuery({ outcome: '', area: '', before: '', previous: '' })}
-				>Clear filters</button
-			>
+			<button class="btn" onclick={() => setQuery({ outcome: '', area: '', before: '', previous: '' })}>
+				Clear filters
+			</button>
 		{:else}
 			No cases yet.
 		{/if}
@@ -154,38 +154,44 @@
 		<div class="tbl-wrap">
 			<table class="tbl clickable">
 				<thead>
-					<tr
-						><th>Case</th><th>Area</th><th>Request</th><th>Outcome</th><th class="r">Work items</th><th
-							class="r">Time</th
-						></tr
-					>
+					<tr>
+						<th>Case</th><th>Area</th><th>Request</th><th>Outcome</th><th class="r">Work items</th><th
+							class="r"
+						>
+							Time
+						</th>
+					</tr>
 				</thead>
 				<tbody>
 					{#each rows as c (c.case_id)}
 						{@const proc = caseProcedure(c, labels.procedure)}
 						<tr onclick={() => setQuery({ case: c.case_id }, { resetPage: false })}>
-							<td
-								><button
+							<td>
+								<button
 									type="button"
 									class="table-action mono"
 									onclick={(e) => {
 										e.stopPropagation();
 										void setQuery({ case: c.case_id }, { resetPage: false });
-									}}>{c.case_id}</button
-								><span class="cell-sub mono">{c.customer_id}</span></td
-							>
+									}}
+								>
+									{c.case_id}
+								</button><span class="cell-sub mono">{c.customer_id}</span>
+							</td>
 							<td>{areaLabel(c.area)}</td>
-							<td
-								>{labels.type(c.request_type)}{#if proc?.recorded}<span
+							<td>
+								{labels.type(c.request_type)}{#if proc?.recorded}<span
 										class="cell-sub"
 										title="Procedure version this case ran"
-										>procedure <span class="mono">{proc.text}</span></span
-									>{:else if proc}<span
+									>
+										procedure <span class="mono">{proc.text}</span>
+									</span>{:else if proc}<span
 										class="cell-sub"
 										title="No version recorded for this case; this is the procedure its context space runs"
-										>procedure <span class="mono">{proc.text}</span> (from context space)</span
-									>{/if}</td
-							>
+									>
+										procedure <span class="mono">{proc.text}</span> (from context space)
+									</span>{/if}
+							</td>
 							<td><Status word={c.outcome ?? 'open'} label={outcomeLabel(c.outcome)} /></td>
 							<td class="r">{c.work_items}{c.retries ? ` (+${c.retries} retry)` : ''}</td>
 							<td class="r">{fmt.ms(c.duration_ms)}</td>
@@ -217,9 +223,9 @@
 		{@const c = detail.case}
 		{@const proc = caseProcedure(c, labels.procedure)}
 		{#if c.reason}
-			<Callout kind={c.outcome === 'failed' ? 'err' : 'info'} title={outcomeLabel(c.outcome)}
-				>{c.reason}</Callout
-			>
+			<Callout kind={c.outcome === 'failed' ? 'err' : 'info'} title={outcomeLabel(c.outcome)}>
+				{c.reason}
+			</Callout>
 		{/if}
 		<KeyValues
 			pairs={[

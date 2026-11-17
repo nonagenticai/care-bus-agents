@@ -34,20 +34,20 @@
 <nav class="row pagination" aria-label="Results pages">
 	{#if escape}
 		{#if before}
-			<button class="btn" disabled={busy} onclick={() => setQuery({ before: '', previous: '' }, paging)}
-				>Newest results</button
-			>
+			<button class="btn" disabled={busy} onclick={() => setQuery({ before: '', previous: '' }, paging)}>
+				Newest results
+			</button>
 		{/if}
 	{:else}
 		<button class="btn" disabled={!before || busy} onclick={newer}>Newer results</button>
-		<span role="status"
-			>{count} results on this page{next ? ' · More results available' : ' · End of results'}</span
-		>
+		<span role="status">
+			{count} results on this page{next ? ' · More results available' : ' · End of results'}
+		</span>
 		<button class="btn" disabled={!next || busy} onclick={older}>Older results</button>
 		{#if before}
-			<button class="btn" disabled={busy} onclick={() => setQuery({ before: '', previous: '' }, paging)}
-				>Newest results</button
-			>
+			<button class="btn" disabled={busy} onclick={() => setQuery({ before: '', previous: '' }, paging)}>
+				Newest results
+			</button>
 		{/if}
 	{/if}
 </nav>

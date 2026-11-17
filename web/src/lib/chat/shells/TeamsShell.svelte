@@ -43,9 +43,9 @@
 				<div class="tm-ava bot">{initials(agentName)}</div>
 				<div class="tm-item-body">
 					<div class="tm-item-top">
-						<span class="tm-item-name">{agentName}</span><span class="tm-item-time"
-							>{formatTime(last?.at ?? null)}</span
-						>
+						<span class="tm-item-name">{agentName}</span><span class="tm-item-time">
+							{formatTime(last?.at ?? null)}
+						</span>
 					</div>
 					<div class="tm-item-prev">{typing ? 'Typing…' : (last?.text ?? 'Start the conversation')}</div>
 				</div>
@@ -87,9 +87,9 @@
 								<div class="tm-meta">
 									<span class="tm-name">{you ? customerName : agentName}</span>
 									{#if m.at !== null}<time class="tm-time">{formatTime(m.at)}</time>{/if}
-									{#if unsent(m.status)}<span class="tm-state"
-											>{PENDING_LABEL[m.status as keyof typeof PENDING_LABEL]}</span
-										>{/if}
+									{#if unsent(m.status)}<span class="tm-state">
+											{PENDING_LABEL[m.status as keyof typeof PENDING_LABEL]}
+										</span>{/if}
 								</div>
 								<div class="tm-bubble"><span class="tm-txt">{m.text}</span></div>
 							</div>

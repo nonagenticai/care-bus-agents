@@ -324,43 +324,44 @@
 							type="button"
 							disabled={!canWrite}
 							title={canWrite ? '' : denied}
-							onclick={() => add(step.point)}>Add {step.point} question</button
+							onclick={() => add(step.point)}
 						>
+							Add {step.point} question
+						</button>
 					</div>
 					{#if grouped[step.point].length === 0}
 						<p class="empty-row muted">No questions at this point.</p>
 					{:else}
 						<div class="tbl-wrap">
 							<table class="tbl">
-								<thead
-									><tr><th>Key</th><th>Type</th><th>Instructions</th><th>Rule</th><th>Enabled</th></tr></thead
-								>
+								<thead>
+									<tr><th>Key</th><th>Type</th><th>Instructions</th><th>Rule</th><th>Enabled</th></tr>
+								</thead>
 								<tbody>
 									{#each grouped[step.point] as q (q.key)}
 										<tr class:off={!q.enabled}>
-											<td class="mono"
-												><button type="button" class="table-action" onclick={() => edit(q)}>{q.key}</button
-												></td
-											>
+											<td class="mono">
+												<button type="button" class="table-action" onclick={() => edit(q)}>{q.key}</button>
+											</td>
 											<td><Chip text={q.type} variant="accent" /></td>
 											<td class="instr">{q.instructions}</td>
-											<td class="rule"
-												>{ruleSummary(q)}{#if q.point === 'tool' && q.tools?.length}<div class="muted mono">
+											<td class="rule">
+												{ruleSummary(q)}{#if q.point === 'tool' && q.tools?.length}<div class="muted mono">
 														tools: {q.tools.join(', ')}
-													</div>{/if}</td
-											>
-											<td
-												><label class="toggle"
-													><input
+													</div>{/if}
+											</td>
+											<td>
+												<label class="toggle">
+													<input
 														type="checkbox"
 														checked={q.enabled}
 														disabled={!canWrite}
 														title={canWrite ? '' : denied}
 														aria-label="Enabled {q.key}"
 														onchange={() => toggle(q)}
-													/>{q.enabled ? 'On' : 'Off'}</label
-												></td
-											>
+													/>{q.enabled ? 'On' : 'Off'}
+												</label>
+											</td>
 										</tr>
 									{/each}
 								</tbody>
@@ -378,9 +379,9 @@
 
 <Card title="Playground" sub="Asks laya the questions of one point. Each run is logged as a verdict.">
 	{#if !canWrite}
-		<Callout kind="info" title="Admins only"
-			>Running the playground calls laya on the tenant's token, so it needs the tenant_admin role.</Callout
-		>
+		<Callout kind="info" title="Admins only">
+			Running the playground calls laya on the tenant's token, so it needs the tenant_admin role.
+		</Callout>
 	{/if}
 	<div class="pg">
 		<Seg
@@ -388,44 +389,40 @@
 			bind:active={pgPoint}
 			label="Point"
 		/>
-		<label class="field"
-			><span class="label"
-				>{pgPoint === 'response'
-					? 'Reply text'
-					: pgPoint === 'tool'
-						? 'Customer request'
-						: 'Customer message'}</span
-			><textarea class="input" rows="3" bind:value={pgText}></textarea></label
-		>
+		<label class="field">
+			<span class="label">
+				{pgPoint === 'response' ? 'Reply text' : pgPoint === 'tool' ? 'Customer request' : 'Customer message'}
+			</span><textarea class="input" rows="3" bind:value={pgText}></textarea>
+		</label>
 		{#if pgPoint === 'request'}
 			<div class="form-grid">
-				<label class="field"
-					><span class="label">Request type (optional)</span><input
+				<label class="field">
+					<span class="label">Request type (optional)</span><input
 						class="input mono"
 						bind:value={pgType}
 						placeholder="delivery"
-					/><span class="muted hint">Set it to see the request text of a turn with a draft.</span></label
-				>
-				<label class="field"
-					><span class="label">Details (JSON, optional)</span><input
+					/><span class="muted hint">Set it to see the request text of a turn with a draft.</span>
+				</label>
+				<label class="field">
+					<span class="label">Details (JSON, optional)</span><input
 						class="input mono"
 						bind:value={pgDetails}
 						disabled={!pgType.trim()}
 						placeholder={'{"order_id": "ORD-1042"}'}
-					/></label
-				>
+					/>
+				</label>
 			</div>
 		{/if}
 		{#if pgPoint === 'tool'}
 			<div class="form-grid">
-				<label class="field"
-					><span class="label">Tool</span><input
+				<label class="field">
+					<span class="label">Tool</span><input
 						class="input mono"
 						bind:value={pgTool}
 						list="gate-tools"
 						placeholder="order_issue_refund"
-					/></label
-				>
+					/>
+				</label>
 			</div>
 		{/if}
 		<div class="actions">
@@ -434,8 +431,10 @@
 				type="button"
 				disabled={!canWrite || pgBusy || !pgText.trim()}
 				title={canWrite ? '' : denied}
-				onclick={evaluate}>{pgBusy ? 'Evaluating…' : 'Evaluate'}</button
+				onclick={evaluate}
 			>
+				{pgBusy ? 'Evaluating…' : 'Evaluate'}
+			</button>
 		</div>
 		{#if pgError}<Callout kind="err" title="Not evaluated">{pgError}</Callout>{/if}
 		{#if pgResult}
@@ -475,37 +474,38 @@
 	{:else}
 		<div class="tbl-wrap">
 			<table class="tbl dense" data-testid="verdicts">
-				<thead
-					><tr
-						><th>Time</th><th>Point</th><th>Outcome</th><th>Fired</th><th>Action</th><th class="r">Latency</th
-						><th>Conversation / case</th><th>Error</th></tr
-					></thead
-				>
+				<thead>
+					<tr>
+						<th>Time</th><th>Point</th><th>Outcome</th><th>Fired</th><th>Action</th><th class="r">
+							Latency
+						</th><th>Conversation / case</th><th>Error</th>
+					</tr>
+				</thead>
 				<tbody>
 					{#each verdicts.value.data as v (v.id)}
 						<tr>
 							<td class="nowrap">{time(v.created_at)}</td>
 							<td>{v.point}</td>
-							<td
-								><Status
+							<td>
+								<Status
 									word={OUTCOME_WORD[v.outcome] ?? 'idle'}
 									label={OUTCOME_LABEL[v.outcome] ?? v.outcome}
-								/></td
-							>
-							<td class="mono"
-								>{v.fired_keys?.length ? v.fired_keys.join(', ') : '—'}{#if skippedKeys(v.answers).length}<div
+								/>
+							</td>
+							<td class="mono">
+								{v.fired_keys?.length ? v.fired_keys.join(', ') : '—'}{#if skippedKeys(v.answers).length}<div
 										class="muted"
 										data-testid="verdict-skipped"
 									>
 										skipped (precheck): {skippedKeys(v.answers).join(', ')}
-									</div>{/if}</td
-							>
+									</div>{/if}
+							</td>
 							<td>{v.action ?? '—'}</td>
 							<td class="r">{fmt.ms(v.latency_ms)}</td>
-							<td class="mono"
-								>{#if v.conversation_id || v.case_id}{v.conversation_id ?? '—'}{#if v.case_id}
-										/ {v.case_id}{/if}{:else}<span class="muted">playground</span>{/if}</td
-							>
+							<td class="mono">
+								{#if v.conversation_id || v.case_id}{v.conversation_id ?? '—'}{#if v.case_id}
+										/ {v.case_id}{/if}{:else}<span class="muted">playground</span>{/if}
+							</td>
 							<td class="err-cell">{v.error ?? ''}</td>
 						</tr>
 					{/each}
@@ -522,62 +522,57 @@
 <Drawer bind:open title={draft ? (creating ? 'New gate question' : draft.key) : ''} wide {dirty}>
 	{#if draft}
 		{#if !canWrite}
-			<Callout kind="info" title="Read only"
-				>You can view this question. Editing needs the tenant_admin role.</Callout
-			>
+			<Callout kind="info" title="Read only">
+				You can view this question. Editing needs the tenant_admin role.
+			</Callout>
 		{/if}
 		<fieldset class="gate-fields" disabled={!canWrite || saving}>
 			<div class="form-grid">
-				<label class="field"
-					><span class="label">Key</span><input
+				<label class="field">
+					<span class="label">Key</span><input
 						class="input mono"
 						bind:value={draft.key}
 						readonly={!creating}
 						placeholder="emergency"
 						aria-invalid={tried && errors.key ? 'true' : undefined}
-					/>{#if tried && errors.key}<span class="field-err">{errors.key}</span>{/if}</label
-				>
-				<label class="field"
-					><span class="label">Point</span>
+					/>{#if tried && errors.key}<span class="field-err">{errors.key}</span>{/if}
+				</label>
+				<label class="field">
+					<span class="label">Point</span>
 					<select
 						class="input"
 						value={draft.point}
 						onchange={(e) => setPoint((e.currentTarget as HTMLSelectElement).value as GatePoint)}
-						>{#each POINTS as p}<option value={p}>{POINT_LABEL[p]}</option>{/each}</select
-					></label
-				>
-				<label class="field"
-					><span class="label">Type</span>
+					>
+						{#each POINTS as p}<option value={p}>{POINT_LABEL[p]}</option>{/each}
+					</select>
+				</label>
+				<label class="field">
+					<span class="label">Type</span>
 					<select
 						class="input"
 						value={draft.type}
 						onchange={(e) => setType((e.currentTarget as HTMLSelectElement).value as GateType)}
-						>{#each TYPES as t}<option value={t}
-								>{t === 'noul'
-									? 'noul (yes/no)'
-									: t === 'choice'
-										? 'choice (options)'
-										: 'score (levels)'}</option
-							>{/each}</select
-					></label
-				>
-				<label class="field"
-					><span class="label">Order</span><input
-						class="input"
-						type="number"
-						bind:value={draft.ordinal}
-					/></label
-				>
+					>
+						{#each TYPES as t}<option value={t}>
+								{t === 'noul' ? 'noul (yes/no)' : t === 'choice' ? 'choice (options)' : 'score (levels)'}
+							</option>{/each}
+					</select>
+				</label>
+				<label class="field">
+					<span class="label">Order</span><input class="input" type="number" bind:value={draft.ordinal} />
+				</label>
 			</div>
-			<label class="field"
-				><span class="label">Instructions</span><textarea
+			<label class="field">
+				<span class="label">Instructions</span><textarea
 					class="input"
 					rows="3"
 					bind:value={draft.instructions}
 					aria-invalid={tried && errors.instructions ? 'true' : undefined}
-				></textarea>{#if tried && errors.instructions}<span class="field-err">{errors.instructions}</span
-					>{/if}</label
-			>
+				></textarea>{#if tried && errors.instructions}<span class="field-err">
+						{errors.instructions}
+					</span>{/if}
+			</label>
 			{#key `${editSeq}|${draft.type}`}
 				<CriteriaEditor
 					type={draft.type}
@@ -588,8 +583,8 @@
 				/>
 			{/key}
 			<div class="form-grid">
-				<label class="field"
-					><span class="label">Fires when</span>
+				<label class="field">
+					<span class="label">Fires when</span>
 					<select
 						class="input"
 						aria-label="Fires when"
@@ -599,11 +594,11 @@
 						<option value="gte">{draft.type === 'choice' ? 'confidence' : draft.type} ≥ threshold</option>
 						<option value="lt">{draft.type === 'choice' ? 'confidence' : draft.type} &lt; threshold</option>
 						{#if draft.type === 'choice'}<option value="in">choice is one of…</option>{/if}
-					</select></label
-				>
+					</select>
+				</label>
 				{#if draft.fire_when === 'in'}
-					<label class="field"
-						><span class="label">Minimum confidence</span>
+					<label class="field">
+						<span class="label">Minimum confidence</span>
 						<input
 							class="input"
 							aria-label="Minimum confidence"
@@ -615,16 +610,18 @@
 							bind:value={draft.threshold}
 						/>
 						{#if tried && errors.threshold}<span class="field-err">{errors.threshold}</span>{:else}<span
-								class="muted hint">Blank: fires on the option alone.</span
-							>{/if}</label
-					>
-				{:else}
-					<label class="field"
-						><span class="label">Threshold</span>
-						{#if draft.type === 'score'}
-							<select class="input" aria-label="Threshold" bind:value={draft.threshold}
-								>{#each levels as l, i}<option value={i}>{i} · {l || '(unnamed)'}</option>{/each}</select
+								class="muted hint"
 							>
+								Blank: fires on the option alone.
+							</span>{/if}
+					</label>
+				{:else}
+					<label class="field">
+						<span class="label">Threshold</span>
+						{#if draft.type === 'score'}
+							<select class="input" aria-label="Threshold" bind:value={draft.threshold}>
+								{#each levels as l, i}<option value={i}>{i} · {l || '(unnamed)'}</option>{/each}
+							</select>
 						{:else}
 							<input
 								class="input"
@@ -636,57 +633,59 @@
 								bind:value={draft.threshold}
 							/>
 						{/if}
-						{#if tried && errors.threshold}<span class="field-err">{errors.threshold}</span>{/if}</label
-					>
+						{#if tried && errors.threshold}<span class="field-err">{errors.threshold}</span>{/if}
+					</label>
 				{/if}
-				<label class="field"
-					><span class="label">Action</span>
-					<select class="input" bind:value={draft.action}
-						>{#each ACTIONS as a}<option value={a}>{a}</option>{/each}</select
-					></label
-				>
-				<label class="field"
-					><span class="label">When laya fails</span>
-					<select class="input" bind:value={draft.fail}
-						><option value="closed">fail closed (handoff)</option><option value="open"
-							>fail open (pass)</option
-						></select
-					></label
-				>
+				<label class="field">
+					<span class="label">Action</span>
+					<select class="input" bind:value={draft.action}>
+						{#each ACTIONS as a}<option value={a}>{a}</option>{/each}
+					</select>
+				</label>
+				<label class="field">
+					<span class="label">When laya fails</span>
+					<select class="input" bind:value={draft.fail}>
+						<option value="closed">fail closed (handoff)</option><option value="open">
+							fail open (pass)
+						</option>
+					</select>
+				</label>
 			</div>
 			{#if draft.fire_when === 'in'}
 				<fieldset class="opts">
 					<legend class="label">Fires on</legend>
 					{#each options as o}
-						<label class="toggle"
-							><input
+						<label class="toggle">
+							<input
 								type="checkbox"
 								checked={draft.fire_values?.includes(o) ?? false}
 								onchange={(e) => toggleFireValue(o, (e.currentTarget as HTMLInputElement).checked)}
-							/><span class="mono">{o}</span></label
-						>
+							/><span class="mono">{o}</span>
+						</label>
 					{/each}
 					{#if tried && errors.fire_values}<span class="field-err">{errors.fire_values}</span>{/if}
 				</fieldset>
 			{/if}
 			<div class="form-grid">
-				<label class="field"
-					><span class="label">Asks laya about</span>
+				<label class="field">
+					<span class="label">Asks laya about</span>
 					<select
 						class="input"
 						aria-label="Asks laya about"
 						value={draft.input ?? 'request'}
 						disabled={draft.point !== 'request'}
 						onchange={(e) => (draft!.input = (e.currentTarget as HTMLSelectElement).value as GateInput)}
-						>{#each Object.entries(INPUT_LABEL) as [v, l]}<option value={v}>{l}</option>{/each}</select
 					>
-					{#if tried && errors.input}<span class="field-err">{errors.input}</span
-						>{:else if draft.point !== 'request'}<span class="muted hint"
-							>Tool and response questions read the full state.</span
-						>{/if}</label
-				>
-				<label class="field"
-					><span class="label">Precheck (optional)</span><input
+						{#each Object.entries(INPUT_LABEL) as [v, l]}<option value={v}>{l}</option>{/each}
+					</select>
+					{#if tried && errors.input}<span class="field-err">
+							{errors.input}
+						</span>{:else if draft.point !== 'request'}<span class="muted hint">
+							Tool and response questions read the full state.
+						</span>{/if}
+				</label>
+				<label class="field">
+					<span class="label">Precheck (optional)</span><input
 						class="input mono"
 						aria-label="Precheck"
 						maxlength={MAX_PRECHECK}
@@ -696,31 +695,31 @@
 						aria-invalid={tried && errors.precheck ? 'true' : undefined}
 					/>{#if tried && errors.precheck}<span class="field-err">{errors.precheck}</span>{:else}<span
 							class="muted hint"
-							>A regular expression (Rust syntax; <span class="mono">(?i)</span> = ignore case). Laya is asked only
+						>
+							A regular expression (Rust syntax; <span class="mono">(?i)</span> = ignore case). Laya is asked only
 							when it matches the text above; otherwise the question is skipped and does not fire. Blank: always
-							asked.</span
-						>{/if}</label
-				>
+							asked.
+						</span>{/if}
+				</label>
 			</div>
-			<label class="field"
-				><span class="label">Message</span><textarea
+			<label class="field">
+				<span class="label">Message</span><textarea
 					class="input"
 					rows="2"
 					placeholder="What the customer is told when this fires (blank: the default)"
 					value={draft.message ?? ''}
-					oninput={(e) => (draft!.message = (e.currentTarget as HTMLTextAreaElement).value)}
-				></textarea></label
-			>
+					oninput={(e) => (draft!.message = (e.currentTarget as HTMLTextAreaElement).value)}></textarea>
+			</label>
 			{#if draft.point === 'tool'}
-				<label class="field"
-					><span class="label">Tools</span><input
+				<label class="field">
+					<span class="label">Tools</span><input
 						class="input mono"
 						bind:value={toolsText}
 						oninput={() => (draft!.tools = parseTools(toolsText))}
 						placeholder="order_issue_refund, order_create_rma"
 						list="gate-tools"
-					/>{#if tried && errors.tools}<span class="field-err">{errors.tools}</span>{/if}</label
-				>
+					/>{#if tried && errors.tools}<span class="field-err">{errors.tools}</span>{/if}
+				</label>
 				{#if knownTools.length}
 					<div class="chips">
 						{#each knownTools.filter((t) => !(draft?.tools ?? []).includes(t)) as t}
@@ -748,16 +747,20 @@
 					type="button"
 					disabled={!canWrite || saving}
 					title={canWrite ? '' : denied}
-					onclick={() => (confirmDelete = true)}>Delete…</button
+					onclick={() => (confirmDelete = true)}
 				>
+					Delete…
+				</button>
 			{/if}
 			<button
 				class="btn primary"
 				type="button"
 				disabled={!canWrite || saving}
 				title={canWrite ? '' : denied}
-				onclick={save}>{saving ? 'Saving…' : 'Save'}</button
+				onclick={save}
 			>
+				{saving ? 'Saving…' : 'Save'}
+			</button>
 		</div>
 	{/if}
 </Drawer>

@@ -15,17 +15,13 @@
 				<tbody>
 					{#each app.jobs as j (j.key)}
 						<tr>
-							<td
-								><a href={jobPath(j.key)} aria-current={j.key === app.job ? 'true' : undefined}>{j.label}</a
-								></td
-							>
+							<td>
+								<a href={jobPath(j.key)} aria-current={j.key === app.job ? 'true' : undefined}>{j.label}</a>
+							</td>
 							<td class="mono">{j.key}</td>
-							<td
-								><Status
-									word={j.on_bus ? 'ok' : 'queued'}
-									label={j.on_bus ? 'Serving' : 'Not on the bus'}
-								/></td
-							>
+							<td>
+								<Status word={j.on_bus ? 'ok' : 'queued'} label={j.on_bus ? 'Serving' : 'Not on the bus'} />
+							</td>
 						</tr>
 					{/each}
 				</tbody>

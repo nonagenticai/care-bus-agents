@@ -99,9 +99,9 @@
 	<Callout kind="info" title="Read only">Answering or cancelling a task needs a role in this tenant.</Callout>
 {/if}
 {#if pollErr}
-	<Callout kind="err" title="Not refreshing"
-		>{pollErr} <button class="btn" type="button" onclick={reload}>Retry</button></Callout
-	>
+	<Callout kind="err" title="Not refreshing">
+		{pollErr} <button class="btn" type="button" onclick={reload}>Retry</button>
+	</Callout>
 {/if}
 
 <Card title="Tasks" cls="flush">

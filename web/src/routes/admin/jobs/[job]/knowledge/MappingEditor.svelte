@@ -41,12 +41,12 @@
 {#if options.length === 0}
 	<div class="callout gap" role="note">
 		<strong>No ontology attributes yet</strong>
-		<span
-			>Mapped fields need an Entity.attribute target. <a href={jobPath(app.job, '/ontology')}
-				>Define entities in the ontology</a
-			>
-			first; until then the source can be saved without a mapping.</span
-		>
+		<span>
+			Mapped fields need an Entity.attribute target. <a href={jobPath(app.job, '/ontology')}>
+				Define entities in the ontology
+			</a>
+			first; until then the source can be saved without a mapping.
+		</span>
 	</div>
 {/if}
 <div class="tbl-wrap">
@@ -55,15 +55,15 @@
 		<tbody>
 			{#each rows as m, i}
 				<tr>
-					<td
-						><input
+					<td>
+						<input
 							class="input mono"
 							list={listId}
 							bind:value={m.source_field}
 							aria-label="Source field"
 							{disabled}
-						/></td
-					>
+						/>
+					</td>
 					<td>
 						<select
 							class="input"
@@ -76,37 +76,39 @@
 							{#each options as o}<option value={`${o.entity}.${o.attribute}`}>{o.label}</option>{/each}
 						</select>
 					</td>
-					<td
-						><button
+					<td>
+						<button
 							type="button"
 							class="btn sm"
 							{disabled}
 							title={why}
-							onclick={() => (rows = rows.filter((_, j) => j !== i))}>Remove</button
-						></td
-					>
+							onclick={() => (rows = rows.filter((_, j) => j !== i))}
+						>
+							Remove
+						</button>
+					</td>
 				</tr>
 			{:else}
-				<tr
-					><td colspan="3" class="muted"
-						>No fields mapped yet.{fields.length
+				<tr>
+					<td colspan="3" class="muted">
+						No fields mapped yet.{fields.length
 							? ''
-							: ' Test the connection (or preview columns) to discover the source fields.'}</td
-					></tr
-				>
+							: ' Test the connection (or preview columns) to discover the source fields.'}
+					</td>
+				</tr>
 			{/each}
 		</tbody>
 	</table>
 </div>
-<datalist id={listId}
-	>{#each fields as f}<option value={f}></option>{/each}</datalist
->
+<datalist id={listId}>
+	{#each fields as f}<option value={f}></option>{/each}
+</datalist>
 <div class="actions">
 	<button type="button" class="btn sm" {disabled} title={why} onclick={add}>Add mapping</button>
 	{#if unmapped > 0}
-		<button type="button" class="btn sm" {disabled} title={why} onclick={mapAll}
-			>Map all {unmapped} field{unmapped === 1 ? '' : 's'}</button
-		>
+		<button type="button" class="btn sm" {disabled} title={why} onclick={mapAll}>
+			Map all {unmapped} field{unmapped === 1 ? '' : 's'}
+		</button>
 	{/if}
 	{#if note}<span class="muted" role="status">{note}</span>{/if}
 </div>

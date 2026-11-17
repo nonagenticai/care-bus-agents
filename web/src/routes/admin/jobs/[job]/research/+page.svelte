@@ -229,8 +229,8 @@
 	<form onsubmit={start} aria-label="New research run">
 		<fieldset class="rs-form" disabled={!canWrite || starting}>
 			<div class="form-grid">
-				<label class="field"
-					><span class="label">Profile</span>
+				<label class="field">
+					<span class="label">Profile</span>
 					<select class="input" bind:value={draft.profile}>
 						{#each PROFILES as p (p)}<option value={p}>{PROFILE_LABEL[p]}</option>{/each}
 					</select>
@@ -240,8 +240,8 @@
 				<p class="muted">{LEGAL_BANNER}</p>
 			{/if}
 			{#if MATTERS_ENABLED}
-				<label class="field"
-					><span class="label">Matter</span>
+				<label class="field">
+					<span class="label">Matter</span>
 					<select
 						class="input"
 						value={draft.matter_id}
@@ -258,8 +258,8 @@
 					{/if}
 				</label>
 			{/if}
-			<label class="field"
-				><span class="label">Question</span>
+			<label class="field">
+				<span class="label">Question</span>
 				<textarea
 					class="input"
 					rows="5"
@@ -276,21 +276,21 @@
 				{:else if stores.value.state === 'unavailable'}
 					<Unavailable reason={stores.value.reason} retry={stores.retry} />
 				{:else if offered.length === 0}
-					<span class="muted"
-						>{draft.matter_id
+					<span class="muted">
+						{draft.matter_id
 							? 'No store is attached to this matter; the run uses its other tools only.'
-							: 'This job has no knowledge store bound to a search index; the run uses its other tools only.'}</span
-					>
+							: 'This job has no knowledge store bound to a search index; the run uses its other tools only.'}
+					</span>
 				{:else}
 					{#each offered as s (s.key)}
-						<label class="toggle"
-							><input
+						<label class="toggle">
+							<input
 								type="checkbox"
 								checked={draft.store_ids.includes(s.strata_store_id)}
 								onchange={(e) => toggleStore(s.strata_store_id, e.currentTarget.checked)}
 							/>
-							{s.label} <span class="muted mono">{s.key}</span></label
-						>
+							{s.label} <span class="muted mono">{s.key}</span>
+						</label>
 					{/each}
 				{/if}
 				{#if msg('store_ids')}<span class="field-err">{msg('store_ids')}</span>{/if}
@@ -301,8 +301,8 @@
 				<div class="form-grid">
 					{#each BUDGET_KEYS as k (k)}
 						{@const rule = BUDGET_RULES[k]}
-						<label class="field"
-							><span class="label">{rule.label}</span>
+						<label class="field">
+							<span class="label">{rule.label}</span>
 							<input
 								class="input"
 								inputmode="numeric"
@@ -323,8 +323,10 @@
 				class="btn primary"
 				type="submit"
 				disabled={!canWrite || starting}
-				title={canWrite ? '' : ROLE_HINT}>{starting ? 'Starting…' : 'Start run'}</button
+				title={canWrite ? '' : ROLE_HINT}
 			>
+				{starting ? 'Starting…' : 'Start run'}
+			</button>
 		</div>
 	</form>
 </Card>
@@ -358,11 +360,13 @@
 		<div class="tbl-wrap">
 			<table class="tbl" aria-label="Research runs">
 				<thead>
-					<tr
-						><th>Status</th><th>Profile</th>{#if MATTERS_ENABLED}<th>Matter</th>{/if}<th>Question</th><th
-							class="r">Steps</th
-						><th class="r">Tokens</th><th>Created</th></tr
-					>
+					<tr>
+						<th>Status</th><th>Profile</th>{#if MATTERS_ENABLED}<th>Matter</th>{/if}<th>Question</th><th
+							class="r"
+						>
+							Steps
+						</th><th class="r">Tokens</th><th>Created</th>
+					</tr>
 				</thead>
 				<tbody>
 					{#each rows as r (r.id)}
@@ -370,11 +374,11 @@
 							<td><Status word={statusWord(r.status)} label={STATUS_LABEL[r.status] ?? r.status} /></td>
 							<td>{PROFILE_LABEL[r.profile] ?? r.profile}</td>
 							{#if MATTERS_ENABLED}<td>{matterName(r.matter_id)}</td>{/if}
-							<td
-								><button class="table-action" type="button" onclick={() => show(r.id)}
-									>{questionSnippet(r.question)}</button
-								></td
-							>
+							<td>
+								<button class="table-action" type="button" onclick={() => show(r.id)}>
+									{questionSnippet(r.question)}
+								</button>
+							</td>
 							<td class="r">{fmt.n(r.steps_used)}</td>
 							<td class="r">{fmt.n(r.tokens_used)}</td>
 							<td>{when(r.created_at)}</td>
@@ -385,9 +389,9 @@
 		</div>
 		{#if next}
 			<div class="actions rs-pad">
-				<button class="btn" type="button" disabled={loadingMore} onclick={more}
-					>{loadingMore ? 'Loading…' : 'Load more'}</button
-				>
+				<button class="btn" type="button" disabled={loadingMore} onclick={more}>
+					{loadingMore ? 'Loading…' : 'Load more'}
+				</button>
 			</div>
 		{/if}
 	{/if}

@@ -202,25 +202,21 @@
 
 		{#if manage}
 			<form class="lm-row" onsubmit={save} aria-label="Matter settings">
-				<label class="field"
-					><span class="label">Name</span><input
-						class="input"
-						bind:value={editName}
-						autocomplete="off"
-					/></label
-				>
-				<label class="field"
-					><span class="label">Reference</span><input
+				<label class="field">
+					<span class="label">Name</span><input class="input" bind:value={editName} autocomplete="off" />
+				</label>
+				<label class="field">
+					<span class="label">Reference</span><input
 						class="input"
 						bind:value={editReference}
 						autocomplete="off"
-					/></label
-				>
+					/>
+				</label>
 				<div class="actions">
 					<button class="btn" type="submit" disabled={busy || !editName.trim()}>Save</button>
-					<button class="btn" type="button" disabled={busy} onclick={() => setClosed(!m.closed_at)}
-						>{m.closed_at ? 'Reopen matter' : 'Close matter'}</button
-					>
+					<button class="btn" type="button" disabled={busy} onclick={() => setClosed(!m.closed_at)}>
+						{m.closed_at ? 'Reopen matter' : 'Close matter'}
+					</button>
 					<button class="btn danger" type="button" disabled={busy} onclick={remove}>Delete matter</button>
 				</div>
 			</form>
@@ -263,8 +259,9 @@
 									title={last ? 'The only lead cannot be removed' : ''}
 									aria-label="Remove {x.user_sub}"
 									onclick={() => act(() => api().removeMatterMember(id, x.user_sub), 'Member removed.')}
-									>Remove</button
 								>
+									Remove
+								</button>
 							{/if}
 						</td>
 					</tr>
@@ -273,8 +270,8 @@
 		</table>
 		{#if manage}
 			<form class="lm-row" onsubmit={addMember} aria-label="Add member">
-				<label class="field"
-					><span class="label">Person</span>
+				<label class="field">
+					<span class="label">Person</span>
 					{#if candidates.length}
 						<select class="input" bind:value={newSub}>
 							<option value="">Choose…</option>
@@ -284,8 +281,8 @@
 						<input class="input" bind:value={newSub} placeholder="user id (sub)" autocomplete="off" />
 					{/if}
 				</label>
-				<label class="field"
-					><span class="label">Role</span>
+				<label class="field">
+					<span class="label">Role</span>
 					<select class="input" bind:value={newRole}>
 						{#each MATTER_ROLES as r (r)}<option value={r}>{MATTER_ROLE_LABEL[r]}</option>{/each}
 					</select>
@@ -316,8 +313,9 @@
 								disabled={busy}
 								aria-label="Detach {storeLabel(st.store_id)}"
 								onclick={() => act(() => api().detachMatterStore(id, st.store_id), 'Store detached.')}
-								>Detach</button
 							>
+								Detach
+							</button>
 						{/if}
 					</li>
 				{/each}
@@ -325,12 +323,13 @@
 		{/if}
 		{#if editStores}
 			<form class="lm-row" onsubmit={attach} aria-label="Attach store">
-				<label class="field"
-					><span class="label">Store</span>
+				<label class="field">
+					<span class="label">Store</span>
 					<select class="input" bind:value={newStore}>
 						<option value="">Choose…</option>
-						{#each attachable as s (s.key)}<option value={s.strata_store_id}>{s.label} ({s.key})</option
-							>{/each}
+						{#each attachable as s (s.key)}<option value={s.strata_store_id}>
+								{s.label} ({s.key})
+							</option>{/each}
 					</select>
 				</label>
 				<div class="actions">

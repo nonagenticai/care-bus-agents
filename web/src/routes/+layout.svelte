@@ -208,8 +208,10 @@
 						{href}
 						class:on={isOn(href)}
 						aria-current={isOn(href) ? 'page' : undefined}
-						onclick={() => (navOpen = false)}><Icon name={icon} /><span>{label}</span></a
+						onclick={() => (navOpen = false)}
 					>
+						<Icon name={icon} /><span>{label}</span>
+					</a>
 				{/each}
 			</div>
 		{/each}
@@ -221,10 +223,10 @@
 		<div class="view">
 			<div class="callout err">
 				<strong>This deployment is not configured</strong>
-				<span
-					>Missing runtime settings: {missing.join(', ')}. Set them in the pod's environment and restart; no
-					rebuild is needed.</span
-				>
+				<span>
+					Missing runtime settings: {missing.join(', ')}. Set them in the pod's environment and restart; no
+					rebuild is needed.
+				</span>
 			</div>
 		</div>
 	</main>
@@ -241,10 +243,10 @@
 		<div class="view">
 			<div class="callout err" data-testid="not-provisioned">
 				<strong>Your account has no care-bus tenant yet</strong>
-				<span
-					>You are signed in as {session.user?.name || session.me?.actor}, but care-bus has no tenant for this
-					account. Ask your organisation's administrator to add you, then sign in again.</span
-				>
+				<span>
+					You are signed in as {session.user?.name || session.me?.actor}, but care-bus has no tenant for this
+					account. Ask your organisation's administrator to add you, then sign in again.
+				</span>
 			</div>
 			<button class="btn" type="button" onclick={() => logout()}>Sign out</button>
 		</div>
@@ -254,10 +256,10 @@
 		<div class="view">
 			<div class="callout err">
 				<strong>Your tenant is suspended</strong>
-				<span
-					>Care-bus is switched off for {session.me?.tenant?.name ?? 'your tenant'}. Contact your
-					administrator.</span
-				>
+				<span>
+					Care-bus is switched off for {session.me?.tenant?.name ?? 'your tenant'}. Contact your
+					administrator.
+				</span>
 			</div>
 			<button class="btn" type="button" onclick={() => logout()}>Sign out</button>
 		</div>
@@ -267,9 +269,9 @@
 		<div class="view">
 			<div class="callout info">
 				<strong>Choose a tenant to act in</strong>
-				<span
-					>You are a super admin without a tenant of your own. Every page acts in the tenant you name here.</span
-				>
+				<span>
+					You are a super admin without a tenant of your own. Every page acts in the tenant you name here.
+				</span>
 			</div>
 			<TenantPicker />
 			<button class="btn" type="button" onclick={() => logout()}>Sign out</button>
@@ -294,8 +296,10 @@
 					aria-label={narrow ? 'Open navigation' : collapsed ? 'Show navigation' : 'Hide navigation'}
 					aria-expanded={narrow ? navOpen : !collapsed}
 					aria-controls={narrow ? 'mobile-navigation' : 'main-navigation'}
-					onclick={navigationToggle}><Icon name="menu" /></button
+					onclick={navigationToggle}
 				>
+					<Icon name="menu" />
+				</button>
 				<span class="deployment">{environment} · {job}</span>
 				{#if app.jobs.length > 1}
 					<select
@@ -312,15 +316,19 @@
 						class="icon-btn"
 						type="button"
 						aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
-						onclick={toggleTheme}><Icon name={dark ? 'sun' : 'moon'} /></button
+						onclick={toggleTheme}
 					>
+						<Icon name={dark ? 'sun' : 'moon'} />
+					</button>
 					{#if session.superAdmin}
 						<button
 							class="btn sm"
 							type="button"
 							title="The tenant every page acts in (X-Active-Tenant-Id)"
-							onclick={() => (tenantOpen = true)}>Tenant: {tenantLabel}</button
+							onclick={() => (tenantOpen = true)}
 						>
+							Tenant: {tenantLabel}
+						</button>
 					{/if}
 					<span>{session.user?.name} · {roleLabel}</span>
 					<button class="btn sm" type="button" onclick={() => logout()}>Sign out</button>

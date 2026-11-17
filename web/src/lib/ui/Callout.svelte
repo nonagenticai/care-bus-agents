@@ -11,7 +11,7 @@
 </script>
 
 <div class="callout {kind}">
-	<strong class="callout-title"><Icon name={ICON[kind]} size={16} />{title}</strong><span
-		>{@render children()}</span
-	>
+	<strong class="callout-title"><Icon name={ICON[kind]} size={16} />{title}</strong><span>
+		{@render children()}
+	</span>
 </div>

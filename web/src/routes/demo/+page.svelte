@@ -66,8 +66,10 @@
 								type="button"
 								disabled={!admin}
 								title={admin ? '' : denied}
-								onclick={() => (confirmScenario = s.name)}>Run…</button
+								onclick={() => (confirmScenario = s.name)}
 							>
+								Run…
+							</button>
 						{:else}
 							<span class="actions" role="group" aria-label="Confirm {s.name}">
 								<span>Changes demo records. Run it?</span>
@@ -77,8 +79,10 @@
 									onclick={() =>
 										guard(() => api().runScenario(s.name), `Scenario ${s.name} is set up.`).then((ok) => {
 											if (ok) confirmScenario = null;
-										})}>Yes, run</button
+										})}
 								>
+									Yes, run
+								</button>
 								<button class="btn sm" type="button" onclick={() => (confirmScenario = null)}>Cancel</button>
 							</span>
 						{/if}
@@ -136,8 +140,10 @@
 					).then((ok) => {
 						if (!ok) return;
 						faults.refresh();
-					})}>Apply</button
+					})}
 			>
+				Apply
+			</button>
 		</div>
 		{#if faults.value.state === 'ok'}
 			<ul class="list-plain">
@@ -165,8 +171,10 @@
 				type="button"
 				disabled={!admin}
 				title={admin ? '' : denied}
-				onclick={() => (confirmReset = true)}>Reset…</button
+				onclick={() => (confirmReset = true)}
 			>
+				Reset…
+			</button>
 		{:else}
 			<span>Cases in flight will end as failed. Reset now?</span>
 			<button
@@ -177,8 +185,10 @@
 						if (!ok) return;
 						confirmReset = false;
 						faults.refresh();
-					})}>Yes, reset</button
+					})}
 			>
+				Yes, reset
+			</button>
 			<button class="btn" type="button" onclick={() => (confirmReset = false)}>Cancel</button>
 		{/if}
 	</div>

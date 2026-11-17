@@ -61,8 +61,10 @@
 			type="button"
 			disabled={!canWrite}
 			title={canWrite ? '' : 'Needs the tenant_admin role'}
-			onclick={() => edit(null)}>Add source</button
+			onclick={() => edit(null)}
 		>
+			Add source
+		</button>
 	</div>
 </header>
 <Freshness resource={list} />
@@ -83,17 +85,17 @@
 	<Card cls="flush">
 		<div class="tbl-wrap">
 			<table class="tbl clickable">
-				<thead
-					><tr
-						><th>Name</th><th>Type</th><th>Target store</th><th>Last run</th><th class="r">Documents</th><th
-							>Enabled</th
-						></tr
-					></thead
-				>
+				<thead>
+					<tr>
+						<th>Name</th><th>Type</th><th>Target store</th><th>Last run</th><th class="r">Documents</th><th>
+							Enabled
+						</th>
+					</tr>
+				</thead>
 				<tbody>
 					{#each list.value.data.items as s}
-						<tr
-							><td><button type="button" class="table-action" onclick={() => edit(s)}>{s.name}</button></td>
+						<tr>
+							<td><button type="button" class="table-action" onclick={() => edit(s)}>{s.name}</button></td>
 							<td>{typeLabel(s.type)}</td>
 							<td class="mono">{storeName(s.target_store_id)}</td>
 							<td>

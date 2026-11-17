@@ -42,12 +42,12 @@
 	<Card cls="flush">
 		<div class="tbl-wrap">
 			<table class="tbl" data-testid="job-settings">
-				<thead
-					><tr
-						><th>Setting</th><th>Base (release)</th><th>Yours</th><th>Effective</th><th aria-label="Actions"
-						></th></tr
-					></thead
-				>
+				<thead>
+					<tr>
+						<th>Setting</th><th>Base (release)</th><th>Yours</th><th>Effective</th><th aria-label="Actions"
+						></th>
+					</tr>
+				</thead>
 				<tbody>
 					{#each KEYS as k}
 						<tr data-key={k}>
@@ -75,8 +75,9 @@
 									disabled={!canWrite || busy || !(drafts[k] ?? '').trim()}
 									title={canWrite ? '' : 'Needs the tenant_admin role'}
 									onclick={() => run(() => api().saveJobSettings({ [k]: drafts[k]!.trim() }), `Saved ${k}.`)}
-									>Save</button
 								>
+									Save
+								</button>
 								<button
 									class="btn sm"
 									type="button"
@@ -85,16 +86,19 @@
 										v.base[k] == null ||
 										(has(v.override, k) && v.override[k] === null)}
 									title={canWrite ? 'Hide the base value' : 'Needs the tenant_admin role'}
-									onclick={() => run(() => api().saveJobSettings({ [k]: null }), `Hid ${k}.`)}>Hide</button
+									onclick={() => run(() => api().saveJobSettings({ [k]: null }), `Hid ${k}.`)}
 								>
+									Hide
+								</button>
 								<button
 									class="btn sm"
 									type="button"
 									disabled={!canWrite || busy || !has(v.override, k)}
 									title={canWrite ? '' : 'Needs the tenant_admin role'}
 									onclick={() => run(() => api().revertJobSetting(k), `Reverted ${k} to the base.`)}
-									>Revert to base</button
 								>
+									Revert to base
+								</button>
 							</td>
 						</tr>
 					{/each}

@@ -279,16 +279,20 @@
 				class="chip"
 				class:accent={filter.industry === 'all'}
 				aria-pressed={filter.industry === 'all'}
-				onclick={() => pickIndustry('all')}>All</button
+				onclick={() => pickIndustry('all')}
 			>
+				All
+			</button>
 			{#each industries as ind}
 				<button
 					type="button"
 					class="chip"
 					class:accent={filter.industry === ind}
 					aria-pressed={filter.industry === ind}
-					onclick={() => pickIndustry(ind)}>{title(ind)}</button
+					onclick={() => pickIndustry(ind)}
 				>
+					{title(ind)}
+				</button>
 			{/each}
 		</div>
 		<div class="frow" role="group" aria-label="Department">
@@ -298,16 +302,20 @@
 				class="chip"
 				class:accent={filter.department === 'all'}
 				aria-pressed={filter.department === 'all'}
-				onclick={() => (filter.department = 'all')}>All</button
+				onclick={() => (filter.department = 'all')}
 			>
+				All
+			</button>
 			{#each departments as d}
 				<button
 					type="button"
 					class="chip"
 					class:accent={filter.department === d}
 					aria-pressed={filter.department === d}
-					onclick={() => (filter.department = d)}>{title(d)}</button
+					onclick={() => (filter.department = d)}
 				>
+					{title(d)}
+				</button>
 			{/each}
 		</div>
 		<div class="frow">
@@ -317,9 +325,9 @@
 				{#each allSpaces as s}<option value={s.key}>{s.label} ({s.area})</option>{/each}
 			</select>
 			{#if hiddenCount > 0}
-				<label class="check"
-					><input type="checkbox" bind:checked={filter.showHidden} /> Show hidden ({hiddenCount})</label
-				>
+				<label class="check">
+					<input type="checkbox" bind:checked={filter.showHidden} /> Show hidden ({hiddenCount})
+				</label>
 			{/if}
 			<span class="spacer"></span>
 			<Seg
@@ -365,8 +373,9 @@
 						{#each graph.edges as e (e.id)}
 							{@const r = e.data!.relation}
 							<tr>
-								<td>{labelOf(r.subject)}</td><td class="mono">{r.predicate}</td><td>{labelOf(r.object)}</td
-								><td class="mono">{r.cardinality}</td>
+								<td>{labelOf(r.subject)}</td><td class="mono">{r.predicate}</td><td>
+									{labelOf(r.object)}
+								</td><td class="mono">{r.cardinality}</td>
 							</tr>
 						{:else}
 							<tr><td colspan="4" class="muted">No relations between the entities in this filter.</td></tr>
@@ -391,13 +400,13 @@
 		{#if spaces.value.state === 'ok'}
 			<div class="tbl-wrap">
 				<table class="tbl dense">
-					<thead
-						><tr
-							><th>Key</th><th>Topic prefix</th><th>Entities</th><th>Required fields</th><th>Streams</th><th
-								>Procedure</th
-							></tr
-						></thead
-					>
+					<thead>
+						<tr>
+							<th>Key</th><th>Topic prefix</th><th>Entities</th><th>Required fields</th><th>Streams</th><th>
+								Procedure
+							</th>
+						</tr>
+					</thead>
 					<tbody>
 						{#each spaces.value.data.items as s}
 							<tr>
@@ -432,11 +441,9 @@
 	{#snippet sub()}
 		{#if sel}
 			<span class="level {sel.scope}">{SCOPE_LABEL[sel.scope] ?? sel.scope}</span>
-			<span class="mono"
-				>{sel.name}{sel.industry ? ` · ${sel.industry}` : ''}{sel.department
-					? ` · ${sel.department}`
-					: ''}</span
-			>
+			<span class="mono">
+				{sel.name}{sel.industry ? ` · ${sel.industry}` : ''}{sel.department ? ` · ${sel.department}` : ''}
+			</span>
 			{#if sel.hidden}<Chip text="hidden" />{/if}
 		{/if}
 	{/snippet}
@@ -469,10 +476,11 @@
 							<tr>
 								<td class="mono">{a.name}</td>
 								<td class="mono">{a.data_type}</td>
-								<td
-									>{#if a.pii}<Chip text="personal data" variant="err" />{:else}<span class="muted">no</span
-										>{/if}</td
-								>
+								<td>
+									{#if a.pii}<Chip text="personal data" variant="err" />{:else}<span class="muted">
+											no
+										</span>{/if}
+								</td>
 								<td>{a.synonyms.join(', ')}</td>
 							</tr>
 						{:else}
@@ -489,9 +497,9 @@
 			<div class="sec-head">
 				<h3>Relations out ({selRel.out.length})</h3>
 				{#if canWrite}
-					<button type="button" class="btn sm" onclick={() => startAddRelation(sel!.name)}
-						>Add relation</button
-					>
+					<button type="button" class="btn sm" onclick={() => startAddRelation(sel!.name)}>
+						Add relation
+					</button>
 				{/if}
 			</div>
 			{#each selRel.out as r (relKey(r))}
@@ -501,8 +509,9 @@
 						type="button"
 						class="link"
 						onclick={() => (sel = allEntities.find((e) => e.name === r.object) ?? sel)}
-						>{labelOf(r.object)}</button
 					>
+						{labelOf(r.object)}
+					</button>
 					<span class="mono muted">{r.cardinality}</span>
 					{@render relDelete(r)}
 				</div>
@@ -518,8 +527,9 @@
 						type="button"
 						class="link"
 						onclick={() => (sel = allEntities.find((e) => e.name === r.subject) ?? sel)}
-						>{labelOf(r.subject)}</button
 					>
+						{labelOf(r.subject)}
+					</button>
 					<span class="mono">{r.predicate}</span> → this
 					<span class="mono muted">{r.cardinality}</span>
 					{@render relDelete(r)}
@@ -537,9 +547,9 @@
 		{#if confirmKey === relKey(r)}
 			<span class="confirm" role="group" aria-label="Confirm delete">
 				<span class="muted">Delete {r.subject} {r.predicate} {r.object}?</span>
-				<button type="button" class="btn sm danger" disabled={deleting} onclick={() => deleteRelation(r)}
-					>{deleting ? 'Deleting…' : 'Delete'}</button
-				>
+				<button type="button" class="btn sm danger" disabled={deleting} onclick={() => deleteRelation(r)}>
+					{deleting ? 'Deleting…' : 'Delete'}
+				</button>
 				<button type="button" class="btn sm" onclick={() => (confirmKey = null)}>Keep</button>
 			</span>
 		{:else}
@@ -550,8 +560,10 @@
 				onclick={() => {
 					confirmKey = relKey(r);
 					relError = null;
-				}}>Delete</button
+				}}
 			>
+				Delete
+			</button>
 		{/if}
 	{/if}
 {/snippet}
@@ -612,9 +624,9 @@
 			<div class="callout err" role="alert"><strong>Not saved</strong><span>{relApiError}</span></div>
 		{/if}
 		<div class="row">
-			<button type="submit" class="btn primary" disabled={savingRel}
-				>{savingRel ? 'Saving…' : 'Create relation'}</button
-			>
+			<button type="submit" class="btn primary" disabled={savingRel}>
+				{savingRel ? 'Saving…' : 'Create relation'}
+			</button>
 			<button type="button" class="btn" onclick={() => (addingRel = false)}>Cancel</button>
 		</div>
 	</form>
@@ -654,18 +666,18 @@
 				<div class="field">
 					<label for="ent-ind">Industry</label>
 					<input id="ent-ind" class="input" list="onto-industries" bind:value={draft.industry} />
-					<datalist id="onto-industries"
-						>{#each industries as i}<option value={i}></option>{/each}</datalist
-					>
+					<datalist id="onto-industries">
+						{#each industries as i}<option value={i}></option>{/each}
+					</datalist>
 				</div>
 			{/if}
 			{#if draft.scope === 'industry_dept'}
 				<div class="field">
 					<label for="ent-dep">Department</label>
 					<input id="ent-dep" class="input" list="onto-departments" bind:value={draft.department} />
-					<datalist id="onto-departments"
-						>{#each distinct(allEntities, 'department') as d}<option value={d}></option>{/each}</datalist
-					>
+					<datalist id="onto-departments">
+						{#each distinct(allEntities, 'department') as d}<option value={d}></option>{/each}
+					</datalist>
 				</div>
 			{/if}
 		</div>
@@ -687,23 +699,25 @@
 										bind:value={a.data_type}
 									/>
 								</td>
-								<td class="c"
-									><input
+								<td class="c">
+									<input
 										type="checkbox"
 										aria-label="Attribute {i + 1} is personal data"
 										bind:checked={a.pii}
-									/></td
-								>
-								<td
-									><input class="input" aria-label="Attribute {i + 1} synonyms" bind:value={a.synonyms} /></td
-								>
+									/>
+								</td>
+								<td>
+									<input class="input" aria-label="Attribute {i + 1} synonyms" bind:value={a.synonyms} />
+								</td>
 								<td>
 									<button
 										type="button"
 										class="btn sm"
 										aria-label="Remove attribute {i + 1}"
-										onclick={() => draft.attributes.splice(i, 1)}>Remove</button
+										onclick={() => draft.attributes.splice(i, 1)}
 									>
+										Remove
+									</button>
 								</td>
 							</tr>
 						{:else}
@@ -711,13 +725,13 @@
 						{/each}
 					</tbody>
 				</table>
-				<datalist id="onto-types"
-					>{#each TYPES as t}<option value={t}></option>{/each}</datalist
-				>
+				<datalist id="onto-types">
+					{#each TYPES as t}<option value={t}></option>{/each}
+				</datalist>
 			</div>
-			<button type="button" class="btn sm add-attr" onclick={() => draft.attributes.push(blankAttr())}
-				>Add attribute</button
-			>
+			<button type="button" class="btn sm add-attr" onclick={() => draft.attributes.push(blankAttr())}>
+				Add attribute
+			</button>
 		</div>
 
 		{#if formErrors.length}
@@ -730,9 +744,9 @@
 			<div class="callout err" role="alert"><strong>Not saved</strong><span>{apiError}</span></div>
 		{/if}
 		<div class="row">
-			<button type="submit" class="btn primary" disabled={saving}
-				>{saving ? 'Saving…' : 'Create entity'}</button
-			>
+			<button type="submit" class="btn primary" disabled={saving}>
+				{saving ? 'Saving…' : 'Create entity'}
+			</button>
 			<button type="button" class="btn" onclick={() => (adding = false)}>Cancel</button>
 		</div>
 	</form>

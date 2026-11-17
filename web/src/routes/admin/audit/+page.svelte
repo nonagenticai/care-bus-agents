@@ -149,16 +149,18 @@
 				<tbody>
 					{#each view.state === 'ok' ? view.data.items : [] as r (r.id)}
 						<tr onclick={() => select(r)}>
-							<td
-								><button
+							<td>
+								<button
 									type="button"
 									class="table-action mono"
 									onclick={(e) => {
 										e.stopPropagation();
 										select(r);
-									}}>{when(r.timestamp)}</button
-								></td
-							>
+									}}
+								>
+									{when(r.timestamp)}
+								</button>
+							</td>
 							<td>{actorTypeLabel(r.actor_type)}<span class="cell-sub mono">{r.actor_id}</span></td>
 							<td class="mono">{r.action_type}</td>
 							<td>{resourceTypeLabel(r.resource_type)}<span class="cell-sub mono">{r.resource_id}</span></td>

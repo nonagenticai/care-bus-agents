@@ -13,7 +13,9 @@
 			class="tab"
 			class:on={id === active}
 			aria-pressed={id === active}
-			onclick={() => (active = id)}>{label}</button
+			onclick={() => (active = id)}
 		>
+			{label}
+		</button>
 	{/each}
 </div>

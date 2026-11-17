@@ -39,9 +39,9 @@
 				<div class="wa-ava" aria-hidden="true">{initials(agentName)}</div>
 				<div class="wa-row-body">
 					<div class="wa-row-top">
-						<span class="wa-row-name">{agentName}</span><span class="wa-row-time"
-							>{formatTime(last?.at ?? null)}</span
-						>
+						<span class="wa-row-name">{agentName}</span><span class="wa-row-time">
+							{formatTime(last?.at ?? null)}
+						</span>
 					</div>
 					<div class="wa-row-prev">{typing ? 'typing…' : (last?.text ?? 'Start the conversation')}</div>
 				</div>
@@ -88,9 +88,9 @@
 								<span class="wa-sr">{you ? customerName : agentName}:</span>
 								<span class="wa-txt">{m.text}</span>
 								<span class="wa-stamp">
-									{#if m.at !== null}<time>{formatTime(m.at)}</time>{:else if m.status !== 'sending'}<span
-											>{PENDING_LABEL[m.status as keyof typeof PENDING_LABEL]}</span
-										>{/if}
+									{#if m.at !== null}<time>{formatTime(m.at)}</time>{:else if m.status !== 'sending'}<span>
+											{PENDING_LABEL[m.status as keyof typeof PENDING_LABEL]}
+										</span>{/if}
 									{#if you}
 										<span
 											class="wa-ticks"
@@ -98,9 +98,9 @@
 											data-testid="chat-ticks"
 											role="img"
 											aria-label={TICK[m.status].label}
-											><svg viewBox="0 0 24 24" aria-hidden="true"><path d={TICK[m.status].icon} /></svg
-											></span
 										>
+											<svg viewBox="0 0 24 24" aria-hidden="true"><path d={TICK[m.status].icon} /></svg>
+										</span>
 									{/if}
 								</span>
 							</div>

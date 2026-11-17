@@ -91,9 +91,9 @@
 					<tr>
 						<td>{SPACE_FIELD_LABEL[f]}</td>
 						<td class="mono">{fmtValue(base?.[f])}</td>
-						<td class="muted" title="Routes the space; changes only with a release"
-							><span class="mono">{fmtValue(current[f])}</span> · from the release</td
-						>
+						<td class="muted" title="Routes the space; changes only with a release">
+							<span class="mono">{fmtValue(current[f])}</span> · from the release
+						</td>
 					</tr>
 				{/each}
 				<tr>
@@ -121,14 +121,14 @@
 					<td>
 						<fieldset class="choices" aria-label={SPACE_FIELD_LABEL.entities}>
 							{#each choices as name (name)}
-								<label class="choice"
-									><input
+								<label class="choice">
+									<input
 										type="checkbox"
 										checked={draft.entities.includes(name)}
 										onchange={(e) => toggle(name, e.currentTarget.checked)}
 									/>
-									<span class="mono">{name}</span></label
-								>
+									<span class="mono">{name}</span>
+								</label>
 							{:else}<span class="muted">No entities</span>{/each}
 						</fieldset>
 					</td>
@@ -146,9 +146,9 @@
 		<div class="callout err" role="alert"><strong>Not saved</strong><span>{apiError}</span></div>
 	{/if}
 	<div class="row">
-		<button type="submit" class="btn primary" disabled={saving || !dirty || errors.length > 0}
-			>{saving ? 'Saving…' : 'Save my version'}</button
-		>
+		<button type="submit" class="btn primary" disabled={saving || !dirty || errors.length > 0}>
+			{saving ? 'Saving…' : 'Save my version'}
+		</button>
 		<button type="button" class="btn" onclick={oncancel}>Cancel</button>
 	</div>
 </form>

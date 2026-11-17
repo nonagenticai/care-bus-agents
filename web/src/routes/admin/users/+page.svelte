@@ -69,9 +69,9 @@
 	</div>
 </header>
 {#if !canWrite}
-	<Callout kind="info" title="Read only"
-		>You can view the users. Managing them needs the tenant_admin role.</Callout
-	>
+	<Callout kind="info" title="Read only">
+		You can view the users. Managing them needs the tenant_admin role.
+	</Callout>
 {/if}
 
 <Freshness resource={users} />
@@ -85,10 +85,9 @@
 	<Card cls="flush">
 		<div class="tbl-wrap">
 			<table class="tbl" data-testid="tenant-users">
-				<thead
-					><tr><th>User</th><th>Name</th><th>Role</th><th>Updated</th><th aria-label="Actions"></th></tr
-					></thead
-				>
+				<thead>
+					<tr><th>User</th><th>Name</th><th>Role</th><th>Updated</th><th aria-label="Actions"></th></tr>
+				</thead>
 				<tbody>
 					{#each list as u (u.sub)}
 						<tr data-sub={u.sub}>
@@ -114,8 +113,10 @@
 									type="button"
 									disabled={!canWrite || busy || lastAdmin(u)}
 									title={!canWrite ? 'Needs the tenant_admin role' : lastAdmin(u) ? LAST : ''}
-									onclick={() => remove(u)}>Remove</button
+									onclick={() => remove(u)}
 								>
+									Remove
+								</button>
 							</td>
 						</tr>
 					{/each}
@@ -128,19 +129,19 @@
 <Card title="Add a user">
 	<form class="add" onsubmit={add}>
 		<fieldset class="fields" disabled={!canWrite || busy}>
-			<label class="field"
-				><span class="label">Keycloak subject (sub)</span><input
+			<label class="field">
+				<span class="label">Keycloak subject (sub)</span><input
 					class="input mono"
 					autocomplete="off"
 					spellcheck="false"
 					bind:value={sub}
-				/></label
-			>
-			<label class="field"
-				><span class="label">Display name</span><input class="input" bind:value={displayName} /></label
-			>
-			<label class="field"
-				><span class="label">Role</span>
+				/>
+			</label>
+			<label class="field">
+				<span class="label">Display name</span><input class="input" bind:value={displayName} />
+			</label>
+			<label class="field">
+				<span class="label">Role</span>
 				<select class="input" bind:value={role}>
 					<option value="tenant_user">tenant_user</option>
 					<option value="tenant_admin">tenant_admin</option>
@@ -151,8 +152,10 @@
 			class="btn primary"
 			type="submit"
 			disabled={!canWrite || busy || !sub.trim()}
-			title={canWrite ? '' : 'Needs the tenant_admin role'}>Add user</button
+			title={canWrite ? '' : 'Needs the tenant_admin role'}
 		>
+			Add user
+		</button>
 	</form>
 </Card>
 
