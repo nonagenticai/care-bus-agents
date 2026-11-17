@@ -808,8 +808,8 @@ mod tests {
         ]
     }
 
-    const PAPER_A: &str = "0195f48b-d000-7000-8000-00000000000a";
-    const PAPER_B: &str = "0195f48b-d000-7000-8000-00000000000b";
+    const PAPER_A: &str = "aaaaaaaa-0000-4000-8000-00000000000a";
+    const PAPER_B: &str = "aaaaaaaa-0000-4000-8000-00000000000b";
     const LIT_QUOTE: &str = "reduced depressive symptoms in adults";
 
     fn found() -> FakeResolver {
@@ -1110,7 +1110,7 @@ mod tests {
             (PAPER_A, 11),
             (PAPER_A, 12),
             // uppercase uuid, doi in another case / as a URL, pmid: all the same paper
-            ("0195F48B-D000-7000-8000-00000000000A doi:10.1000/abc.1", 11),
+            ("AAAAAAAA-0000-4000-8000-00000000000A doi:10.1000/abc.1", 11),
             ("https://doi.org/10.1000/ABC.1", 12),
             ("pmid:111", 12),
             (with_pmid.as_str(), 11),
@@ -1207,7 +1207,7 @@ mod tests {
     async fn a_citation_into_an_over_cap_literature_search_is_checked_against_the_kept_items() {
         // 25 papers with ~4000-character abstracts: over the cap, so trailing papers are dropped whole
         let ids: Vec<String> = (0..25)
-            .map(|i| format!("0195f48b-d000-7000-8000-{i:012}"))
+            .map(|i| format!("aaaaaaaa-0000-4000-8000-{i:012}"))
             .collect();
         let items: Vec<Value> = ids
             .iter()

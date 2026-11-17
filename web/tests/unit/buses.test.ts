@@ -47,7 +47,7 @@ describe('bus labels', () => {
 				from: 'orchestrator',
 				correlation_id: 'CASE-1',
 				published_at_ms: 1792058400000,
-				tenant_id: '0195f48b-d000-7000-8000-000000000099',
+				tenant_id: 'aaaaaaaa-0000-4000-8000-000000000099',
 				job: 'customer_care_agent',
 				payload: { worker: 'order', action: 'get_order', attempt: 2 },
 			},

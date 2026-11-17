@@ -419,7 +419,7 @@ mod tests {
     #[test]
     fn active_tenant_header_is_a_bare_non_nil_uuid() {
         assert_eq!(header_tenant(&parts(None)).unwrap(), None);
-        let t = "0195f48b-d000-7000-8000-000000000099";
+        let t = "aaaaaaaa-0000-4000-8000-000000000099";
         assert_eq!(
             header_tenant(&parts(Some(t))).unwrap(),
             Some(t.parse().unwrap())
@@ -427,9 +427,9 @@ mod tests {
         for bad in [
             "nope",
             "00000000-0000-0000-0000-000000000000",
-            "0195f48bd00070008000000000000099",
-            "{0195f48b-d000-7000-8000-000000000099}",
-            "urn:uuid:0195f48b-d000-7000-8000-000000000099",
+            "aaaaaaaa000040008000000000000099",
+            "{aaaaaaaa-0000-4000-8000-000000000099}",
+            "urn:uuid:aaaaaaaa-0000-4000-8000-000000000099",
         ] {
             match header_tenant(&parts(Some(bad))) {
                 Err(ApiError::BadRequest(code, _)) => assert_eq!(code, "invalid_active_tenant"),

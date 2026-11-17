@@ -19,10 +19,11 @@
 //!
 //! Then, attempted inline right after the decision and finished by the tick:
 //! 4. `base_release` — the workspace's job put on the current base release of its job key, copied from the source
-//!    job (`SIGNUP_BASE_TENANT_ID`, the bootstrap tenant by default) by `carebus_adopt_base_release` (migration 0021):
+//!    job (`SIGNUP_BASE_TENANT_ID`, required) by `carebus_adopt_base_release` (migration 0021):
 //!    what an operator applying the release by hand did, so the new workspace serves the product content at once.
 //!    Idempotent (a job already on a release is left alone). No base release to adopt is `skipped`
-//!    (`no_base_release`): the workspace starts empty, the signup does not fail.
+//!    (`no_base_release`): the workspace starts empty, the signup does not fail. Unset `SIGNUP_BASE_TENANT_ID` fails
+//!    the step (`signup_not_configured`): signup never falls back to another tenant.
 //! 5. `licences_tenant` — the tenant registered in licences (owner care-bus) and its licence set ensured (bundle).
 //! 6. `member_licence` — the person's member licence (`POST /licenses/user/{sub}`, subject realm care-bus), recorded
 //!    in `member_licences` inside the tenant context (lesson #1).
@@ -1083,12 +1084,18 @@ async fn adopt_base_release(
     a: &Approval,
     tenant: Uuid,
 ) -> ApiResult<Outcome> {
+    let Some(base_tenant) = sg.cfg.base_tenant else {
+        return Err(ApiError::Unavailable(
+            "signup_not_configured",
+            "signup cannot found a workspace because SIGNUP_BASE_TENANT_ID is unset".into(),
+        ));
+    };
     let (outcome, release): (String, Option<String>) = sqlx::query_as(
         "SELECT adopt_outcome, adopt_release FROM carebus_adopt_base_release($1, $2, $3, $4)",
     )
     .bind(tenant)
     .bind(&sg.cfg.job_key)
-    .bind(sg.cfg.base_tenant)
+    .bind(base_tenant)
     .bind(format!("signup:{}", a.id))
     .fetch_one(&st.db)
     .await?;

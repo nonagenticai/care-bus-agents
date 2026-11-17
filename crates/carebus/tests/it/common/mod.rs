@@ -42,8 +42,8 @@ pub async fn bus(test: &str) -> Bus {
     root(test).await.scoped(&scope_a())
 }
 
-pub const BOOT_TENANT: &str = "0195f48b-d000-7000-8000-000000000099";
-pub const OTHER_TENANT: &str = "0195f48b-d000-7000-8000-0000000000aa";
+pub const BOOT_TENANT: &str = "aaaaaaaa-0000-4000-8000-000000000099";
+pub const OTHER_TENANT: &str = "aaaaaaaa-0000-4000-8000-0000000000aa";
 
 /// The bootstrap tenant's `customer_care_agent` job.
 pub fn scope_a() -> Scope {

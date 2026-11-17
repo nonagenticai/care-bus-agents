@@ -44,7 +44,7 @@ const ev = (
 		from: 'x',
 		correlation_id: cid,
 		published_at_ms: Number(entry.split('-')[0]),
-		tenant_id: '0195f48b-d000-7000-8000-000000000099',
+		tenant_id: 'aaaaaaaa-0000-4000-8000-000000000099',
 		job: 'customer_care_agent',
 		payload: {},
 	},

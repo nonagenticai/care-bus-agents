@@ -37,7 +37,8 @@ Optional:
   care-bus licence set once (recorded in `tenant_bundle_reconcile`, retried with backoff), so bundle tokens can be
   minted for tenants older than early access. Default off. Needs the `LICENSE_*` issuing settings.
 - `SIGNUP_BASE_TENANT_ID` - the tenant whose `SIGNUP_JOB_KEY` job holds the base release a new early-access
-  workspace starts on (default the bootstrap tenant).
+  workspace starts on. Required for early access: unset, signup cannot found a workspace (its `base_release` step
+  fails closed, `signup_not_configured`).
 - `CAREBUS_SOURCE_KEY` - 32 random bytes, standard base64 (`openssl rand -base64 32`), from a SOPS secret. Encrypts
   source credentials (AES-256-GCM). Unset: credentials can be neither saved nor used (503 `not_configured`); a
   malformed value stops startup. Losing or rotating it makes stored credentials unreadable (409
