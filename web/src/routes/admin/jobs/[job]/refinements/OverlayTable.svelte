@@ -83,9 +83,9 @@
 		<div class="tbl-wrap">
 			<table class="tbl" data-testid="side-by-side-{object}">
 				<thead>
-					<tr
-						><th>Key</th><th>State</th><th>Base (release)</th><th>Yours</th><th aria-label="Actions"></th></tr
-					>
+					<tr>
+						<th>Key</th><th>State</th><th>Base (release)</th><th>Yours</th><th aria-label="Actions"></th>
+					</tr>
 				</thead>
 				<tbody>
 					{#each rows as row (row.keyText)}
@@ -129,8 +129,10 @@
 										type="button"
 										disabled={!canWrite || busy !== ''}
 										title={canWrite ? '' : 'Needs the tenant_admin role'}
-										onclick={() => edit(row)}>Edit</button
+										onclick={() => edit(row)}
 									>
+										Edit
+									</button>
 								{/if}
 								{#each actionsFor(row, true) as op}
 									<button
@@ -138,8 +140,10 @@
 										type="button"
 										disabled={!canWrite || busy !== ''}
 										title={canWrite ? '' : 'Needs the tenant_admin role'}
-										onclick={() => act(row, op)}>{ACTION_LABEL[op]}</button
+										onclick={() => act(row, op)}
 									>
+										{ACTION_LABEL[op]}
+									</button>
 								{/each}
 							</td>
 						</tr>

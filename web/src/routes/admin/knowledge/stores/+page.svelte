@@ -187,29 +187,29 @@
 				create();
 			}}
 		>
-			<label class="field"
-				><span class="label">New store name</span><input class="input" bind:value={form.name} /></label
-			>
-			<label class="field"
-				><span class="label">Kind</span>
+			<label class="field">
+				<span class="label">New store name</span><input class="input" bind:value={form.name} />
+			</label>
+			<label class="field">
+				<span class="label">Kind</span>
 				<select class="input" bind:value={form.kind}>
 					<option value="leaf">Leaf (holds documents)</option>
 					<option value="router">Router (holds stores)</option>
-				</select></label
-			>
-			<label class="field"
-				><span class="label">Parent</span>
+				</select>
+			</label>
+			<label class="field">
+				<span class="label">Parent</span>
 				<select class="input" bind:value={form.parent_id}>
 					<option value={null}>None (top level)</option>
 					{#each routers as r}<option value={r.id}>{r.name}</option>{/each}
-				</select></label
-			>
-			<label class="field"
-				><span class="label">Description</span><input class="input" bind:value={form.description} /></label
-			>
-			<button class="btn" type="submit" disabled={!canWrite || !form.name.trim()} title={why}
-				>Create store</button
-			>
+				</select>
+			</label>
+			<label class="field">
+				<span class="label">Description</span><input class="input" bind:value={form.description} />
+			</label>
+			<button class="btn" type="submit" disabled={!canWrite || !form.name.trim()} title={why}>
+				Create store
+			</button>
 		</form>
 	</Card>
 	<Card title={sel ? `Documents in ${sel.name}` : 'Documents'}>
@@ -227,30 +227,32 @@
 			/>
 			<div class="row">
 				{#if sel.kind === 'router'}
-					<label class="check"
-						><input type="checkbox" bind:checked={recursive} /> With every store below it</label
-					>
+					<label class="check">
+						<input type="checkbox" bind:checked={recursive} /> With every store below it
+					</label>
 				{/if}
 				<button
 					class="btn sm"
 					type="button"
 					disabled={!canWrite}
 					title={why}
-					onclick={() => (confirmStore = true)}>Delete store</button
+					onclick={() => (confirmStore = true)}
 				>
+					Delete store
+				</button>
 			</div>
 			{#if confirmStore}
 				<div class="callout err" role="alertdialog" aria-label="Delete store">
 					<strong>Delete {sel.name}?</strong>
-					<span
-						>{sel.kind === 'router' && recursive
+					<span>
+						{sel.kind === 'router' && recursive
 							? 'Every store below it is deleted too, with all their documents.'
-							: 'The store and its documents are deleted from strata_rag.'}</span
-					>
-					<span
-						><button class="btn sm" type="button" onclick={removeStore}>Delete store</button>
-						<button class="btn sm" type="button" onclick={() => (confirmStore = false)}>Keep it</button></span
-					>
+							: 'The store and its documents are deleted from strata_rag.'}
+					</span>
+					<span>
+						<button class="btn sm" type="button" onclick={removeStore}>Delete store</button>
+						<button class="btn sm" type="button" onclick={() => (confirmStore = false)}>Keep it</button>
+					</span>
 				</div>
 			{/if}
 		{/if}
@@ -258,11 +260,10 @@
 			<div class="callout err" role="alertdialog" aria-label="Delete document">
 				<strong>Delete {docName(confirmDoc)}?</strong>
 				<span>It is removed from strata_rag and no longer found by search.</span>
-				<span
-					><button class="btn sm" type="button" onclick={() => removeDoc(confirmDoc!)}>Delete document</button
-					>
-					<button class="btn sm" type="button" onclick={() => (confirmDoc = null)}>Keep it</button></span
-				>
+				<span>
+					<button class="btn sm" type="button" onclick={() => removeDoc(confirmDoc!)}>Delete document</button>
+					<button class="btn sm" type="button" onclick={() => (confirmDoc = null)}>Keep it</button>
+				</span>
 			</div>
 		{/if}
 		{#if docs.s === 'idle'}
@@ -281,24 +282,26 @@
 			<ul class="list-plain">
 				{#each docs.items as d}
 					<li>
-						<span
-							>{docName(d)}{#if d.title && d.source}<span class="cell-sub mono">{d.source}</span>{/if}</span
-						>
+						<span>
+							{docName(d)}{#if d.title && d.source}<span class="cell-sub mono">{d.source}</span>{/if}
+						</span>
 						<span class="muted mono">{fmt.n(d.token_count)} tokens · {fmt.n(d.chunk_count)} chunks</span>
 						<button
 							class="btn sm"
 							type="button"
 							disabled={!canWrite}
 							title={why}
-							onclick={() => (confirmDoc = d)}>Delete</button
+							onclick={() => (confirmDoc = d)}
 						>
+							Delete
+						</button>
 					</li>
 				{/each}
 			</ul>
 			{#if docs.next}
-				<button class="btn sm" type="button" disabled={loadingMore} onclick={more}
-					>{loadingMore ? 'Loading…' : 'Load more'}</button
-				>
+				<button class="btn sm" type="button" disabled={loadingMore} onclick={more}>
+					{loadingMore ? 'Loading…' : 'Load more'}
+				</button>
 			{/if}
 		{/if}
 	</Card>
@@ -364,8 +367,10 @@
 					</span>
 					<span class="kn-scores mono muted">
 						<span>dense {score(r.scores.dense)} <Meter value={r.scores.dense ?? 0} /></span>
-						<span>lexical {score(r.scores.lexical)} <Meter value={r.scores.lexical ?? 0} cls="s-work" /></span
-						>
+						<span>
+							lexical {score(r.scores.lexical)}
+							<Meter value={r.scores.lexical ?? 0} cls="s-work" />
+						</span>
 						<span>rerank {score(r.scores.rerank)} <Meter value={r.scores.rerank ?? 0} cls="s-ok" /></span>
 					</span>
 				</li>

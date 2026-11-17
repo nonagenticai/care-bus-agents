@@ -63,11 +63,11 @@
 			<ul class="list-plain">
 				{#each o.attention as a}
 					<li>
-						<a class="attn-link" href={jobPath(app.job, `/${a.page}`)}
-							><Status word={a.severity} label={SEVERITY_LABEL[a.severity]} /><span class="cell-title"
-								>{a.title}</span
-							></a
-						>
+						<a class="attn-link" href={jobPath(app.job, `/${a.page}`)}>
+							<Status word={a.severity} label={SEVERITY_LABEL[a.severity]} /><span class="cell-title">
+								{a.title}
+							</span>
+						</a>
 					</li>
 				{/each}
 			</ul>
@@ -76,11 +76,11 @@
 			<ul class="list-plain">
 				{#each o.health as h}
 					<li>
-						<span
-							><span class="cell-title">{h.name}</span>{#if h.detail}<span class="cell-sub mono"
-									>{h.detail}</span
-								>{/if}</span
-						>
+						<span>
+							<span class="cell-title">{h.name}</span>{#if h.detail}<span class="cell-sub mono">
+									{h.detail}
+								</span>{/if}
+						</span>
 						<Status word={h.status} label={HEALTH_LABEL[h.status]} />
 					</li>
 				{/each}

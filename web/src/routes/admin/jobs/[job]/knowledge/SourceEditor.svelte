@@ -204,16 +204,16 @@
 </script>
 
 {#if !canWrite}
-	<Callout kind="info" title="Read only"
-		>You can view this source. Editing needs the tenant_admin role.</Callout
-	>
+	<Callout kind="info" title="Read only">
+		You can view this source. Editing needs the tenant_admin role.
+	</Callout>
 {/if}
 {#if structured(draft.type)}
-	<Callout kind="info" title="Ingest capability"
-		>Connection tests and column previews do not prove ingest support or completed indexing. API and datatable
+	<Callout kind="info" title="Ingest capability">
+		Connection tests and column previews do not prove ingest support or completed indexing. API and datatable
 		sync require support from the deployed ingest service; unsupported kinds return a failed run. Confirm
-		deployment support before setting up this source.</Callout
-	>
+		deployment support before setting up this source.
+	</Callout>
 {/if}
 <fieldset class="editor-fields" disabled={!canWrite || saving}>
 	<form
@@ -223,8 +223,9 @@
 			save();
 		}}
 	>
-		<label class="field"><span class="label">Name</span><input class="input" bind:value={draft.name} /></label
-		>
+		<label class="field">
+			<span class="label">Name</span><input class="input" bind:value={draft.name} />
+		</label>
 		<fieldset class="field span" disabled={!!source}>
 			<legend class="label">Type</legend>
 			<div class="types">
@@ -250,26 +251,26 @@
 				</div>
 			</fieldset>
 			{#if draft.mode === 'urls'}
-				<label class="field span"
-					><span class="label">URLs, one per line</span><textarea
+				<label class="field span">
+					<span class="label">URLs, one per line</span><textarea
 						class="input mono"
 						rows="4"
-						bind:value={draft.urls}></textarea></label
-				>
+						bind:value={draft.urls}></textarea>
+				</label>
 			{:else}
-				<label class="field span"
-					><span class="label">{draft.mode === 'crawl' ? 'Start page' : 'Sitemap URL'}</span><input
+				<label class="field span">
+					<span class="label">{draft.mode === 'crawl' ? 'Start page' : 'Sitemap URL'}</span><input
 						class="input mono"
 						bind:value={draft.url}
 						placeholder={draft.mode === 'crawl'
 							? 'https://help.example.nl/'
 							: 'https://help.example.nl/sitemap.xml'}
-					/></label
-				>
+					/>
+				</label>
 			{/if}
 			{#if draft.mode === 'crawl'}
-				<label class="field"
-					><span class="label">Link depth (1-5)</span><input
+				<label class="field">
+					<span class="label">Link depth (1-5)</span><input
 						class="input"
 						type="number"
 						min="1"
@@ -277,10 +278,10 @@
 						step="1"
 						bind:value={draft.maxDepth}
 						placeholder="2"
-					/></label
-				>
-				<label class="field"
-					><span class="label">Max pages (1-200)</span><input
+					/>
+				</label>
+				<label class="field">
+					<span class="label">Max pages (1-200)</span><input
 						class="input"
 						type="number"
 						min="1"
@@ -288,28 +289,27 @@
 						step="1"
 						bind:value={draft.maxPages}
 						placeholder="50"
-					/></label
-				>
-				<label class="field"
-					><span class="label">Allowed domains, one per line</span><textarea
+					/>
+				</label>
+				<label class="field">
+					<span class="label">Allowed domains, one per line</span><textarea
 						class="input mono"
 						rows="2"
 						bind:value={draft.allowedDomains}
-						placeholder="help.example.nl"></textarea><span class="cell-sub"
-						>Empty: strata_ingest's default.</span
-					></label
-				>
-				<label class="field"
-					><span class="label">Link query</span><input
+						placeholder="help.example.nl"></textarea><span class="cell-sub">
+						Empty: strata_ingest's default.
+					</span>
+				</label>
+				<label class="field">
+					<span class="label">Link query</span><input
 						class="input"
 						bind:value={draft.linkQuery}
 						placeholder="returns and warranty"
-					/><span class="cell-sub">Optional. strata_ingest uses it to choose which links to follow.</span
-					></label
-				>
+					/><span class="cell-sub">Optional. strata_ingest uses it to choose which links to follow.</span>
+				</label>
 			{:else if draft.mode === 'sitemap'}
-				<label class="field"
-					><span class="label">Max URLs (1-1000)</span><input
+				<label class="field">
+					<span class="label">Max URLs (1-1000)</span><input
 						class="input"
 						type="number"
 						min="1"
@@ -317,75 +317,74 @@
 						step="1"
 						bind:value={draft.maxUrls}
 						placeholder="200"
-					/></label
-				>
-				<label class="field"
-					><span class="label">Only URLs containing, one per line</span><textarea
+					/>
+				</label>
+				<label class="field">
+					<span class="label">Only URLs containing, one per line</span><textarea
 						class="input mono"
 						rows="2"
 						bind:value={draft.include}
-						placeholder="/help/"></textarea></label
-				>
-				<label class="field"
-					><span class="label">Skip URLs containing, one per line</span><textarea
+						placeholder="/help/"></textarea>
+				</label>
+				<label class="field">
+					<span class="label">Skip URLs containing, one per line</span><textarea
 						class="input mono"
 						rows="2"
 						bind:value={draft.exclude}
-						placeholder="/archive/"></textarea></label
-				>
+						placeholder="/archive/"></textarea>
+				</label>
 			{/if}
 		{/if}
 		{#if structured(draft.type)}
-			<label class="field span"
-				><span class="label">{draft.type === 'api' ? 'Endpoint URL' : 'Table URL'}</span><input
+			<label class="field span">
+				<span class="label">{draft.type === 'api' ? 'Endpoint URL' : 'Table URL'}</span><input
 					class="input mono"
 					bind:value={draft.url}
 					placeholder="https://api.example.nl/v2/customers"
-				/></label
-			>
-			<label class="field"
-				><span class="label">Authentication</span>
+				/>
+			</label>
+			<label class="field">
+				<span class="label">Authentication</span>
 				<select class="input" bind:value={draft.authType}>
 					<option value="none">None</option>
 					<option value="bearer">Bearer token</option>
 					<option value="header">API key header</option>
-				</select></label
-			>
+				</select>
+			</label>
 			{#if draft.authType === 'header'}
-				<label class="field"
-					><span class="label">Header name</span><input
+				<label class="field">
+					<span class="label">Header name</span><input
 						class="input mono"
 						bind:value={draft.headerName}
 						placeholder="X-Api-Key"
-					/></label
-				>
+					/>
+				</label>
 			{/if}
 		{/if}
 		{#if draft.type === 'datatable'}
-			<label class="field"
-				><span class="label">Format</span>
+			<label class="field">
+				<span class="label">Format</span>
 				<select class="input" bind:value={draft.format}>
 					<option value="csv">CSV</option>
 					<option value="xlsx">XLSX</option>
-				</select></label
-			>
-			<label class="field"
-				><span class="label">Sheet (XLSX)</span><input class="input" bind:value={draft.sheet} /></label
-			>
-			<label class="check"
-				><input type="checkbox" bind:checked={draft.headerRow} onchange={previewAgain} /> First row contains column
-				names</label
-			>
+				</select>
+			</label>
+			<label class="field">
+				<span class="label">Sheet (XLSX)</span><input class="input" bind:value={draft.sheet} />
+			</label>
+			<label class="check">
+				<input type="checkbox" bind:checked={draft.headerRow} onchange={previewAgain} /> First row contains column
+				names
+			</label>
 		{/if}
 		{#if draft.type === 'file'}
 			<p class="muted span">You upload the files with each re-sync. care-bus does not keep them.</p>
 		{/if}
 		{#if uses}
 			<label class="field span">
-				<span class="label"
-					>Credentials {#if source?.has_credentials && !draft.clearSecret}<span class="chip">set</span
-						>{/if}</span
-				>
+				<span class="label">
+					Credentials {#if source?.has_credentials && !draft.clearSecret}<span class="chip">set</span>{/if}
+				</span>
 				<input
 					class="input mono"
 					type="password"
@@ -398,33 +397,33 @@
 				/>
 			</label>
 			{#if source?.has_credentials}
-				<label class="check"
-					><input type="checkbox" bind:checked={draft.clearSecret} /> Remove the stored credentials</label
-				>
+				<label class="check">
+					<input type="checkbox" bind:checked={draft.clearSecret} /> Remove the stored credentials
+				</label>
 			{/if}
 			<p class="cell-sub span">
 				Stored encrypted. It is never shown again; it is only sent with test connection and each re-sync.
 			</p>
 		{/if}
-		<label class="field"
-			><span class="label">Target store</span>
+		<label class="field">
+			<span class="label">Target store</span>
 			<select class="input" bind:value={draft.targetStoreId}>
 				<option value="" disabled>Pick a leaf store</option>
 				{#each storeOptions as s}<option value={s.id}>{s.name}</option>{/each}
 			</select>
-			{#if storeOptions.length === 0}<span class="cell-sub"
-					>No leaf stores yet. <a href="/admin/knowledge/stores">Create one under Stores</a> first.</span
-				>{/if}</label
-		>
-		<label class="field"
-			><span class="label">Schedule (cron)</span><input
+			{#if storeOptions.length === 0}<span class="cell-sub">
+					No leaf stores yet. <a href="/admin/knowledge/stores">Create one under Stores</a> first.
+				</span>{/if}
+		</label>
+		<label class="field">
+			<span class="label">Schedule (cron)</span><input
 				class="input mono"
 				bind:value={draft.schedule}
 				placeholder="0 3 * * *"
-			/><span class="cell-sub"
-				>Stored with the source, but care-bus does not run schedules yet. Use Re-sync to run it.</span
-			></label
-		>
+			/><span class="cell-sub">
+				Stored with the source, but care-bus does not run schedules yet. Use Re-sync to run it.
+			</span>
+		</label>
 		<label class="check"><input type="checkbox" bind:checked={draft.enabled} /> Enabled</label>
 	</form>
 
@@ -432,22 +431,28 @@
 		<h3>Field mapping</h3>
 		<div class="row">
 			{#if draft.type === 'api'}
-				<button class="btn" type="button" disabled={!canWrite || testing || saving} title={why} onclick={test}
-					>{testing ? 'Testing…' : 'Test connection'}</button
+				<button
+					class="btn"
+					type="button"
+					disabled={!canWrite || testing || saving}
+					title={why}
+					onclick={test}
 				>
+					{testing ? 'Testing…' : 'Test connection'}
+				</button>
 				{#if canWrite && !testing && plan.kind !== 'blocked' && plan.note}
 					<span class="muted">{plan.note}</span>
 				{/if}
 			{:else}
-				<label class="btn" aria-disabled={!canWrite} title={why}
-					>Preview columns (CSV or XLSX) <input
+				<label class="btn" aria-disabled={!canWrite} title={why}>
+					Preview columns (CSV or XLSX) <input
 						class="visually-hidden"
 						type="file"
 						accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 						disabled={!canWrite}
 						onchange={readColumns}
-					/></label
-				>
+					/>
+				</label>
 			{/if}
 		</div>
 		{#if blockedReasons.length}
@@ -459,17 +464,15 @@
 		{#if sample}
 			<div class="callout test-result" class:ok={sample.ok} class:err={!sample.ok} role="status">
 				<strong>{sample.ok ? 'Connection works' : 'Connection failed'}</strong>
-				<span
-					>HTTP {sample.status ?? '—'} · {sample.detail}{sample.truncated
-						? ' · body cut at 256 KB'
-						: ''}</span
-				>
+				<span>
+					HTTP {sample.status ?? '—'} · {sample.detail}{sample.truncated ? ' · body cut at 256 KB' : ''}
+				</span>
 				{#if sample.ok}
-					<span class="muted"
-						>{sample.fields.length
+					<span class="muted">
+						{sample.fields.length
 							? `Discovered fields: ${sample.fields.join(', ')}`
-							: 'No fields discovered in the sample record.'}</span
-					>
+							: 'No fields discovered in the sample record.'}
+					</span>
 				{/if}
 			</div>
 			{#if sample.sample != null}<JsonView value={sample.sample} />{/if}
@@ -487,9 +490,9 @@
 	{/if}
 
 	{#if secretInSettings}
-		<Callout kind="err" title="That looks like a key"
-			>Put keys and tokens in the credentials field; these settings are stored in clear.</Callout
-		>
+		<Callout kind="err" title="That looks like a key">
+			Put keys and tokens in the credentials field; these settings are stored in clear.
+		</Callout>
 	{/if}
 	{#if errors.length}
 		<Callout kind="info" title="Before you save"><span>{errors.join(' ')}</span></Callout>
@@ -502,27 +505,29 @@
 		type="button"
 		disabled={!canWrite || saving || errors.length > 0 || secretInSettings}
 		title={why}
-		onclick={save}>{saving ? 'Saving…' : source ? 'Save' : 'Add source'}</button
+		onclick={save}
 	>
+		{saving ? 'Saving…' : source ? 'Save' : 'Add source'}
+	</button>
 	{#if source}
-		<button class="btn" type="button" disabled={!canWrite} title={why} onclick={() => (confirmDelete = true)}
-			>Delete</button
-		>
+		<button class="btn" type="button" disabled={!canWrite} title={why} onclick={() => (confirmDelete = true)}>
+			Delete
+		</button>
 	{/if}
 </div>
 {#if confirmDelete && source}
 	<div class="callout err" role="alertdialog" aria-label="Delete source">
 		<strong>Delete {source.name}?</strong>
-		<span
-			>{purge
+		<span>
+			{purge
 				? 'Its documents are deleted from strata_rag too.'
-				: 'Its documents stay in strata_rag. Only the settings and run history are removed.'}</span
-		>
+				: 'Its documents stay in strata_rag. Only the settings and run history are removed.'}
+		</span>
 		<label class="check"><input type="checkbox" bind:checked={purge} /> Also delete its documents</label>
-		<span
-			><button class="btn sm" type="button" onclick={remove}>Delete source</button>
-			<button class="btn sm" type="button" onclick={() => (confirmDelete = false)}>Keep it</button></span
-		>
+		<span>
+			<button class="btn sm" type="button" onclick={remove}>Delete source</button>
+			<button class="btn sm" type="button" onclick={() => (confirmDelete = false)}>Keep it</button>
+		</span>
 	</div>
 {/if}
 

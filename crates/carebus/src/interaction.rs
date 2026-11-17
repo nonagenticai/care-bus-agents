@@ -325,13 +325,11 @@ pub struct EffectiveTenantHeader {
     pub service_actor: Option<uuid::Uuid>,
 }
 
-impl HttpMiddleware for EffectiveTenantHeader {
-    fn before_request_headers<'a>(
-        &'a self,
-        _method: &'a http_client::Method,
-        _uri: &'a http_client::Uri,
-        headers: &'a mut http_client::HeaderMap,
-    ) -> WasmBoxedFuture<'a, http_client::Result<()>> {
+impl EffectiveTenantHeader {
+    /// The headers this middleware adds, outside rig's `Exchange`. rig 0.46 makes `Exchange`
+    /// `#[non_exhaustive]` with no constructor, so the hook delegates here and the tests exercise
+    /// the same code without forging a request.
+    pub fn apply(&self, headers: &mut http_client::HeaderMap) {
         if let Some(tenant) = effective_tenant() {
             for (name, value) in crate::identity::router_headers(tenant, self.service_actor) {
                 if let Ok(v) = http_client::HeaderValue::try_from(value) {
@@ -339,6 +337,16 @@ impl HttpMiddleware for EffectiveTenantHeader {
                 }
             }
         }
+    }
+}
+
+impl HttpMiddleware for EffectiveTenantHeader {
+    fn before_request_headers<'a>(
+        &'a self,
+        _exchange: http_client::Exchange<'a>,
+        headers: &'a mut http_client::HeaderMap,
+    ) -> WasmBoxedFuture<'a, http_client::Result<()>> {
+        self.apply(headers);
         Box::pin(async { Ok(()) })
     }
 }
@@ -876,13 +884,7 @@ mod tests {
         service_actor: Option<uuid::Uuid>,
     ) -> http_client::HeaderMap {
         let mut h = http_client::HeaderMap::new();
-        let uri: http_client::Uri = "http://vllm.example:8001/v1/chat/completions"
-            .parse()
-            .unwrap();
-        EffectiveTenantHeader { service_actor }
-            .before_request_headers(&http_client::Method::POST, &uri, &mut h)
-            .await
-            .unwrap();
+        EffectiveTenantHeader { service_actor }.apply(&mut h);
         h
     }
 

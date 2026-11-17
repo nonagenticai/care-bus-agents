@@ -169,8 +169,10 @@
 				type="button"
 				disabled={!canWrite || cancelling || r.cancel_requested}
 				title={canWrite ? '' : 'Needs a role in this tenant'}
-				onclick={cancel}>{cancelling ? 'Cancelling…' : 'Cancel run'}</button
+				onclick={cancel}
 			>
+				{cancelling ? 'Cancelling…' : 'Cancel run'}
+			</button>
 		{/if}
 	</div>
 	{#if pollErr}
@@ -231,8 +233,9 @@
 								<li class="rs-cite">
 									<div class="rs-cite-head">
 										<Chip text={c.source_kind} variant="accent" />
-										{#if href}<a class="mono" {href} target="_blank" rel="noopener noreferrer">{c.locator}</a
-											>{:else}<span class="mono">{c.locator}</span>{/if}
+										{#if href}<a class="mono" {href} target="_blank" rel="noopener noreferrer">
+												{c.locator}
+											</a>{:else}<span class="mono">{c.locator}</span>{/if}
 										{#if c.title}<span class="muted">{c.title}</span>{/if}
 										<Chip
 											text={VERIFY_LABEL[c.verify_status] ?? c.verify_status}
@@ -266,12 +269,12 @@
 								<td class="r">{s.ordinal}</td>
 								<td>{s.kind}</td>
 								<td class="mono">{s.tool ?? '—'}</td>
-								<td
-									><Status
+								<td>
+									<Status
 										word={s.status === 'denied' ? 'warn' : s.status === 'error' ? 'err' : 'ok'}
 										label={s.status}
-									/></td
-								>
+									/>
+								</td>
 								<td class="r">{fmt.ms(s.duration_ms)}</td>
 							</tr>
 						{/each}

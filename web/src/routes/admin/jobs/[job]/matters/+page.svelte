@@ -127,8 +127,8 @@
 	<form onsubmit={create} aria-label="New legal matter">
 		<fieldset class="lm-form" disabled={!canWrite || creating}>
 			<div class="form-grid">
-				<label class="field"
-					><span class="label">Name</span>
+				<label class="field">
+					<span class="label">Name</span>
 					<input
 						class="input"
 						bind:value={draft.name}
@@ -138,8 +138,8 @@
 					/>
 					{#if msg('name')}<span class="field-err">{msg('name')}</span>{/if}
 				</label>
-				<label class="field"
-					><span class="label">Reference</span>
+				<label class="field">
+					<span class="label">Reference</span>
 					<input
 						class="input"
 						bind:value={draft.reference}
@@ -154,9 +154,9 @@
 		</fieldset>
 		{#if failure}<Callout kind="err" title="Not created">{failure}</Callout>{/if}
 		<div class="actions">
-			<button class="btn primary" type="submit" disabled={!canWrite || creating}
-				>{creating ? 'Creating…' : 'Create matter'}</button
-			>
+			<button class="btn primary" type="submit" disabled={!canWrite || creating}>
+				{creating ? 'Creating…' : 'Create matter'}
+			</button>
 		</div>
 	</form>
 </Card>
@@ -176,19 +176,20 @@
 		<div class="tbl-wrap">
 			<table class="tbl" aria-label="Legal matters">
 				<thead>
-					<tr
-						><th>Matter</th><th>Reference</th><th>Your role</th><th class="r">Members</th><th class="r"
-							>Stores</th
-						><th>Created</th><th>State</th></tr
-					>
+					<tr>
+						<th>Matter</th><th>Reference</th><th>Your role</th><th class="r">Members</th><th class="r">
+							Stores
+						</th><th>Created</th><th>State</th>
+					</tr>
 				</thead>
 				<tbody>
 					{#each rows as r (r.id)}
 						<tr>
 							<td><button class="table-action" type="button" onclick={() => show(r.id)}>{r.name}</button></td>
 							<td>{r.reference ?? '—'}</td>
-							<td>{r.my_role ? MATTER_ROLE_LABEL[r.my_role] : isAdmin ? 'Admin (no access to runs)' : '—'}</td
-							>
+							<td>
+								{r.my_role ? MATTER_ROLE_LABEL[r.my_role] : isAdmin ? 'Admin (no access to runs)' : '—'}
+							</td>
 							<td class="r">{r.member_count}</td>
 							<td class="r">{r.store_count}</td>
 							<td>{when(r.created_at)}</td>

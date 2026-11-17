@@ -369,8 +369,10 @@
 				type="button"
 				disabled={!canWrite}
 				title={canWrite ? '' : ROLE_HINT}
-				onclick={() => edit(null)}>Add provider</button
+				onclick={() => edit(null)}
 			>
+				Add provider
+			</button>
 		{/snippet}
 		{#if data.providers.length === 0}
 			<div class="empty">No LLM providers yet.</div>
@@ -383,12 +385,12 @@
 					<tbody>
 						{#each data.providers as p (p.id)}
 							{@const t = tests[p.id]}
-							<tr
-								><td><button class="table-action" onclick={() => edit(p)}>{p.name}</button></td>
+							<tr>
+								<td><button class="table-action" onclick={() => edit(p)}>{p.name}</button></td>
 								<td>{KIND_LABELS[p.kind] ?? p.kind}</td>
 								<td class="mono">{p.base_url}</td>
-								<td
-									>{p.has_token ? 'Set' : 'Not set'}
+								<td>
+									{p.has_token ? 'Set' : 'Not set'}
 									{#if p.secret_fpr}
 										<div class="muted mono" title="Fingerprint of the stored token">{p.secret_fpr}</div>
 									{/if}
@@ -398,10 +400,10 @@
 										</div>
 									{/if}
 								</td>
-								<td
-									>{stamp(p.updated_at)}{#if p.updated_by}
-										· {p.updated_by}{/if}</td
-								>
+								<td>
+									{stamp(p.updated_at)}{#if p.updated_by}
+										· {p.updated_by}{/if}
+								</td>
 								<td>
 									<button
 										class="btn sm"
@@ -409,8 +411,10 @@
 										aria-label={`Test ${p.name}`}
 										disabled={!canWrite || testing !== null}
 										title={canWrite ? '' : ROLE_HINT}
-										onclick={() => test(p)}>{testing === p.id ? 'Testing…' : 'Test'}</button
+										onclick={() => test(p)}
 									>
+										{testing === p.id ? 'Testing…' : 'Test'}
+									</button>
 									{#if t}
 										<div class="llm-test" role="status" aria-label={`Test result for ${p.name}`}>
 											{#if 'ok' in t}
@@ -455,24 +459,26 @@
 							type="button"
 							disabled={!canWrite}
 							title={canWrite ? '' : ROLE_HINT}
-							onclick={() => bindShortcut(data, u)}>Bind {u}</button
+							onclick={() => bindShortcut(data, u)}
 						>
+							Bind {u}
+						</button>
 					</div>
 				{/if}
 				<fieldset class="llm-fields" disabled={!canWrite || usesBusy !== null}>
 					<div class="form-grid">
-						<label class="field"
-							><span class="label">{rule.label} provider</span>
+						<label class="field">
+							<span class="label">{rule.label} provider</span>
 							<select class="input" id={`llm-use-${u}-provider`} bind:value={picks[u].provider_id}>
 								<option value="">{rule.none}</option>
 								{#each choices as p (p.id)}<option value={p.id}>{p.name}</option>{/each}
 							</select>
-							{#if choices.length === 0}<span class="muted"
-									>Add a {rule.kind === 'laya' ? 'Laya' : 'OpenAI-compatible'} provider first.</span
-								>{/if}
+							{#if choices.length === 0}<span class="muted">
+									Add a {rule.kind === 'laya' ? 'Laya' : 'OpenAI-compatible'} provider first.
+								</span>{/if}
 						</label>
-						<label class="field"
-							><span class="label">{rule.label} model</span>
+						<label class="field">
+							<span class="label">{rule.label} model</span>
 							{#if models}
 								<select class="input mono" bind:value={picks[u].model} disabled={!picks[u].provider_id}>
 									<option value="">Choose a model</option>
@@ -500,8 +506,10 @@
 						type="button"
 						disabled={!canWrite || usesBusy !== null || !useDirty(data, u)}
 						title={canWrite ? '' : ROLE_HINT}
-						onclick={() => bind(u)}>{usesBusy === u ? 'Saving…' : `Save ${rule.label}`}</button
+						onclick={() => bind(u)}
 					>
+						{usesBusy === u ? 'Saving…' : `Save ${rule.label}`}
+					</button>
 				</div>
 			</section>
 		{/each}
@@ -524,8 +532,8 @@
 						<tr><th>Model</th><td class="mono">{data.platform_default.model}</td></tr>
 						<tr>
 							<th>Token</th>
-							<td
-								>{data.platform_default.has_token ? 'Set' : 'Not set'}
+							<td>
+								{data.platform_default.has_token ? 'Set' : 'Not set'}
 								{#if data.platform_default.secret_fpr}
 									<span class="muted mono"> · {data.platform_default.secret_fpr}</span>
 								{/if}
@@ -536,12 +544,12 @@
 						</tr>
 						<tr>
 							<th>Updated</th>
-							<td
-								>{data.platform_default.updated_at
+							<td>
+								{data.platform_default.updated_at
 									? stamp(data.platform_default.updated_at)
 									: '—'}{#if data.platform_default.updated_by}
-									· {data.platform_default.updated_by}{/if}</td
-							>
+									· {data.platform_default.updated_by}{/if}
+							</td>
 						</tr>
 					</tbody>
 				</table>
@@ -555,22 +563,22 @@
 		{#if pdOpen}
 			<fieldset class="llm-fields" disabled={pdBusy}>
 				<div class="form-grid">
-					<label class="field"
-						><span class="label">Base URL</span><input
+					<label class="field">
+						<span class="label">Base URL</span><input
 							class="input mono"
 							bind:value={pdDraft.base_url}
 							placeholder="http://llm-gateway:8000/v1"
 							autocomplete="off"
 							spellcheck="false"
-						/><span class="muted"
-							>The platform default may be an in-cluster address; a tenant's provider may not.</span
-						></label
-					>
-					<label class="field"
-						><span class="label">Model</span><input class="input mono" bind:value={pdDraft.model} /></label
-					>
-					<label class="field"
-						><span class="label">Token</span><input
+						/><span class="muted">
+							The platform default may be an in-cluster address; a tenant's provider may not.
+						</span>
+					</label>
+					<label class="field">
+						<span class="label">Model</span><input class="input mono" bind:value={pdDraft.model} />
+					</label>
+					<label class="field">
+						<span class="label">Token</span><input
 							class="input mono"
 							type="password"
 							bind:value={pdDraft.token}
@@ -580,20 +588,20 @@
 							spellcheck="false"
 						/>
 						{#if data.platform_default.has_token}
-							<span
-								><label class="toggle"
-									><input type="checkbox" bind:checked={pdDraft.clear} /> Remove the stored token</label
-								></span
-							>
-						{/if}</label
-					>
+							<span>
+								<label class="toggle">
+									<input type="checkbox" bind:checked={pdDraft.clear} /> Remove the stored token
+								</label>
+							</span>
+						{/if}
+					</label>
 				</div>
 			</fieldset>
 			<div class="actions">
 				<button class="btn" type="button" disabled={pdBusy} onclick={() => (pdOpen = false)}>Cancel</button>
-				<button class="btn primary" type="button" disabled={pdBusy} onclick={savePlatform}
-					>{pdBusy ? 'Saving…' : 'Save platform default'}</button
-				>
+				<button class="btn primary" type="button" disabled={pdBusy} onclick={savePlatform}>
+					{pdBusy ? 'Saving…' : 'Save platform default'}
+				</button>
 			</div>
 		{/if}
 		{#if pdFailure}
@@ -606,16 +614,16 @@
 			title="External LLMs"
 			sub="Research runs only. Chat qualification and Laya gates are not affected by this setting."
 		>
-			<label class="toggle"
-				><input
+			<label class="toggle">
+				<input
 					type="checkbox"
 					aria-label="Allow external LLMs for research runs"
 					checked={data.external_llm_allowed}
 					disabled={!canWrite || externalBusy}
 					title={canWrite ? '' : ROLE_HINT}
 					onchange={(e) => setExternal(e.currentTarget.checked)}
-				/> Allow research runs to use a provider other than the platform model</label
-			>
+				/> Allow research runs to use a provider other than the platform model
+			</label>
 			<p class="muted">
 				Off by default. While off, a research run whose <span class="mono">research</span> or
 				<span class="mono">research_write</span> provider is not the platform model fails with
@@ -634,47 +642,50 @@
 	{/if}
 	<fieldset class="llm-fields" disabled={!canWrite || busy}>
 		<div class="form-grid">
-			<label class="field"
-				><span class="label">Name</span><input
+			<label class="field">
+				<span class="label">Name</span><input
 					class="input"
 					bind:value={draft.name}
 					{...faultAttrs('name')}
 					autocomplete="off"
-				/>{#if fieldMsg('name')}<span class="field-err" id="llm-err-name">{fieldMsg('name')}</span
-					>{/if}</label
-			>
-			<label class="field"
-				><span class="label">Kind</span>
-				<select class="input" bind:value={draft.kind} {...faultAttrs('kind')}
-					>{#each LLM_KINDS as k (k)}<option value={k}>{KIND_LABELS[k]}</option>{/each}</select
-				>{#if fieldMsg('kind')}<span class="field-err" id="llm-err-kind">{fieldMsg('kind')}</span>{/if}
+				/>{#if fieldMsg('name')}<span class="field-err" id="llm-err-name">{fieldMsg('name')}</span>{/if}
 			</label>
-			<label class="field"
-				><span class="label">Base URL</span><input
+			<label class="field">
+				<span class="label">Kind</span>
+				<select class="input" bind:value={draft.kind} {...faultAttrs('kind')}>
+					{#each LLM_KINDS as k (k)}<option value={k}>{KIND_LABELS[k]}</option>{/each}
+				</select>{#if fieldMsg('kind')}<span class="field-err" id="llm-err-kind">
+						{fieldMsg('kind')}
+					</span>{/if}
+			</label>
+			<label class="field">
+				<span class="label">Base URL</span><input
 					class="input mono"
 					bind:value={draft.base_url}
 					{...faultAttrs('base_url')}
 					placeholder={draft.kind === 'laya' ? 'https://laya.example.eu' : 'https://llm.example.eu/v1'}
 					autocomplete="off"
 					spellcheck="false"
-				/>{#if fieldMsg('base_url')}<span class="field-err" id="llm-err-base_url">{fieldMsg('base_url')}</span
-					>{/if}</label
-			>
-			<label class="field"
-				><span class="label">Models</span><input
+				/>{#if fieldMsg('base_url')}<span class="field-err" id="llm-err-base_url">
+						{fieldMsg('base_url')}
+					</span>{/if}
+			</label>
+			<label class="field">
+				<span class="label">Models</span><input
 					class="input mono"
 					bind:value={draft.models}
 					{...faultAttrs('models')}
 					placeholder="jev-latest, local-llm"
 					autocomplete="off"
 					spellcheck="false"
-				/>{#if fieldMsg('models')}<span class="field-err" id="llm-err-models">{fieldMsg('models')}</span
-					>{/if}<span class="muted"
-					>Comma-separated; a use picks from these. Test fills this when it is empty.</span
-				></label
-			>
-			<label class="field"
-				><span class="label">Token</span><input
+				/>{#if fieldMsg('models')}<span class="field-err" id="llm-err-models">
+						{fieldMsg('models')}
+					</span>{/if}<span class="muted">
+					Comma-separated; a use picks from these. Test fills this when it is empty.
+				</span>
+			</label>
+			<label class="field">
+				<span class="label">Token</span><input
 					class="input mono"
 					type="password"
 					bind:value={draft.token}
@@ -691,9 +702,9 @@
 					<span class="row">
 						{#if draft.clearToken}
 							<span class="muted">The stored token is removed on save.</span>
-							<button class="btn sm" type="button" onclick={() => (draft.clearToken = false)}
-								>Keep token</button
-							>
+							<button class="btn sm" type="button" onclick={() => (draft.clearToken = false)}>
+								Keep token
+							</button>
 						{:else}
 							<button
 								class="btn sm"
@@ -701,8 +712,10 @@
 								onclick={() => {
 									draft.clearToken = true;
 									draft.token = '';
-								}}>Clear token</button
+								}}
 							>
+								Clear token
+							</button>
 						{/if}
 					</span>
 				{/if}
@@ -714,15 +727,18 @@
 				type="button"
 				disabled={!canWrite || formTesting}
 				title={canWrite ? 'Tests the values in this form; nothing is saved' : ROLE_HINT}
-				onclick={testForm}>{formTesting ? 'Testing…' : 'Test'}</button
+				onclick={testForm}
 			>
+				{formTesting ? 'Testing…' : 'Test'}
+			</button>
 			<span class="muted">Tests the URL and token above without saving.</span>
 			{#if formTest}
 				<div class="llm-test" role="status" aria-label="Form test result">
 					{#if 'ok' in formTest}
 						<Status word={formTest.ok ? 'ok' : 'err'} label={testLine(formTest)} />
-						{#if formTest.models.length}<span class="muted mono">{formTest.models.join(', ')}</span
-							>{:else}<span class="muted">No models listed.</span>{/if}
+						{#if formTest.models.length}<span class="muted mono">
+								{formTest.models.join(', ')}
+							</span>{:else}<span class="muted">No models listed.</span>{/if}
 					{:else}
 						<Status word="err" label={formTest.error} />
 					{/if}
@@ -733,12 +749,13 @@
 			<legend class="label">Use for</legend>
 			{#each formUses as u (u)}
 				{@const fm = formModels(u)}
-				<label class="toggle"
-					><input type="checkbox" bind:checked={useFor[u].on} /> {USE_RULES[u].useFor}</label
-				>
+				<label class="toggle">
+					<input type="checkbox" bind:checked={useFor[u].on} />
+					{USE_RULES[u].useFor}
+				</label>
 				{#if useFor[u].on}
-					<label class="field"
-						><span class="label">{USE_RULES[u].label} model</span>
+					<label class="field">
+						<span class="label">{USE_RULES[u].label} model</span>
 						{#if fm.choices}
 							<select class="input mono" bind:value={useFor[u].model}>
 								<option value="">Choose a model</option>
@@ -794,16 +811,20 @@
 				type="button"
 				disabled={!canWrite || busy}
 				title={canWrite ? '' : ROLE_HINT}
-				onclick={() => (confirmDelete = true)}>Delete provider</button
+				onclick={() => (confirmDelete = true)}
 			>
+				Delete provider
+			</button>
 		{/if}
 		<button
 			class="btn primary"
 			type="button"
 			disabled={!canWrite || busy}
 			title={canWrite ? '' : ROLE_HINT}
-			onclick={save}>{busy ? 'Saving…' : 'Save'}</button
+			onclick={save}
 		>
+			{busy ? 'Saving…' : 'Save'}
+		</button>
 	</div>
 </Drawer>
 

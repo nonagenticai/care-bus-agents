@@ -28,9 +28,9 @@
 	<div class="cn err" role="status">
 		Conversation unavailable: {chat.error}
 		<div class="cn-row">
-			<button class="btn sm" type="button" onclick={() => chat.retry()}
-				>{chat.conversationId || chat.unreachable ? 'Reload conversation' : 'Start conversation'}</button
-			>
+			<button class="btn sm" type="button" onclick={() => chat.retry()}>
+				{chat.conversationId || chat.unreachable ? 'Reload conversation' : 'Start conversation'}
+			</button>
 		</div>
 	</div>
 {/if}

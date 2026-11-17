@@ -323,9 +323,9 @@
 		: undefined}
 >
 	{#snippet actions()}
-		<button class="btn sm primary" type="button" disabled={!canWrite} title={why} onclick={openNew}
-			>Add question</button
-		>
+		<button class="btn sm primary" type="button" disabled={!canWrite} title={why} onclick={openNew}>
+			Add question
+		</button>
 	{/snippet}
 	{#if formOpen}
 		<form
@@ -336,54 +336,54 @@
 				save();
 			}}
 		>
-			<label class="field wide"
-				><span class="label">Question</span><input
+			<label class="field wide">
+				<span class="label">Question</span><input
 					class="input"
 					bind:value={form.query}
 					placeholder="How long does a refund take?"
-				/></label
-			>
-			<label class="field"
-				><span class="label">Expected document</span><input
+				/>
+			</label>
+			<label class="field">
+				<span class="label">Expected document</span><input
 					class="input"
 					bind:value={form.expected_document}
 					placeholder="Title, source or file name"
-				/></label
-			>
-			<label class="field"
-				><span class="label">Expected text</span><input
+				/>
+			</label>
+			<label class="field">
+				<span class="label">Expected text</span><input
 					class="input"
 					bind:value={form.expected_text}
 					placeholder="Words the passage contains"
-				/></label
-			>
-			<label class="field"
-				><span class="label">Expected leaf store</span><input
+				/>
+			</label>
+			<label class="field">
+				<span class="label">Expected leaf store</span><input
 					class="input"
 					bind:value={form.expected_leaf}
 					placeholder="Leaf name, path a/b or id (optional)"
-				/></label
-			>
-			<label class="field"
-				><span class="label">Document ids</span><textarea
+				/>
+			</label>
+			<label class="field">
+				<span class="label">Document ids</span><textarea
 					class="input"
 					rows="2"
-					bind:value={form.expected_document_ids}></textarea></label
-			>
-			<label class="field"
-				><span class="label">Chunk ids</span><textarea
+					bind:value={form.expected_document_ids}></textarea>
+			</label>
+			<label class="field">
+				<span class="label">Chunk ids</span><textarea
 					class="input"
 					rows="2"
-					bind:value={form.expected_chunk_ids}></textarea></label
-			>
+					bind:value={form.expected_chunk_ids}></textarea>
+			</label>
 			<p class="muted wide">
 				A result counts as a hit when it matches any expectation. The leaf store only scores routing.
 			</p>
 			{#if formErr}<div class="callout err wide" role="alert">{formErr}</div>{/if}
 			<div class="row wide">
-				<button class="btn primary" type="submit" disabled={!!problem || saving} title={problem ?? ''}
-					>{saving ? 'Saving…' : editing ? 'Save question' : 'Add question'}</button
-				>
+				<button class="btn primary" type="submit" disabled={!!problem || saving} title={problem ?? ''}>
+					{saving ? 'Saving…' : editing ? 'Save question' : 'Add question'}
+				</button>
 				<button class="btn" type="button" onclick={() => (formOpen = false)}>Cancel</button>
 				{#if problem}<span class="muted">{problem}</span>{/if}
 			</div>
@@ -393,10 +393,10 @@
 		<div class="callout err" role="alertdialog" aria-label="Delete question">
 			<strong>Delete “{confirmDel.query}”?</strong>
 			<span>It is no longer scored. Runs that already scored it keep it.</span>
-			<span
-				><button class="btn sm" type="button" onclick={() => remove(confirmDel!)}>Delete question</button>
-				<button class="btn sm" type="button" onclick={() => (confirmDel = null)}>Keep it</button></span
-			>
+			<span>
+				<button class="btn sm" type="button" onclick={() => remove(confirmDel!)}>Delete question</button>
+				<button class="btn sm" type="button" onclick={() => (confirmDel = null)}>Keep it</button>
+			</span>
 		</div>
 	{/if}
 	{#if questions.value.state === 'unavailable'}
@@ -422,16 +422,20 @@
 									disabled={!canWrite}
 									title={why}
 									aria-label="Edit {q.query}"
-									onclick={() => openEdit(q)}>Edit</button
+									onclick={() => openEdit(q)}
 								>
+									Edit
+								</button>
 								<button
 									class="btn sm"
 									type="button"
 									disabled={!canWrite}
 									title={why}
 									aria-label="Delete {q.query}"
-									onclick={() => (confirmDel = q)}>Delete</button
+									onclick={() => (confirmDel = q)}
 								>
+									Delete
+								</button>
 							</td>
 						</tr>
 					{/each}
@@ -446,23 +450,23 @@
 			importCsv();
 		}}
 	>
-		<label class="field"
-			><span class="label">Import CSV</span><input
+		<label class="field">
+			<span class="label">Import CSV</span><input
 				class="input"
 				type="file"
 				accept=".csv,text/csv,text/plain"
 				disabled={!canWrite}
 				onchange={(e) => (file = (e.currentTarget as HTMLInputElement).files?.[0] ?? null)}
-			/></label
-		>
-		<button class="btn" type="submit" disabled={!canWrite || !file || importing} title={why}
-			>{importing ? 'Importing…' : 'Import'}</button
-		>
-		<span class="muted"
-			>Header row with <code>query</code> and any of <code>expected_document</code>,
+			/>
+		</label>
+		<button class="btn" type="submit" disabled={!canWrite || !file || importing} title={why}>
+			{importing ? 'Importing…' : 'Import'}
+		</button>
+		<span class="muted">
+			Header row with <code>query</code> and any of <code>expected_document</code>,
 			<code>expected_text</code>, <code>expected_document_ids</code>, <code>expected_chunk_ids</code>,
-			<code>expected_leaf</code>; ids separated by <code>;</code>. All rows or none.</span
-		>
+			<code>expected_leaf</code>; ids separated by <code>;</code>. All rows or none.
+		</span>
 	</form>
 	{#if importErr}<div class="callout err" role="alert">
 			<strong>Nothing imported</strong><span>{importErr}</span>
@@ -477,33 +481,33 @@
 			run();
 		}}
 	>
-		<label class="field"
-			><span class="label">Store</span>
+		<label class="field">
+			<span class="label">Store</span>
 			<select class="input" bind:value={rootId} aria-label="Store">
 				<option value="">Whole tree</option>
 				{#each storeItems as { node, depth } (node.id)}
 					<option value={node.id}>{'  '.repeat(depth)}{node.name} ({node.kind})</option>
 				{/each}
-			</select></label
-		>
+			</select>
+		</label>
 		<fieldset class="modes">
 			<legend class="label">Modes</legend>
 			{#each EVAL_MODES as m (m)}
 				<label class="check"><input type="checkbox" bind:checked={modes[m]} /> {MODE_LABEL[m]}</label>
 			{/each}
 		</fieldset>
-		<label class="field" title="How many router branches each query follows (empty = strata_rag's default)"
-			><span class="label">Branches (beam)</span><input
+		<label class="field" title="How many router branches each query follows (empty = strata_rag's default)">
+			<span class="label">Branches (beam)</span><input
 				class="input"
 				type="number"
 				min="1"
 				max="8"
 				placeholder="default"
 				bind:value={beam}
-			/></label
-		>
-		<label class="field" title="Passages scoring below this (0 to 1) are left out (empty = default)"
-			><span class="label">Minimum score</span><input
+			/>
+		</label>
+		<label class="field" title="Passages scoring below this (0 to 1) are left out (empty = default)">
+			<span class="label">Minimum score</span><input
 				class="input"
 				type="number"
 				min="0"
@@ -511,8 +515,8 @@
 				step="0.05"
 				placeholder="default"
 				bind:value={minScore}
-			/></label
-		>
+			/>
+		</label>
 		<button
 			class="btn primary"
 			type="submit"
@@ -524,8 +528,10 @@
 						? 'Pick at least one mode'
 						: qItems.length === 0
 							? 'Add questions first'
-							: '')}>{starting ? 'Starting…' : watching ? 'Running…' : 'Run eval'}</button
+							: '')}
 		>
+			{starting ? 'Starting…' : watching ? 'Running…' : 'Run eval'}
+		</button>
 	</form>
 	{#if watching}
 		<p class="muted" role="status" data-testid="run-progress">
@@ -537,22 +543,22 @@
 	{#if pollErr}
 		<div class="callout err" role="alert" data-testid="poll-error">
 			<span>{pollErr.message}</span>
-			{#if pollErr.retry}<span
-					><button class="btn sm" type="button" onclick={() => pollErr?.retry && watch(pollErr.retry)}
-						>Retry</button
-					></span
-				>{/if}
+			{#if pollErr.retry}<span>
+					<button class="btn sm" type="button" onclick={() => pollErr?.retry && watch(pollErr.retry)}>
+						Retry
+					</button>
+				</span>{/if}
 		</div>
 	{/if}
 	{#if runErr}
 		<div class="callout err" role="alert">
-			<strong
-				>{runErr.code === 'eval_not_ready'
+			<strong>
+				{runErr.code === 'eval_not_ready'
 					? 'Not ready to evaluate'
 					: runErr.code === 'eval_running'
 						? 'An eval is already running'
-						: 'Eval failed'}</strong
-			>
+						: 'Eval failed'}
+			</strong>
 			<span class="pre">{runErr.message}</span>
 		</div>
 	{/if}
@@ -564,8 +570,10 @@
 			class="btn sm"
 			type="button"
 			disabled={chosen.length !== 2 || cmp.s === 'loading'}
-			onclick={compareChosen}>Compare selected</button
+			onclick={compareChosen}
 		>
+			Compare selected
+		</button>
 	{/snippet}
 	{#if runs.value.state === 'unavailable'}
 		<Unavailable reason={runs.value.reason} retry={runs.retry} />
@@ -585,15 +593,15 @@
 				<tbody>
 					{#each runPages as r (r.id)}
 						<tr class:on={detail.head?.id === r.id}>
-							<td
-								><input
+							<td>
+								<input
 									type="checkbox"
 									aria-label="Compare run {when(r.started_at)}"
 									disabled={r.status !== 'completed'}
 									checked={chosen.includes(r.id)}
 									onchange={() => toggle(r.id)}
-								/></td
-							>
+								/>
+							</td>
 							<td class="nowrap">{when(r.started_at)}</td>
 							<td>{storeName(r.root_id)}</td>
 							<td class="r">{r.question_count}</td>
@@ -602,10 +610,10 @@
 							</td>
 							<td>
 								{#each r.reports ?? [] as rep (rep.mode)}
-									<span class="rec mono"
-										><b>{rep.mode}</b>
-										{pct(rep.recall_at_1)} / {pct(rep.recall_at_5)} / {pct(rep.recall_at_10)}</span
-									>
+									<span class="rec mono">
+										<b>{rep.mode}</b>
+										{pct(rep.recall_at_1)} / {pct(rep.recall_at_5)} / {pct(rep.recall_at_10)}
+									</span>
 								{/each}
 							</td>
 							<td><button class="btn sm" type="button" onclick={() => open(r)}>Open</button></td>
@@ -615,9 +623,9 @@
 			</table>
 		</div>
 		{#if runsNext}
-			<button class="btn sm" type="button" disabled={loadingMore} onclick={moreRuns}
-				>{loadingMore ? 'Loading…' : 'Load more'}</button
-			>
+			<button class="btn sm" type="button" disabled={loadingMore} onclick={moreRuns}>
+				{loadingMore ? 'Loading…' : 'Load more'}
+			</button>
 		{/if}
 	{/if}
 </Card>
@@ -649,11 +657,12 @@
 					<table class="tbl dense" aria-label="Recall per mode">
 						<thead>
 							<tr>
-								<th>Mode</th><th class="r">Recall@1</th><th class="r">Recall@5</th><th class="r">Recall@10</th
-								>
-								<th class="r">Leaf accuracy</th><th class="r">Laya consulted</th><th class="r"
-									>Laya fallbacks</th
-								>
+								<th>Mode</th><th class="r">Recall@1</th><th class="r">Recall@5</th><th class="r">
+									Recall@10
+								</th>
+								<th class="r">Leaf accuracy</th><th class="r">Laya consulted</th><th class="r">
+									Laya fallbacks
+								</th>
 							</tr>
 						</thead>
 						<tbody>
@@ -689,18 +698,18 @@
 						<tbody>
 							{#each grid(full) as row (row.index)}
 								<tr>
-									<td
-										>{row.question.query}<span class="cell-sub"
-											>{expectations(row.question).join(' or ')}</span
-										></td
-									>
+									<td>
+										{row.question.query}<span class="cell-sub">
+											{expectations(row.question).join(' or ')}
+										</span>
+									</td>
 									{#each r.modes as m (m)}
 										{@const c = row.cells[m]}
-										<td class="r mono" class:miss={c?.rank == null}
-											>{rankLabel(c?.rank)}{#if c?.leaf_hit != null}<span class="cell-sub"
-													>{c.leaf_hit ? 'leaf ✓' : 'leaf ✗'}</span
-												>{/if}</td
-										>
+										<td class="r mono" class:miss={c?.rank == null}>
+											{rankLabel(c?.rank)}{#if c?.leaf_hit != null}<span class="cell-sub">
+													{c.leaf_hit ? 'leaf ✓' : 'leaf ✗'}
+												</span>{/if}
+										</td>
 									{/each}
 								</tr>
 							{/each}
@@ -731,11 +740,11 @@
 					<div class="tbl-wrap">
 						<table class="tbl dense" aria-label="Recall change">
 							<thead>
-								<tr
-									><th>Mode</th><th class="r">@1 A → B</th><th class="r">@5 A → B</th><th class="r"
-										>@10 A → B</th
-									></tr
-								>
+								<tr>
+									<th>Mode</th><th class="r">@1 A → B</th><th class="r">@5 A → B</th><th class="r">
+										@10 A → B
+									</th>
+								</tr>
 							</thead>
 							<tbody>
 								{#each comparison.recall as d (d.mode)}
@@ -762,9 +771,9 @@
 									<tr>
 										<td>{row.query}</td>
 										{#if row.only}
-											<td class="muted" colspan={comparison.modes.length}
-												>Only in run {row.only.toUpperCase()}</td
-											>
+											<td class="muted" colspan={comparison.modes.length}>
+												Only in run {row.only.toUpperCase()}
+											</td>
 										{:else}
 											{#each comparison.modes as m (m)}
 												{@const c = row.cells[m]}

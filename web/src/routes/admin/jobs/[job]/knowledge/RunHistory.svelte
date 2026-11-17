@@ -66,8 +66,10 @@
 			type="button"
 			disabled={busy || blocked !== ''}
 			title={blocked}
-			onclick={resync}>Re-sync</button
+			onclick={resync}
 		>
+			Re-sync
+		</button>
 		<button class="btn" type="button" onclick={() => runs.refresh()}>Refresh</button>
 	</div>
 	{#if runs.value.state === 'unavailable'}
@@ -85,9 +87,9 @@
 							<td>
 								<Status word={r.status} label={RUN_LABELS[r.status]} />
 								{#if r.children}<span class="cell-sub">{childrenSummary(r.children)}</span>{/if}
-								{#if r.stale}<span class="cell-sub"
-										>strata_ingest is unreachable; this status may be behind</span
-									>{/if}
+								{#if r.stale}<span class="cell-sub">
+										strata_ingest is unreachable; this status may be behind
+									</span>{/if}
 							</td>
 							<td class="r">{r.status === 'running' ? '—' : fmt.n(r.document_ids.length)}</td>
 							<td>

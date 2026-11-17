@@ -60,9 +60,9 @@
 {:else if rows.value.state === 'empty'}
 	<div class="empty">
 		No records match.
-		{#if offset > 0}<button class="btn sm" type="button" onclick={() => go(offset - PAGE_SIZE)}
-				>Previous</button
-			>{/if}
+		{#if offset > 0}<button class="btn sm" type="button" onclick={() => go(offset - PAGE_SIZE)}>
+				Previous
+			</button>{/if}
 	</div>
 {:else if rows.value.state === 'ok'}
 	{@const p = rows.value.data}
@@ -72,10 +72,10 @@
 				<thead>
 					<tr>
 						{#each p.columns as c (c)}
-							<th
-								>{c}{#if c === p.primary_key}
-									<span class="chip">key</span>{/if}</th
-							>
+							<th>
+								{c}{#if c === p.primary_key}
+									<span class="chip">key</span>{/if}
+							</th>
 						{/each}
 					</tr>
 				</thead>
@@ -94,15 +94,17 @@
 	<div class="split">
 		<span class="muted">{fmt.n(offset + 1)}–{fmt.n(offset + p.rows.length)} of {fmt.n(p.total)}</span>
 		<div class="actions">
-			<button class="btn sm" type="button" disabled={offset === 0} onclick={() => go(offset - PAGE_SIZE)}
-				>Previous</button
-			>
+			<button class="btn sm" type="button" disabled={offset === 0} onclick={() => go(offset - PAGE_SIZE)}>
+				Previous
+			</button>
 			<button
 				class="btn sm"
 				type="button"
 				disabled={offset + p.rows.length >= p.total}
-				onclick={() => go(offset + PAGE_SIZE)}>Next</button
+				onclick={() => go(offset + PAGE_SIZE)}
 			>
+				Next
+			</button>
 		</div>
 	</div>
 {/if}

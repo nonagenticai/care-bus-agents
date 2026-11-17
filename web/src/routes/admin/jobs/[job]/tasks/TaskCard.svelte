@@ -134,21 +134,21 @@
 						<div class="field" role="radiogroup" aria-label={f.name}>
 							<span class="label">{f.name}{f.required ? ' *' : ''}</span>
 							{#each f.options as o (o)}
-								<label class="toggle"
-									><input
+								<label class="toggle">
+									<input
 										type="radio"
 										name={`${task.task_id}-${q.key}-${f.name}`}
 										value={o}
 										checked={draft(q.key)[f.name] === o}
 										onchange={() => (draft(q.key)[f.name] = o)}
 									/>
-									{o}</label
-								>
+									{o}
+								</label>
 							{/each}
 						</div>
 					{:else}
-						<label class="field"
-							><span class="label">{f.name}{f.required ? ' *' : ''}</span>
+						<label class="field">
+							<span class="label">{f.name}{f.required ? ' *' : ''}</span>
 							<textarea
 								class="input"
 								rows="3"
@@ -189,12 +189,9 @@
 				type="button"
 				disabled={!canWrite || busy !== '' || task.cancel_requested}
 				onclick={cancel}
-				>{task.cancel_requested
-					? 'Cancel requested'
-					: busy === 'cancel'
-						? 'Cancelling…'
-						: 'Cancel task'}</button
 			>
+				{task.cancel_requested ? 'Cancel requested' : busy === 'cancel' ? 'Cancelling…' : 'Cancel task'}
+			</button>
 		</div>
 		{#if cancelError}<span class="field-err" role="alert">{cancelError}</span>{/if}
 	{/if}

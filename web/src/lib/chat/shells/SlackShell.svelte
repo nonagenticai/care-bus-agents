@@ -75,9 +75,9 @@
 								<div class="sk-line-head">
 									<span class="sk-sender">{you ? customerName : agentName}</span>
 									{#if m.at !== null}<time class="sk-ts">{formatTime(m.at)}</time>{/if}
-									{#if unsent(m.status)}<span class="sk-state"
-											>{PENDING_LABEL[m.status as keyof typeof PENDING_LABEL]}</span
-										>{/if}
+									{#if unsent(m.status)}<span class="sk-state">
+											{PENDING_LABEL[m.status as keyof typeof PENDING_LABEL]}
+										</span>{/if}
 								</div>
 								<div class="sk-text">{m.text}</div>
 							</div>

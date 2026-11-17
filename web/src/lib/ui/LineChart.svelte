@@ -53,11 +53,14 @@
 					class="ax"
 					x={geo.x(i)}
 					y={height - 6}
-					text-anchor="middle">{l}</text
-				>{/if}
+					text-anchor="middle"
+				>
+					{l}
+				</text>{/if}
 		{/each}
-		{#each geo.paths as p}<g class={p.cls}><path class="area" d={p.area} /><path class="line" d={p.line} /></g
-			>{/each}
+		{#each geo.paths as p}<g class={p.cls}>
+				<path class="area" d={p.area} /><path class="line" d={p.line} />
+			</g>{/each}
 	</svg>
 	<div class="legend">
 		{#each series as s}<span><i class="sw {s.cls}"></i>{s.label}</span>{/each}
@@ -68,15 +71,15 @@
 	<summary>{ariaLabel ? `View data: ${ariaLabel}` : 'View chart data'}</summary>
 	<div class="tbl-wrap">
 		<table class="tbl dense">
-			<caption>{ariaLabel}</caption><thead
-				><tr
-					><th>Period</th>{#each series as s}<th>{s.label}</th>{/each}</tr
-				></thead
-			><tbody
-				>{#each labels as l, i}<tr
-						><th>{l}</th>{#each series as s}<td>{s.values[i] ?? '—'}</td>{/each}</tr
-					>{/each}</tbody
-			>
+			<caption>{ariaLabel}</caption><thead>
+				<tr>
+					<th>Period</th>{#each series as s}<th>{s.label}</th>{/each}
+				</tr>
+			</thead><tbody>
+				{#each labels as l, i}<tr>
+						<th>{l}</th>{#each series as s}<td>{s.values[i] ?? '—'}</td>{/each}
+					</tr>{/each}
+			</tbody>
 		</table>
 	</div>
 </details>

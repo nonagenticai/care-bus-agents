@@ -66,9 +66,9 @@
 	</div>
 </header>
 {#if !canWrite}
-	<Callout kind="info" title="Read only"
-		>You can view the conflicts. Resolving them needs the tenant_admin role.</Callout
-	>
+	<Callout kind="info" title="Read only">
+		You can view the conflicts. Resolving them needs the tenant_admin role.
+	</Callout>
 {/if}
 
 <Freshness resource={release} />
@@ -120,20 +120,21 @@
 		<div class="tbl-wrap">
 			<table class="tbl" data-testid="release-conflicts">
 				<thead>
-					<tr
-						><th>Object</th><th>Key</th><th>Conflict</th><th>Release</th><th>Detected</th><th>Resolution</th
-						><th aria-label="Actions"></th></tr
-					>
+					<tr>
+						<th>Object</th><th>Key</th><th>Conflict</th><th>Release</th><th>Detected</th><th>
+							Resolution
+						</th><th aria-label="Actions"></th>
+					</tr>
 				</thead>
 				<tbody>
 					{#each conflicts.value.data.items as c (c.id)}
 						<tr data-conflict={c.id}>
 							<td>{OBJECT_LABEL[c.object] ?? c.object}</td>
 							<td class="mono">{conflictKeyText(c)}</td>
-							<td
-								><Chip text={c.kind.replaceAll('_', ' ')} variant={c.resolved_at ? 'muted' : 'warn'} />
-								{conflictText(c)}</td
-							>
+							<td>
+								<Chip text={c.kind.replaceAll('_', ' ')} variant={c.resolved_at ? 'muted' : 'warn'} />
+								{conflictText(c)}
+							</td>
 							<td class="mono">{c.release_id}</td>
 							<td>{when(c.detected_at)}</td>
 							<td>{c.resolution ? `${c.resolution} by ${c.resolved_by ?? '—'}` : 'Open'}</td>
@@ -144,8 +145,10 @@
 										type="button"
 										disabled={!canWrite || busy}
 										title={canWrite ? '' : 'Needs the tenant_admin role'}
-										onclick={() => resolve(c, op)}>{CONFLICT_ACTION_LABEL[op]}</button
+										onclick={() => resolve(c, op)}
 									>
+										{CONFLICT_ACTION_LABEL[op]}
+									</button>
 								{/each}
 							</td>
 						</tr>

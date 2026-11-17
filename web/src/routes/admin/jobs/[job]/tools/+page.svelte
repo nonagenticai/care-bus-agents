@@ -42,18 +42,18 @@
 		<div class="tbl-wrap">
 			<table class="tbl clickable">
 				<thead>
-					<tr
-						><th>Tool</th><th>Group</th><th>Description</th><th class="r">Calls 24h</th><th class="r"
-							>Error rate</th
-						><th class="r">p95</th></tr
-					>
+					<tr>
+						<th>Tool</th><th>Group</th><th>Description</th><th class="r">Calls 24h</th><th class="r">
+							Error rate
+						</th><th class="r">p95</th>
+					</tr>
 				</thead>
 				<tbody>
 					{#each tools.value.data.items as t}
-						<tr
-							><td class="mono"
-								><button type="button" class="table-action" onclick={() => select(t)}>{t.name}</button></td
-							>
+						<tr>
+							<td class="mono">
+								<button type="button" class="table-action" onclick={() => select(t)}>{t.name}</button>
+							</td>
 							<td><Chip text={group(t.name)} variant="tool" /></td>
 							<td>{t.description ?? 'No description'}</td>
 							<td class="r">{fmt.n(t.calls_24h)}</td>

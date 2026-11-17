@@ -258,8 +258,10 @@
 			type="button"
 			disabled={!canWrite}
 			title={canWrite ? 'Create a DRAFT version' : 'Needs the tenant_admin role'}
-			onclick={startNew}>New procedure</button
+			onclick={startNew}
 		>
+			New procedure
+		</button>
 	</div>
 </header>
 <Freshness resource={procs} />
@@ -273,48 +275,53 @@
 {:else}
 	<div class="split pr-bar">
 		<Seg items={statusFilters(all)} bind:active={filter} />
-		<span class="muted pr-hint"
-			>The orchestrator runs the PUBLISHED version of each context space. Runs and success count the last 7
-			days of cases recorded against each version.</span
-		>
+		<span class="muted pr-hint">
+			The orchestrator runs the PUBLISHED version of each context space. Runs and success count the last 7
+			days of cases recorded against each version.
+		</span>
 	</div>
 	<Card cls="flush">
 		<div class="tbl-wrap">
 			<table class="tbl clickable">
 				<thead>
-					<tr
-						><th>Procedure</th><th>Version</th><th>Status</th><th>Context space</th><th class="r">Steps</th
-						><th class="r" title="Resolved cases this version ran in the last 7 days">Runs 7d</th><th
+					<tr>
+						<th>Procedure</th><th>Version</th><th>Status</th><th>Context space</th><th class="r">Steps</th><th
+							class="r"
+							title="Resolved cases this version ran in the last 7 days"
+						>
+							Runs 7d
+						</th><th
 							title="Completed or not eligible, out of the runs in the last 7 days; only failed counts as a failure"
-							>Success</th
-						></tr
-					>
+						>
+							Success
+						</th>
+					</tr>
 				</thead>
 				<tbody>
 					{#each rows as p (p.name + '@' + p.version)}
 						{@const sum = stepSummary(p)}
 						{@const ok = successView(p.success_rate)}
 						<tr tabindex="0" onclick={() => show(p)} onkeydown={(e) => e.key === 'Enter' && show(p)}>
-							<td
-								><span class="cell-title mono">{p.name}</span><span class="cell-sub"
-									>domain {p.domain} · updated {day(p.updated_at)} · {p.reviewers.length} reviewer{p.reviewers
+							<td>
+								<span class="cell-title mono">{p.name}</span><span class="cell-sub">
+									domain {p.domain} · updated {day(p.updated_at)} · {p.reviewers.length} reviewer{p.reviewers
 										.length === 1
 										? ''
-										: 's'}</span
-								></td
-							>
+										: 's'}
+								</span>
+							</td>
 							<td class="mono">{p.version}</td>
 							<td><Status word={p.version_status} /></td>
 							<td><Chip text={p.context_space} /></td>
-							<td class="r"
-								>{sum.steps}{#if sum.phases}
-									<span class="muted">in {sum.phases} phase{sum.phases === 1 ? '' : 's'}</span>{/if}</td
-							>
+							<td class="r">
+								{sum.steps}{#if sum.phases}
+									<span class="muted">in {sum.phases} phase{sum.phases === 1 ? '' : 's'}</span>{/if}
+							</td>
 							<td class="r mono">{p.runs_7d}</td>
-							<td class="pr-success"
-								>{#if ok}<Meter value={p.success_rate ?? 0} cls={ok.cls} />
-									<span class="mono">{ok.text}</span>{:else}<span class="muted">—</span>{/if}</td
-							>
+							<td class="pr-success">
+								{#if ok}<Meter value={p.success_rate ?? 0} cls={ok.cls} />
+									<span class="mono">{ok.text}</span>{:else}<span class="muted">—</span>{/if}
+							</td>
 						</tr>
 					{:else}
 						<tr><td colspan="7" class="muted">No procedures with this status.</td></tr>
@@ -347,19 +354,19 @@
 			{/if}
 			<dt>Tool requirements</dt>
 			<dd>
-				<span class="chips"
-					>{#each sel.tool_requirements as t}<Chip text={t} variant="tool" />{:else}<span class="muted"
-							>none</span
-						>{/each}</span
-				>
+				<span class="chips">
+					{#each sel.tool_requirements as t}<Chip text={t} variant="tool" />{:else}<span class="muted">
+							none
+						</span>{/each}
+				</span>
 			</dd>
 			<dt>Success criteria</dt>
 			<dd>
-				<span class="chips"
-					>{#each sel.success_criteria as c}<Chip text={c} variant="ok" />{:else}<span class="muted"
-							>none</span
-						>{/each}</span
-				>
+				<span class="chips">
+					{#each sel.success_criteria as c}<Chip text={c} variant="ok" />{:else}<span class="muted">
+							none
+						</span>{/each}
+				</span>
 			</dd>
 			<dt>API</dt>
 			<dd class="mono">GET /api/procedures/{sel.name}/versions/{sel.version}</dd>
@@ -386,9 +393,9 @@
 									<span class="mono pr-act">{s.action_type}</span>
 									<span class="cell-sub">{s.performed_by} → {s.mcp_tool}</span>
 									{#if s.postconditions.length}
-										<span class="chips"
-											>{#each s.postconditions as c}<Chip text={c} variant="ok" />{/each}</span
-										>
+										<span class="chips">
+											{#each s.postconditions as c}<Chip text={c} variant="ok" />{/each}
+										</span>
 									{/if}
 								</div>
 							{/each}
@@ -411,37 +418,39 @@
 			<div class="tbl-wrap">
 				<table class="tbl dense">
 					<thead>
-						<tr
-							><th class="r">#</th><th>action_type</th><th>Preconditions</th><th>Postconditions</th><th
-								>Parameters</th
-							><th>Role</th><th>Tool</th></tr
-						>
+						<tr>
+							<th class="r">#</th><th>action_type</th><th>Preconditions</th><th>Postconditions</th><th>
+								Parameters
+							</th><th>Role</th><th>Tool</th>
+						</tr>
 					</thead>
 					<tbody>
 						{#each sel.steps as s (s.step_number)}
 							<tr>
 								<td class="r">{s.step_number}</td>
-								<td class="mono"
-									>{s.action_type}{#if s.gate}
-										<Chip text="gate" variant="warn" />{/if}</td
-								>
-								<td
-									><span class="chips"
-										>{#each s.preconditions as c}<Chip text={c} variant="warn" />{:else}<span class="muted"
-												>none</span
-											>{/each}</span
-									></td
-								>
-								<td
-									><span class="chips"
-										>{#each s.postconditions as c}<Chip text={c} variant="ok" />{/each}</span
-									></td
-								>
-								<td class="mono pr-params"
-									>{#each paramBindings(s, sel.plan) as [k, v]}<span>{k} ← {v}</span>{:else}<span
-											class="muted">none</span
-										>{/each}</td
-								>
+								<td class="mono">
+									{s.action_type}{#if s.gate}
+										<Chip text="gate" variant="warn" />{/if}
+								</td>
+								<td>
+									<span class="chips">
+										{#each s.preconditions as c}<Chip text={c} variant="warn" />{:else}<span class="muted">
+												none
+											</span>{/each}
+									</span>
+								</td>
+								<td>
+									<span class="chips">
+										{#each s.postconditions as c}<Chip text={c} variant="ok" />{/each}
+									</span>
+								</td>
+								<td class="mono pr-params">
+									{#each paramBindings(s, sel.plan) as [k, v]}<span>{k} ← {v}</span>{:else}<span
+											class="muted"
+										>
+											none
+										</span>{/each}
+								</td>
 								<td>{s.performed_by}</td>
 								<td><Chip text={s.mcp_tool} variant="tool" /></td>
 							</tr>
@@ -520,21 +529,23 @@
 						{#if to === 'PUBLISHED' && sel.version_status === 'ARCHIVED'}
 							{#if confirmRollback}
 								<div class="pr-confirm" role="group" aria-label="Confirm roll back">
-									<span
-										>Re-publish {sel.name}@{sel.version}?
+									<span>
+										Re-publish {sel.name}@{sel.version}?
 										{current
 											? `${current.version} (PUBLISHED now) moves to ARCHIVED.`
 											: 'No version of this procedure is PUBLISHED now.'}
 										{approvalsNeeded
 											? `Publishing needs two reviewers; this version has ${sel.reviewers.length}.`
-											: ''}</span
-									>
+											: ''}
+									</span>
 									<button
 										class="btn primary"
 										type="button"
 										disabled={moving || approvalsNeeded > 0}
-										onclick={() => move(sel!, to)}>Roll back to {sel.version}</button
+										onclick={() => move(sel!, to)}
 									>
+										Roll back to {sel.version}
+									</button>
 									<button class="btn" type="button" onclick={() => (confirmRollback = false)}>Cancel</button>
 								</div>
 							{:else}
@@ -543,8 +554,10 @@
 									type="button"
 									disabled={!canWrite}
 									title={canWrite ? 'Re-publish this archived version' : 'Needs the tenant_admin role'}
-									onclick={() => (confirmRollback = true)}>Roll back to this version</button
+									onclick={() => (confirmRollback = true)}
 								>
+									Roll back to this version
+								</button>
 							{/if}
 						{:else if to === 'PUBLISHED'}
 							<button
@@ -556,8 +569,10 @@
 									: approvedByMe
 										? 'You approved this version; a second, distinct reviewer approves next'
 										: 'Adds you as a reviewer of this version; it does not publish'}
-								onclick={() => approve(sel!)}>Approve</button
+								onclick={() => approve(sel!)}
 							>
+								Approve
+							</button>
 							{#if approvedByMe}<span class="muted">You approved this version.</span>{/if}
 							<button
 								class="btn primary"
@@ -568,11 +583,13 @@
 									: approvalsNeeded
 										? 'Publishing needs two distinct reviewers'
 										: 'Make this the version the orchestrator runs'}
-								onclick={() => move(sel!, to)}>Publish</button
+								onclick={() => move(sel!, to)}
 							>
-							{#if approvalsNeeded}<span class="muted"
-									>Needs {approvalsNeeded} more approval{approvalsNeeded === 1 ? '' : 's'}</span
-								>{/if}
+								Publish
+							</button>
+							{#if approvalsNeeded}<span class="muted">
+									Needs {approvalsNeeded} more approval{approvalsNeeded === 1 ? '' : 's'}
+								</span>{/if}
 						{:else}
 							<button
 								class="btn"
@@ -580,8 +597,10 @@
 								type="button"
 								disabled={!canWrite || moving}
 								title={canWrite ? '' : 'Needs the tenant_admin role'}
-								onclick={() => move(sel!, to)}>Move to {to}</button
+								onclick={() => move(sel!, to)}
 							>
+								Move to {to}
+							</button>
 						{/if}
 					{:else}
 						<span class="muted">No further moves from {sel.version_status}.</span>
@@ -602,8 +621,8 @@
 			Creates a DRAFT. Steps must describe the plan one-to-one: ordered by step number, each step has the
 			phase and worker of the matching plan step. Promote it from the Versions tab.
 		</p>
-		<label class="field"
-			><span class="label">Start from</span>
+		<label class="field">
+			<span class="label">Start from</span>
 			<select class="input" value={form.from} onchange={(e) => startFrom(e.currentTarget.value)}>
 				<option value="">Empty plan</option>
 				{#each all as p (p.name + '@' + p.version)}
@@ -612,24 +631,24 @@
 			</select>
 		</label>
 		<div class="form-grid">
-			<label class="field"
-				><span class="label">Name</span><input
+			<label class="field">
+				<span class="label">Name</span><input
 					class="input mono"
 					bind:value={form.name}
 					required
 					placeholder="return"
-				/>{@render fieldErr('name')}</label
-			>
-			<label class="field"
-				><span class="label">Version</span><input
+				/>{@render fieldErr('name')}
+			</label>
+			<label class="field">
+				<span class="label">Version</span><input
 					class="input mono"
 					bind:value={form.version}
 					required
 					placeholder="1.5.0"
-				/>{@render fieldErr('version')}</label
-			>
-			<label class="field"
-				><span class="label">Context space</span>
+				/>{@render fieldErr('version')}
+			</label>
+			<label class="field">
+				<span class="label">Context space</span>
 				{#if spaceList.length}
 					<select class="input" bind:value={form.context_space}>
 						<option value="" disabled>Choose a context space</option>
@@ -642,42 +661,44 @@
 						placeholder="retail:order-support:returns"
 					/>
 				{/if}
-				{@render fieldErr('context_space')}</label
-			>
-			<label class="field"
-				><span class="label">Description</span><input class="input" bind:value={form.description} /></label
-			>
+				{@render fieldErr('context_space')}
+			</label>
+			<label class="field">
+				<span class="label">Description</span><input class="input" bind:value={form.description} />
+			</label>
 		</div>
-		<label class="field"
-			><span class="label">Plan (JSON: phases of steps the orchestrator runs)</span>
+		<label class="field">
+			<span class="label">Plan (JSON: phases of steps the orchestrator runs)</span>
 			<textarea class="input" rows="10" spellcheck="false" bind:value={form.plan}></textarea>
 			{#if !planJson.ok}<span class="pr-err">{planJson.error}</span>{/if}
-			{@render fieldErr('plan')}</label
-		>
+			{@render fieldErr('plan')}
+		</label>
 		<div class="field">
-			<span class="split"
-				><label class="label" for="pr-steps">Steps (JSON: one PDDL step per plan step)</label><button
+			<span class="split">
+				<label class="label" for="pr-steps">Steps (JSON: one PDDL step per plan step)</label><button
 					class="btn sm"
 					type="button"
 					disabled={!planJson.ok}
-					onclick={fillSteps}>Draft steps from plan</button
-				></span
-			>
+					onclick={fillSteps}
+				>
+					Draft steps from plan
+				</button>
+			</span>
 			<textarea id="pr-steps" class="input" rows="10" spellcheck="false" bind:value={form.steps}></textarea>
 			{#if !stepsJson.ok}<span class="pr-err">{stepsJson.error}</span>{/if}
 			{@render fieldErr('steps')}
 		</div>
-		<label class="field"
-			><span class="label">PDDL domain (optional, stored as text)</span>
-			<textarea class="input" rows="4" spellcheck="false" bind:value={form.pddl_domain}></textarea></label
-		>
+		<label class="field">
+			<span class="label">PDDL domain (optional, stored as text)</span>
+			<textarea class="input" rows="4" spellcheck="false" bind:value={form.pddl_domain}></textarea>
+		</label>
 		{#if formErr && formErr.field === null}
 			<Callout kind="err" title="Not created">{formErr.message} ({formErr.code})</Callout>
 		{/if}
 		<div class="row">
-			<button class="btn primary" type="submit" disabled={saving || !canWrite}
-				>{saving ? 'Creating…' : 'Create DRAFT'}</button
-			>
+			<button class="btn primary" type="submit" disabled={saving || !canWrite}>
+				{saving ? 'Creating…' : 'Create DRAFT'}
+			</button>
 			<button class="btn" type="button" onclick={() => (creating = false)}>Cancel</button>
 		</div>
 	</form>

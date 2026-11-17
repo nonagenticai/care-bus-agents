@@ -226,10 +226,11 @@
 				</p>
 				{#if chat.customer}
 					<div class="cust">
-						{#if chat.customer.name}<b>{chat.customer.name}</b>{/if}<span class="tag">{chat.customer.id}</span
-						>{#if chat.customer.tier}<span class="tag">{chat.customer.tier}</span>{/if}<span
-							>demo customer</span
-						>
+						{#if chat.customer.name}<b>{chat.customer.name}</b>{/if}<span class="tag">
+							{chat.customer.id}
+						</span>{#if chat.customer.tier}<span class="tag">{chat.customer.tier}</span>{/if}<span>
+							demo customer
+						</span>
 					</div>
 				{/if}
 			</header>
@@ -239,9 +240,9 @@
 						<div class="note">{m.text}</div>
 					{:else}
 						<div class="bub {m.role === 'customer' ? 'user' : 'agent'}">
-							{#if m.role === 'agent'}<span class="bwho">Interaction agent</span>{/if}<span class="txt"
-								>{m.text}</span
-							>
+							{#if m.role === 'agent'}<span class="bwho">Interaction agent</span>{/if}<span class="txt">
+								{m.text}
+							</span>
 						</div>
 					{/if}
 					{#if m.case_id}<div class="note cust">{m.case_id} published to customer-bus</div>{/if}
@@ -249,15 +250,15 @@
 				{#each chat.outbox.items as p (p.id)}
 					<div class="bub user pending" class:failed={p.status === 'failed'}>
 						<span class="txt">{p.text}</span>
-						<span class="qtag"
-							>{p.status === 'queued'
+						<span class="qtag">
+							{p.status === 'queued'
 								? 'queued'
 								: p.status === 'sending'
 									? 'sending'
 									: p.status === 'unknown'
 										? 'outcome unknown'
-										: 'not sent'}</span
-						>
+										: 'not sent'}
+						</span>
 					</div>
 				{/each}
 				{#if holding}
@@ -295,11 +296,9 @@
 				<div class="note err" role="status">
 					Conversation unavailable: {chat.error}
 					<div class="row">
-						<button class="btn sm" type="button" onclick={() => chat.retry()}
-							>{chat.conversationId || chat.unreachable
-								? 'Reload conversation'
-								: 'Start conversation'}</button
-						>
+						<button class="btn sm" type="button" onclick={() => chat.retry()}>
+							{chat.conversationId || chat.unreachable ? 'Reload conversation' : 'Start conversation'}
+						</button>
 					</div>
 				</div>
 			{/if}
@@ -342,29 +341,31 @@
 						guard(
 							() => api().setFault({ tool: 'delivery_track_shipment', mode: 'timeout', count: 1 }),
 							'The next carrier call will time out.',
-						)}>Next carrier call times out</button
+						)}
 				>
+					Next carrier call times out
+				</button>
 			</details>
 		</section>
 
 		<div class="main">
 			<div class="tracebar" data-pane="activity">
-				<label
-					>Case
+				<label>
+					Case
 					<select bind:value={caseFilter} aria-label="Filter trace by case">
 						<option value="">All cases ({store.caseIds.length})</option>
 						{#each store.caseIds as c (c)}<option value={c}>{c}</option>{/each}
-					</select></label
-				>
-				<span
-					>Agent status is derived from the events seen here and consumer-group metrics, not reported by the
-					agents.</span
-				>
+					</select>
+				</label>
+				<span>
+					Agent status is derived from the events seen here and consumer-group metrics, not reported by the
+					agents.
+				</span>
 				{#if store.trimmed > 0}
-					<span role="status"
-						>Showing the last {MAX_PER_LANE} events per bus; {store.trimmed} older not shown (open the case for
-						its full trace).</span
-					>
+					<span role="status">
+						Showing the last {MAX_PER_LANE} events per bus; {store.trimmed} older not shown (open the case for its
+						full trace).
+					</span>
 				{/if}
 			</div>
 			<section class="panel activity" aria-label="Case activity" data-pane="activity">
@@ -416,16 +417,16 @@
 						<header>
 							<h2>
 								{lane.title}
-								<span class="count"
-									>{caseFilter ? `${shown(lane.id).length}/` : ''}{store[lane.id].length}</span
-								>
+								<span class="count">
+									{caseFilter ? `${shown(lane.id).length}/` : ''}{store[lane.id].length}
+								</span>
 							</h2>
 							<span class="flow">{lane.flow}</span>
-							<span class="legend"
-								><span><b>↓</b> {lane.legend[0]}</span><span><b>↑</b> {lane.legend[1]}</span><span
-									><span class="ack">pending</span> → <span class="ack done">acked</span></span
-								></span
-							>
+							<span class="legend">
+								<span><b>↓</b> {lane.legend[0]}</span><span><b>↑</b> {lane.legend[1]}</span><span>
+									<span class="ack">pending</span> → <span class="ack done">acked</span>
+								</span>
+							</span>
 						</header>
 						<div class="list" bind:this={listEls[lane.id]} onscroll={() => onScroll(lane.id)}>
 							{#if store[lane.id].length === 0}<div class="empty">{lane.empty}</div>
@@ -449,34 +450,36 @@
 									onmouseenter={() => (hoverCid = e.envelope.correlation_id)}
 									onmouseleave={() => (hoverCid = null)}
 								>
-									<span class="r1"
-										><span class="topic"
-											><b class="dir" title={dir === 'down' ? 'forward' : 'return path'}
-												>{dir === 'down' ? '↓' : '↑'}</b
-											>{#if ev}<span class="ctx">{contextOf(e.envelope.topic)}</span>{ev}{:else}{e.envelope
-													.topic}{/if}</span
-										><span class="time">{clock(e.envelope.published_at_ms)}</span></span
-									>
+									<span class="r1">
+										<span class="topic">
+											<b class="dir" title={dir === 'down' ? 'forward' : 'return path'}>
+												{dir === 'down' ? '↓' : '↑'}
+											</b>{#if ev}<span class="ctx">{contextOf(e.envelope.topic)}</span>{ev}{:else}{e.envelope
+													.topic}{/if}
+										</span><span class="time">{clock(e.envelope.published_at_ms)}</span>
+									</span>
 									{#if plain(e)}<span class="plain">{plain(e)}</span>{/if}
-									<span class="route"
-										>{e.envelope.from} → {e.consumer_group ?? '—'} · {e.envelope.correlation_id}</span
-									>
+									<span class="route">
+										{e.envelope.from} → {e.consumer_group ?? '—'} · {e.envelope.correlation_id}
+									</span>
 									{#if summary(e)}<span class="sum">{summary(e)}</span>{/if}
-									<span class="meta"
-										><span class="skey">{e.stream}</span><span>{e.entry_id}</span>{#if ack}<span
+									<span class="meta">
+										<span class="skey">{e.stream}</span><span>{e.entry_id}</span>{#if ack}<span
 												class="ack"
 												class:done={ack === 'acked'}
 												title={ack === 'acked'
 													? `XACKed by ${e.consumer_group}`
-													: `In ${e.consumer_group}: not acknowledged yet`}>{ack}</span
-											>{/if}</span
-									>
+													: `In ${e.consumer_group}: not acknowledged yet`}
+											>
+												{ack}
+											</span>{/if}
+									</span>
 								</button>
 							{/each}
 							{#if fresh(lane.id) > 0 && !follow[lane.id]}
-								<button type="button" class="newev" onclick={() => jump(lane.id)}
-									>{fresh(lane.id)} new event{fresh(lane.id) === 1 ? '' : 's'} ↓</button
-								>
+								<button type="button" class="newev" onclick={() => jump(lane.id)}>
+									{fresh(lane.id)} new event{fresh(lane.id) === 1 ? '' : 's'} ↓
+								</button>
 							{/if}
 						</div>
 					</section>

@@ -203,25 +203,25 @@
 		<Callout
 			kind="err"
 			title={`${s.name} ${s.status === 'unconfigured' ? 'is not configured' : 'is unavailable'}`}
-			>Its providers cannot be read or changed right now. This is not the same as no provider being
-			registered.</Callout
 		>
+			Its providers cannot be read or changed right now. This is not the same as no provider being registered.
+		</Callout>
 	{/each}
 	<Card cls="flush">
 		<div class="tbl-wrap">
 			<table class="tbl clickable">
 				<thead>
-					<tr
-						><th>Capability</th><th>Service</th><th>Source</th><th>Model</th><th>Endpoint</th><th>Key</th><th
-							>Updated</th
-						></tr
-					>
+					<tr>
+						<th>Capability</th><th>Service</th><th>Source</th><th>Model</th><th>Endpoint</th><th>Key</th><th>
+							Updated
+						</th>
+					</tr>
 				</thead>
 				<tbody>
 					{#each data.capabilities as c (c.capability)}
 						{@const st = sourceLabel(c)}
-						<tr
-							><td><button class="table-action" onclick={() => edit(c)}>{labelOf(c)}</button></td>
+						<tr>
+							<td><button class="table-action" onclick={() => edit(c)}>{labelOf(c)}</button></td>
 							<td class="mono">{c.owner}</td>
 							<td><Status word={st.word} label={st.label} /></td>
 							<td class="mono">
@@ -247,9 +247,9 @@
 	{#if cap && draft && rule}
 		<p class="muted">{rule.purpose}</p>
 		{#if cap.source === 'default' && cap.default}
-			<Callout kind="info" title="Using the deployment default"
-				>{cap.default.dialect} · {cap.default.model}. Registering a provider replaces it for this tenant.</Callout
-			>
+			<Callout kind="info" title="Using the deployment default">
+				{cap.default.dialect} · {cap.default.model}. Registering a provider replaces it for this tenant.
+			</Callout>
 		{/if}
 		<Callout kind="info" title="Before saving">{PROBE_CAVEAT}</Callout>
 		{#if !canWrite}
@@ -257,89 +257,89 @@
 		{/if}
 		<fieldset class="pv-fields" disabled={!canWrite || busy}>
 			<div class="form-grid">
-				<label class="field"
-					><span class="label">Base URL</span><input
+				<label class="field">
+					<span class="label">Base URL</span><input
 						class="input mono"
 						bind:value={draft.base_url}
 						{...faultAttrs('base_url')}
 						placeholder="https://api.example.eu/v1"
 						autocomplete="off"
 						spellcheck="false"
-					/>{#if fieldMsg('base_url')}<span class="field-err" id="pv-err-base_url"
-							>{fieldMsg('base_url')}</span
-						>{/if}</label
-				>
-				<label class="field"
-					><span class="label">Dialect</span>
-					<select class="input" bind:value={draft.dialect} {...faultAttrs('dialect')}
-						>{#each rule.dialects as d}<option>{d}</option>{/each}</select
-					>{#if fieldMsg('dialect')}<span class="field-err" id="pv-err-dialect">{fieldMsg('dialect')}</span
-						>{/if}
+					/>{#if fieldMsg('base_url')}<span class="field-err" id="pv-err-base_url">
+							{fieldMsg('base_url')}
+						</span>{/if}
 				</label>
-				<label class="field"
-					><span class="label">Model</span><input
+				<label class="field">
+					<span class="label">Dialect</span>
+					<select class="input" bind:value={draft.dialect} {...faultAttrs('dialect')}>
+						{#each rule.dialects as d}<option>{d}</option>{/each}
+					</select>{#if fieldMsg('dialect')}<span class="field-err" id="pv-err-dialect">
+							{fieldMsg('dialect')}
+						</span>{/if}
+				</label>
+				<label class="field">
+					<span class="label">Model</span><input
 						class="input mono"
 						bind:value={draft.model}
 						{...faultAttrs('model')}
-					/>{#if fieldMsg('model')}<span class="field-err" id="pv-err-model">{fieldMsg('model')}</span
-						>{/if}</label
-				>
-				<label class="field"
-					><span class="label">Model id (optional)</span><input
+					/>{#if fieldMsg('model')}<span class="field-err" id="pv-err-model">{fieldMsg('model')}</span>{/if}
+				</label>
+				<label class="field">
+					<span class="label">Model id (optional)</span><input
 						class="input mono"
 						bind:value={draft.model_id}
 						placeholder="stored and shown only"
-					/></label
-				>
+					/>
+				</label>
 				{#if rule.dims !== null}
-					<label class="field"
-						><span class="label">Dimensions</span><input
+					<label class="field">
+						<span class="label">Dimensions</span><input
 							class="input"
 							type="number"
 							bind:value={draft.dims}
 							{...faultAttrs('dims')}
-						/>{#if fieldMsg('dims')}<span class="field-err" id="pv-err-dims">{fieldMsg('dims')}</span
-							>{/if}</label
-					>
+						/>{#if fieldMsg('dims')}<span class="field-err" id="pv-err-dims">{fieldMsg('dims')}</span>{/if}
+					</label>
 				{/if}
-				<label class="field"
-					><span class="label">Regions</span><input
+				<label class="field">
+					<span class="label">Regions</span><input
 						class="input"
 						bind:value={draft.regions}
 						{...faultAttrs('regions')}
 						placeholder="eu"
-					/>{#if fieldMsg('regions')}<span class="field-err" id="pv-err-regions">{fieldMsg('regions')}</span
-						>{/if}</label
-				>
-				<label class="field"
-					><span class="label">Timeout (ms, at most {rule.maxTimeoutMs})</span><input
+					/>{#if fieldMsg('regions')}<span class="field-err" id="pv-err-regions">
+							{fieldMsg('regions')}
+						</span>{/if}
+				</label>
+				<label class="field">
+					<span class="label">Timeout (ms, at most {rule.maxTimeoutMs})</span><input
 						class="input"
 						type="number"
 						min="1"
 						max={rule.maxTimeoutMs}
 						bind:value={draft.timeout_ms}
 						{...faultAttrs('timeout_ms')}
-					/>{#if fieldMsg('timeout_ms')}<span class="field-err" id="pv-err-timeout_ms"
-							>{fieldMsg('timeout_ms')}</span
-						>{/if}</label
-				>
-				<label class="field"
-					><span class="label">Concurrency (1 to {rule.maxConcurrency})</span><input
+					/>{#if fieldMsg('timeout_ms')}<span class="field-err" id="pv-err-timeout_ms">
+							{fieldMsg('timeout_ms')}
+						</span>{/if}
+				</label>
+				<label class="field">
+					<span class="label">Concurrency (1 to {rule.maxConcurrency})</span><input
 						class="input"
 						type="number"
 						min="1"
 						max={rule.maxConcurrency}
 						bind:value={draft.concurrency}
 						{...faultAttrs('concurrency')}
-					/>{#if fieldMsg('concurrency')}<span class="field-err" id="pv-err-concurrency"
-							>{fieldMsg('concurrency')}</span
-						>{/if}</label
-				>
+					/>{#if fieldMsg('concurrency')}<span class="field-err" id="pv-err-concurrency">
+							{fieldMsg('concurrency')}
+						</span>{/if}
+				</label>
 				{#if rule.chatSettings}
-					<label class="field"
-						><span class="label">Thinking</span>
-						<span
-							><input
+					<label class="field">
+						<span class="label">Thinking</span>
+						<span>
+							<input
 								type="checkbox"
 								checked={draft.thinking ?? false}
 								onchange={(e) => draft && (draft.thinking = e.currentTarget.checked)}
@@ -348,13 +348,13 @@
 								? 'Not sent (provider default)'
 								: draft.thinking
 									? 'On: the model reasons before answering'
-									: 'Off'}</span
-						>
+									: 'Off'}
+						</span>
 					</label>
-					<label class="field"
-						><span class="label"
-							>Temperature (optional, {TEMPERATURE_RANGE.min} to {TEMPERATURE_RANGE.max})</span
-						><input
+					<label class="field">
+						<span class="label">
+							Temperature (optional, {TEMPERATURE_RANGE.min} to {TEMPERATURE_RANGE.max})
+						</span><input
 							class="input"
 							type="number"
 							step="0.1"
@@ -363,20 +363,20 @@
 							bind:value={draft.temperature}
 							{...faultAttrs('temperature')}
 							placeholder="provider default"
-						/>{#if fieldMsg('temperature')}<span class="field-err" id="pv-err-temperature"
-								>{fieldMsg('temperature')}</span
-							>{/if}</label
-					>
+						/>{#if fieldMsg('temperature')}<span class="field-err" id="pv-err-temperature">
+								{fieldMsg('temperature')}
+							</span>{/if}
+					</label>
 				{/if}
-				<label class="field"
-					><span class="label">Zero data retention</span>
-					<span
-						><input type="checkbox" bind:checked={draft.zdr} {...faultAttrs('zdr')} /> The provider keeps no request
-						data</span
-					>{#if fieldMsg('zdr')}<span class="field-err" id="pv-err-zdr">{fieldMsg('zdr')}</span>{/if}
+				<label class="field">
+					<span class="label">Zero data retention</span>
+					<span>
+						<input type="checkbox" bind:checked={draft.zdr} {...faultAttrs('zdr')} /> The provider keeps no request
+						data
+					</span>{#if fieldMsg('zdr')}<span class="field-err" id="pv-err-zdr">{fieldMsg('zdr')}</span>{/if}
 				</label>
-				<label class="field"
-					><span class="label">API key</span><input
+				<label class="field">
+					<span class="label">API key</span><input
 						class="input mono"
 						type="password"
 						bind:value={draft.api_key}
@@ -384,9 +384,10 @@
 						placeholder={keyRequired(cap, draft) ? 'required' : 'stored; leave blank to keep it'}
 						autocomplete="new-password"
 						spellcheck="false"
-					/>{#if fieldMsg('api_key')}<span class="field-err" id="pv-err-api_key">{fieldMsg('api_key')}</span
-						>{/if}</label
-				>
+					/>{#if fieldMsg('api_key')}<span class="field-err" id="pv-err-api_key">
+							{fieldMsg('api_key')}
+						</span>{/if}
+				</label>
 			</div>
 		</fieldset>
 		{#if failure && !failField}
@@ -396,11 +397,11 @@
 		{#if confirmRemove}
 			<div class="callout err" role="alertdialog" aria-label="Remove provider">
 				<strong>Remove the {labelOf(cap)} provider?</strong>
-				<span
-					>{cap.owner} forgets the registration and its key. {cap.default
+				<span>
+					{cap.owner} forgets the registration and its key. {cap.default
 						? 'The deployment default applies again.'
-						: 'Nothing serves this capability until a provider is registered.'}</span
-				>
+						: 'Nothing serves this capability until a provider is registered.'}
+				</span>
 				<div class="actions">
 					<button class="btn" type="button" onclick={() => (confirmRemove = false)}>Keep</button>
 					<button class="btn danger" type="button" disabled={busy} onclick={remove}>Remove</button>
@@ -414,16 +415,20 @@
 					type="button"
 					disabled={!canWrite || busy}
 					title={canWrite ? '' : 'Needs the tenant_admin role'}
-					onclick={() => (confirmRemove = true)}>Remove registration</button
+					onclick={() => (confirmRemove = true)}
 				>
+					Remove registration
+				</button>
 			{/if}
 			<button
 				class="btn primary"
 				type="button"
 				disabled={!canWrite || busy}
 				title={canWrite ? '' : 'Needs the tenant_admin role'}
-				onclick={save}>{busy ? 'Testing and saving…' : 'Save'}</button
+				onclick={save}
 			>
+				{busy ? 'Testing and saving…' : 'Save'}
+			</button>
 		</div>
 	{/if}
 </Drawer>

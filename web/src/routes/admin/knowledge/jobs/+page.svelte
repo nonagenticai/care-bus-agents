@@ -308,24 +308,24 @@
 {/if}
 
 <div class="row">
-	<label class="field"
-		><span class="label">Status</span>
+	<label class="field">
+		<span class="label">Status</span>
 		<select class="input" bind:value={status}>
 			<option value="">All</option>
 			{#each STATUSES as s}<option value={s}>{s}</option>{/each}
-		</select></label
-	>
-	<label class="field"
-		><span class="label">Store</span>
+		</select>
+	</label>
+	<label class="field">
+		<span class="label">Store</span>
 		<select class="input" bind:value={store}>
 			<option value="">All</option>
 			{#if stores.value.state === 'ok'}
-				{#each stores.value.data.items.filter((s) => s.kind === 'leaf') as s}<option value={s.id}
-						>{s.name}</option
-					>{/each}
+				{#each stores.value.data.items.filter((s) => s.kind === 'leaf') as s}<option value={s.id}>
+						{s.name}
+					</option>{/each}
 			{/if}
-		</select></label
-	>
+		</select>
+	</label>
 </div>
 
 {#if jobs.value.state === 'loading'}
@@ -344,18 +344,18 @@
 	<Card cls="flush">
 		<div class="tbl-wrap">
 			<table class="tbl clickable">
-				<thead
-					><tr
-						><th>Created</th><th>Store</th><th>Source</th><th>Status</th><th class="r">Steps</th><th class="r"
-							>Cost</th
-						></tr
-					></thead
-				>
+				<thead>
+					<tr>
+						<th>Created</th><th>Store</th><th>Source</th><th>Status</th><th class="r">Steps</th><th class="r">
+							Cost
+						</th>
+					</tr>
+				</thead>
 				<tbody>
 					{#each jobs.value.data.items as j}
-						<tr
-							><td
-								><button
+						<tr>
+							<td>
+								<button
 									type="button"
 									class="table-action"
 									onclick={() => (
@@ -365,9 +365,11 @@
 										(refusal = null),
 										(refusedParent = null),
 										(open = true)
-									)}>{when(j.created_at)}</button
-								></td
-							>
+									)}
+								>
+									{when(j.created_at)}
+								</button>
+							</td>
 							<td class="mono">{storeName(j.store_id)}</td>
 							<td class="mono">{jobSourceLabel(j)}</td>
 							<td><Status word={j.status} /></td>
@@ -396,38 +398,41 @@
 		{#if cur.status === 'deleting' && bgDeleting === cur.id}
 			<div class="callout gap" role="status">
 				<strong>Deleting…</strong>
-				<span
-					>strata_ingest is finishing the delete in the background. The job disappears when it is done.</span
-				>
+				<span>
+					strata_ingest is finishing the delete in the background. The job disappears when it is done.
+				</span>
 			</div>
 		{:else if cur.status === 'deleting'}
 			<div class="callout gap" role="status">
 				<strong>Partly deleted — retry to finish</strong>
-				<span
-					>A delete of this job did not finish (storage could not remove a file). Some of its files are
-					already gone, so it can no longer run or be retried: Retry delete to finish it.</span
-				>
+				<span>
+					A delete of this job did not finish (storage could not remove a file). Some of its files are already
+					gone, so it can no longer run or be retried: Retry delete to finish it.
+				</span>
 			</div>
 		{/if}
 		<div class="tbl-wrap">
 			<table class="tbl dense">
-				<thead
-					><tr
-						><th>Step</th><th>Provider</th><th>Model</th><th>Status</th><th class="r">Attempt</th><th
-							class="r">Cost</th
-						></tr
-					></thead
-				>
+				<thead>
+					<tr>
+						<th>Step</th><th>Provider</th><th>Model</th><th>Status</th><th class="r">Attempt</th><th
+							class="r"
+						>
+							Cost
+						</th>
+					</tr>
+				</thead>
 				<tbody>
 					{#each cur.steps as st}
 						<tr>
 							<td>{st.kind}<span class="cell-sub mono">{st.key}</span></td>
 							<td>{st.provider ?? '—'}</td>
 							<td class="mono">{st.model ?? '—'}</td>
-							<td
-								><Status word={st.status} />{#if st.error}<span class="cell-sub">{errText(st.error)}</span
-									>{/if}</td
-							>
+							<td>
+								<Status word={st.status} />{#if st.error}<span class="cell-sub">
+										{errText(st.error)}
+									</span>{/if}
+							</td>
 							<td class="r">{st.attempt}</td>
 							<td class="r">{euros(st.cost_micros)}</td>
 						</tr>
@@ -438,36 +443,35 @@
 		{#if confirmCancel}
 			<div class="callout err" role="alertdialog" aria-label="Cancel job">
 				<strong>Cancel this job?</strong>
-				<span
-					>Work already done stays; the unfinished steps are not run. A step in flight finishes first (the job
-					shows cancelling until then).</span
-				>
-				<span
-					><button class="btn sm" type="button" onclick={() => act('cancel')}>Confirm cancel</button>
-					<button class="btn sm" type="button" onclick={() => (confirmCancel = false)}>Keep running</button
-					></span
-				>
+				<span>
+					Work already done stays; the unfinished steps are not run. A step in flight finishes first (the job
+					shows cancelling until then).
+				</span>
+				<span>
+					<button class="btn sm" type="button" onclick={() => act('cancel')}>Confirm cancel</button>
+					<button class="btn sm" type="button" onclick={() => (confirmCancel = false)}>Keep running</button>
+				</span>
 			</div>
 		{/if}
 		{#if confirmDelete}
 			<div class="callout err" role="alertdialog" aria-label="Delete job">
 				<strong>Delete this job?</strong>
-				<span
-					>Its record and staged files in strata_ingest are removed{cur.child_job_ids?.length
+				<span>
+					Its record and staged files in strata_ingest are removed{cur.child_job_ids?.length
 						? `, with its ${cur.child_job_ids.length} page jobs`
 						: ''}. The {cur.document_ids.length} document{cur.document_ids.length === 1 ? '' : 's'} it delivered
-					stay in the knowledge store: delete them under Stores if they should go too.</span
-				>
+					stay in the knowledge store: delete them under Stores if they should go too.
+				</span>
 				{#if refusal}<span role="alert" data-testid="delete-refusal">Not deleted: {refusal}</span>{/if}
-				{#if refusedParent}<span
-						><button class="btn sm" type="button" onclick={() => refusedParent && openParent(refusedParent)}
-							>Open the parent crawl</button
-						></span
-					>{/if}
-				<span
-					><button class="btn sm" type="button" onclick={remove}>Delete job</button>
-					<button class="btn sm" type="button" onclick={() => (confirmDelete = false)}>Keep it</button></span
-				>
+				{#if refusedParent}<span>
+						<button class="btn sm" type="button" onclick={() => refusedParent && openParent(refusedParent)}>
+							Open the parent crawl
+						</button>
+					</span>{/if}
+				<span>
+					<button class="btn sm" type="button" onclick={remove}>Delete job</button>
+					<button class="btn sm" type="button" onclick={() => (confirmDelete = false)}>Keep it</button>
+				</span>
 			</div>
 		{/if}
 		<div class="actions">
@@ -476,23 +480,29 @@
 				type="button"
 				disabled={!canWrite || cur.status !== 'failed'}
 				title={why || (cur.status !== 'failed' ? 'Only a failed job can be retried' : '')}
-				onclick={() => act('retry')}>Retry</button
+				onclick={() => act('retry')}
 			>
+				Retry
+			</button>
 			<button
 				class="btn"
 				type="button"
 				disabled={!canWrite || !cancellable}
 				title={why || cancelWhy}
-				onclick={() => ((confirmCancel = true), (confirmDelete = false))}>Cancel job</button
+				onclick={() => ((confirmCancel = true), (confirmDelete = false))}
 			>
+				Cancel job
+			</button>
 			{#if parentId}
 				<button
 					class="btn"
 					type="button"
 					disabled={!canWrite}
 					title={why || 'A page job is deleted only with its crawl: open the parent to delete it'}
-					onclick={() => parentId && openParent(parentId)}>Delete the parent crawl</button
+					onclick={() => parentId && openParent(parentId)}
 				>
+					Delete the parent crawl
+				</button>
 			{:else}
 				<button
 					class="btn"
@@ -504,8 +514,10 @@
 						(confirmCancel = false),
 						(refusal = null),
 						(refusedParent = null)
-					)}>{cur.status === 'deleting' && bgDeleting !== cur.id ? 'Retry delete' : 'Delete job'}</button
+					)}
 				>
+					{cur.status === 'deleting' && bgDeleting !== cur.id ? 'Retry delete' : 'Delete job'}
+				</button>
 			{/if}
 		</div>
 	{/if}

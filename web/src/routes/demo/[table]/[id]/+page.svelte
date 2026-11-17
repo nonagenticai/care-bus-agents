@@ -116,16 +116,17 @@
 						</label>
 					{/each}
 					<div class="actions">
-						<button class="btn primary" type="submit" disabled={!admin || !dirty} title={saveWhy}>Save</button
-						>
+						<button class="btn primary" type="submit" disabled={!admin || !dirty} title={saveWhy}>
+							Save
+						</button>
 					</div>
 				</form>
 			{/if}
 		</Card>
-		<Card title="Record"
-			><KeyValues
+		<Card title="Record">
+			<KeyValues
 				pairs={Object.entries(rec.value.data.row).map(([k, v]) => [k, cellText(v)] as [string, string])}
-			/></Card
-		>
+			/>
+		</Card>
 	</div>
 {/if}

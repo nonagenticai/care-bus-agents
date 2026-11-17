@@ -55,9 +55,9 @@
 	</div>
 </header>
 {#if !canWrite}
-	<Callout kind="info" title="Read only"
-		>You can view the refinements. Changing them needs the tenant_admin role.</Callout
-	>
+	<Callout kind="info" title="Read only">
+		You can view the refinements. Changing them needs the tenant_admin role.
+	</Callout>
 {/if}
 <Tabs
 	items={[

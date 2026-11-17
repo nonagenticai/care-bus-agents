@@ -82,21 +82,21 @@
 								{#if a.model_routes.length === 0}<Chip text="no model" />{/if}
 							</div>
 							{#if a.streams.length}
-								<span class="ag-io"
-									><span class="label">Reads</span><span class="chips"
-										>{#each a.streams as st}<Chip
+								<span class="ag-io">
+									<span class="label">Reads</span><span class="chips">
+										{#each a.streams as st}<Chip
 												text={streamLabel(st)}
 												title={st}
 												variant={busVariant(st)}
-											/>{/each}</span
-									></span
-								>
+											/>{/each}
+									</span>
+								</span>
 							{/if}
-							<span class="muted"
-								>{a.consumers} consumer{a.consumers === 1 ? '' : 's'} ·
+							<span class="muted">
+								{a.consumers} consumer{a.consumers === 1 ? '' : 's'} ·
 								<b class:warn-num={a.status === 'warn'}>{a.pending}</b>
-								pending · lag <b class:warn-num={a.status === 'warn'}>{a.lag}</b></span
-							>
+								pending · lag <b class:warn-num={a.status === 'warn'}>{a.lag}</b>
+							</span>
 						</button>
 					{/each}
 				</div>

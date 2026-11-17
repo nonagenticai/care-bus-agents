@@ -65,20 +65,20 @@
 <fieldset class="crit" {disabled} aria-describedby={invalid || error ? 'gate-err-criteria' : undefined}>
 	<legend class="label">Criteria</legend>
 	{#if type === 'noul'}
-		<label class="field"
-			><span class="label">True when</span><textarea
+		<label class="field">
+			<span class="label">True when</span><textarea
 				class="input"
 				rows="2"
 				bind:value={noulTrue}
-				oninput={emit}></textarea></label
-		>
-		<label class="field"
-			><span class="label">False when</span><textarea
+				oninput={emit}></textarea>
+		</label>
+		<label class="field">
+			<span class="label">False when</span><textarea
 				class="input"
 				rows="2"
 				bind:value={noulFalse}
-				oninput={emit}></textarea></label
-		>
+				oninput={emit}></textarea>
+		</label>
 	{:else if type === 'choice'}
 		<p class="muted">2–255 options. laya picks one and reports a probability per option.</p>
 		{#each options as o, i (i)}
@@ -102,13 +102,15 @@
 					type="button"
 					aria-label="Remove option {i + 1}"
 					disabled={options.length <= 2}
-					onclick={() => removeOption(i)}>Remove</button
+					onclick={() => removeOption(i)}
 				>
+					Remove
+				</button>
 			</div>
 		{/each}
-		<button class="btn sm" type="button" disabled={options.length >= 255} onclick={addOption}
-			>Add option</button
-		>
+		<button class="btn sm" type="button" disabled={options.length >= 255} onclick={addOption}>
+			Add option
+		</button>
 	{:else}
 		<p class="muted">2–10 ordered levels, lowest first. The score is the level's index.</p>
 		{#each levels as _, i (i)}
@@ -126,22 +128,28 @@
 					type="button"
 					aria-label="Move level {i} up"
 					disabled={i === 0}
-					onclick={() => moveLevel(i, -1)}>↑</button
+					onclick={() => moveLevel(i, -1)}
 				>
+					↑
+				</button>
 				<button
 					class="btn sm"
 					type="button"
 					aria-label="Move level {i} down"
 					disabled={i === levels.length - 1}
-					onclick={() => moveLevel(i, 1)}>↓</button
+					onclick={() => moveLevel(i, 1)}
 				>
+					↓
+				</button>
 				<button
 					class="btn sm"
 					type="button"
 					aria-label="Remove level {i}"
 					disabled={levels.length <= 2}
-					onclick={() => removeLevel(i)}>Remove</button
+					onclick={() => removeLevel(i)}
 				>
+					Remove
+				</button>
 			</div>
 		{/each}
 		<button class="btn sm" type="button" disabled={levels.length >= 10} onclick={addLevel}>Add level</button>

@@ -33,15 +33,15 @@
 </script>
 
 <div class="picker" data-testid="tenant-picker">
-	<label class="field"
-		><span class="label">Find a tenant</span><input
+	<label class="field">
+		<span class="label">Find a tenant</span><input
 			class="input"
 			type="search"
 			placeholder="Name or id"
 			autocomplete="off"
 			bind:value={q}
-		/></label
-	>
+		/>
+	</label>
 	{#if listError}
 		<p class="err" role="alert">The tenant list is unavailable ({listError}). Enter the tenant id below.</p>
 	{:else if app.tenants.length === 0}
@@ -56,11 +56,12 @@
 						aria-current={t.id === app.activeTenant ? 'true' : undefined}
 						disabled={switching}
 						onclick={() => pick(t.id)}
-						><b>{t.name}</b>
+					>
+						<b>{t.name}</b>
 						{#if t.status === 'suspended'}<Chip text="Suspended" variant="warn" />{/if}
 						{#if t.id === app.activeTenant}<Chip text="Current" variant="accent" />{/if}
-						<span class="mono muted">{t.id}</span></button
-					>
+						<span class="mono muted">{t.id}</span>
+					</button>
 				</li>
 			{:else}
 				<li class="muted">No tenant matches “{q}”.</li>
@@ -74,15 +75,15 @@
 			void pick(typed);
 		}}
 	>
-		<label class="field"
-			><span class="label">Or enter a tenant id</span><input
+		<label class="field">
+			<span class="label">Or enter a tenant id</span><input
 				class="input mono"
 				placeholder="tenant uuid"
 				autocomplete="off"
 				spellcheck="false"
 				bind:value={typed}
-			/></label
-		>
+			/>
+		</label>
 		<button class="btn sm" type="submit" disabled={switching || !typed.trim()}>Act in tenant</button>
 	</form>
 	{#if error}<p class="err" role="alert">{error}</p>{/if}

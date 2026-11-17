@@ -188,35 +188,36 @@
 		<div class="tbl-wrap">
 			<table class="tbl clickable">
 				<thead>
-					<tr
-						><th>Name</th><th>System</th><th>Base URL</th><th>Auth</th><th class="r">Timeout</th><th
-							>Health</th
-						></tr
-					>
+					<tr>
+						<th>Name</th><th>System</th><th>Base URL</th><th>Auth</th><th class="r">Timeout</th><th>
+							Health
+						</th>
+					</tr>
 				</thead>
 				<tbody>
 					{#each conns.value.data.items as c}
-						<tr
-							><td
-								><button type="button" class="table-action" onclick={() => edit(c)}>{c.name}</button
-								>{#if c.overridden}
+						<tr>
+							<td>
+								<button type="button" class="table-action" onclick={() => edit(c)}>
+									{c.name}
+								</button>{#if c.overridden}
 									<Chip
 										text="Refined"
 										variant="accent"
 										title="Your values override the release's"
 									/>{:else if c.origin === 'tenant'}
-									<Chip text="Added" variant="ok" title="Not in the release" />{/if}</td
-							>
+									<Chip text="Added" variant="ok" title="Not in the release" />{/if}
+							</td>
 							<td>{c.system}</td>
 							<td class="mono">{c.base_url}</td>
 							<td>{c.auth_type}</td>
 							<td class="r">{fmt.ms(c.timeout_ms)}</td>
-							<td
-								><Status
+							<td>
+								<Status
 									word={c.health}
 									label={c.health === 'unknown' ? 'Not tested' : c.health === 'ok' ? 'Healthy' : 'Down'}
-								/></td
-							>
+								/>
+							</td>
 						</tr>
 					{/each}
 				</tbody>
@@ -228,111 +229,112 @@
 <Drawer bind:open title={draft?.name ?? ''} wide {dirty}>
 	{#if draft}
 		{#if !canWrite}
-			<Callout kind="info" title="Read only"
-				>You can view this connector. Editing needs the tenant_admin role.</Callout
-			>
+			<Callout kind="info" title="Read only">
+				You can view this connector. Editing needs the tenant_admin role.
+			</Callout>
 		{/if}
 		{#if draft.overridden}
-			<Callout kind="info" title="Refined"
-				>Your values override the release's. Fields you changed show the release's value beside them; Revert
-				to base drops your refinement.</Callout
-			>
+			<Callout kind="info" title="Refined">
+				Your values override the release's. Fields you changed show the release's value beside them; Revert to
+				base drops your refinement.
+			</Callout>
 		{:else if draft.origin === 'base'}
-			<Callout kind="info" title="From the release"
-				>This connector comes from the job's release. Saving creates your refinement; the release's values
-				stay beside it.</Callout
-			>
+			<Callout kind="info" title="From the release">
+				This connector comes from the job's release. Saving creates your refinement; the release's values stay
+				beside it.
+			</Callout>
 		{/if}
 		<fieldset class="be-fields" disabled={!canWrite || saving}>
 			<div class="form-grid">
-				<label class="field"
-					><span class="label">Base URL</span><input
+				<label class="field">
+					<span class="label">Base URL</span><input
 						class="input mono"
 						bind:value={draft.base_url}
 						{...faultAttrs('base_url')}
-					/>{#if baseHint('base_url')}<span class="base-hint" data-testid="base-base_url"
-							>Base: <span class="mono">{baseHint('base_url')}</span></span
-						>{/if}{#if fault?.field === 'base_url'}<span class="field-err" id="be-err-base_url"
-							>{fault.message}</span
-						>{/if}</label
-				>
-				<label class="field"
-					><span class="label">Auth type</span>
+					/>{#if baseHint('base_url')}<span class="base-hint" data-testid="base-base_url">
+							Base: <span class="mono">{baseHint('base_url')}</span>
+						</span>{/if}{#if fault?.field === 'base_url'}<span class="field-err" id="be-err-base_url">
+							{fault.message}
+						</span>{/if}
+				</label>
+				<label class="field">
+					<span class="label">Auth type</span>
 					<select class="input" bind:value={draft.auth_type} {...faultAttrs('auth_type')}>
 						<option value="oauth2_client_credentials">OAuth2 client credentials</option>
 						<option value="api_key">API key</option>
 						<option value="mtls_api_key">mTLS + API key</option>
 						<option value="none">None</option>
-					</select>{#if baseHint('auth_type')}<span class="base-hint" data-testid="base-auth_type"
-							>Base: <span class="mono">{baseHint('auth_type')}</span></span
-						>{/if}{#if fault?.field === 'auth_type'}<span class="field-err" id="be-err-auth_type"
-							>{fault.message}</span
-						>{/if}
+					</select>{#if baseHint('auth_type')}<span class="base-hint" data-testid="base-auth_type">
+							Base: <span class="mono">{baseHint('auth_type')}</span>
+						</span>{/if}{#if fault?.field === 'auth_type'}<span class="field-err" id="be-err-auth_type">
+							{fault.message}
+						</span>{/if}
 				</label>
-				<label class="field"
-					><span class="label">Secret reference</span><input
+				<label class="field">
+					<span class="label">Secret reference</span><input
 						class="input mono"
 						bind:value={draft.secret_ref}
 						placeholder="carebus-demo/backends-token"
 						autocomplete="off"
 						spellcheck="false"
 						{...faultAttrs('secret_ref')}
-					/>{#if baseHint('secret_ref')}<span class="base-hint" data-testid="base-secret_ref"
-							>Base: <span class="mono">{baseHint('secret_ref')}</span></span
-						>{/if}{#if fault?.field === 'secret_ref'}<span class="field-err" id="be-err-secret_ref"
-							>{fault.message}</span
-						>{/if}</label
-				>
-				<label class="field"
-					><span class="label">Timeout (ms)</span><input
+					/>{#if baseHint('secret_ref')}<span class="base-hint" data-testid="base-secret_ref">
+							Base: <span class="mono">{baseHint('secret_ref')}</span>
+						</span>{/if}{#if fault?.field === 'secret_ref'}<span class="field-err" id="be-err-secret_ref">
+							{fault.message}
+						</span>{/if}
+				</label>
+				<label class="field">
+					<span class="label">Timeout (ms)</span><input
 						class="input"
 						type="number"
 						min="100"
 						bind:value={draft.timeout_ms}
 						{...faultAttrs('timeout_ms')}
-					/>{#if baseHint('timeout_ms')}<span class="base-hint" data-testid="base-timeout_ms"
-							>Base: <span class="mono">{baseHint('timeout_ms')}</span></span
-						>{/if}{#if fault?.field === 'timeout_ms'}<span class="field-err" id="be-err-timeout_ms"
-							>{fault.message}</span
-						>{/if}</label
-				>
+					/>{#if baseHint('timeout_ms')}<span class="base-hint" data-testid="base-timeout_ms">
+							Base: <span class="mono">{baseHint('timeout_ms')}</span>
+						</span>{/if}{#if fault?.field === 'timeout_ms'}<span class="field-err" id="be-err-timeout_ms">
+							{fault.message}
+						</span>{/if}
+				</label>
 			</div>
 			{#if secretError}<Callout kind="err" title="Secret reference">{secretError}</Callout>{/if}
 			<h3>Field mapping</h3>
 			<div class="tbl-wrap">
 				<table class="tbl dense">
-					<thead
-						><tr><th>Backend field</th><th>Ontology attribute</th><th aria-label="Remove"></th></tr></thead
-					>
+					<thead>
+						<tr><th>Backend field</th><th>Ontology attribute</th><th aria-label="Remove"></th></tr>
+					</thead>
 					<tbody>
 						{#each draft.mappings as m, i}
 							<tr>
-								<td
-									><input
+								<td>
+									<input
 										class="input mono"
 										bind:value={m.backend_field}
 										aria-label="Backend field"
 										{...rowAttrs(i)}
-									/></td
-								>
-								<td
-									><input
+									/>
+								</td>
+								<td>
+									<input
 										class="input mono"
 										bind:value={m.attribute}
 										aria-label="Ontology attribute (Entity.attribute)"
 										placeholder="Order.order_id"
 										{...rowAttrs(i)}
-									/></td
-								>
-								<td
-									><button
+									/>
+								</td>
+								<td>
+									<button
 										class="btn sm"
 										type="button"
 										aria-label={`Remove mapping ${m.backend_field || i + 1}`}
 										onclick={() => draft && (draft.mappings = draft.mappings.filter((_, j) => j !== i))}
-										>Remove</button
-									></td
-								>
+									>
+										Remove
+									</button>
+								</td>
 							</tr>
 						{:else}
 							<tr><td colspan="3" class="muted">No field mappings.</td></tr>
@@ -340,8 +342,9 @@
 					</tbody>
 				</table>
 			</div>
-			{#if fault?.field === 'mappings'}<span class="field-err" id="be-err-mappings">{fault.message}</span
-				>{/if}
+			{#if fault?.field === 'mappings'}<span class="field-err" id="be-err-mappings">
+					{fault.message}
+				</span>{/if}
 		</fieldset>
 		{#if fault && !fault.field}
 			<Callout kind="err" title="Not saved">{fault.message} ({fault.code})</Callout>
@@ -355,15 +358,18 @@
 				disabled={!canWrite || saving || testing}
 				title={canWrite ? '' : 'Needs the tenant_admin role'}
 				onclick={() => draft && (draft.mappings = [...draft.mappings, { backend_field: '', attribute: '' }])}
-				>Add mapping</button
 			>
+				Add mapping
+			</button>
 			<button
 				class="btn"
 				type="button"
 				disabled={!canWrite || saving || testing}
 				title={canWrite ? '' : 'Needs the tenant_admin role'}
-				onclick={test}>Test saved connector</button
+				onclick={test}
 			>
+				Test saved connector
+			</button>
 			{#if draft.overridden}
 				<button
 					class="btn"
@@ -372,16 +378,20 @@
 					title={canWrite
 						? "Drop your refinement; the release's values apply"
 						: 'Needs the tenant_admin role'}
-					onclick={revertToBase}>{reverting ? 'Reverting…' : 'Revert to base'}</button
+					onclick={revertToBase}
 				>
+					{reverting ? 'Reverting…' : 'Revert to base'}
+				</button>
 			{/if}
 			<button
 				class="btn primary"
 				type="button"
 				disabled={!canWrite || saving || secretError !== ''}
 				title={!canWrite ? 'Needs the tenant_admin role' : secretError}
-				onclick={save}>{saving ? 'Saving…' : 'Save'}</button
+				onclick={save}
 			>
+				{saving ? 'Saving…' : 'Save'}
+			</button>
 		</div>
 	{/if}
 </Drawer>

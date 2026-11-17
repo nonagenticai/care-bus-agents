@@ -162,9 +162,9 @@
 				<h2 class="drawer-title" id={titleId}>{title}</h2>
 				<div class="drawer-sub">{@render sub?.()}</div>
 			</div>
-			<button class="icon-btn" type="button" aria-label="Close details" onclick={requestClose}
-				><Icon name="x" /></button
-			>
+			<button class="icon-btn" type="button" aria-label="Close details" onclick={requestClose}>
+				<Icon name="x" />
+			</button>
 		</div>
 		{#if confirming}
 			<div class="drawer-confirm" role="alertdialog" aria-label="Discard changes?">

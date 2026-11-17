@@ -480,15 +480,15 @@
 					<Chip text={st.status} variant={STEP_VARIANT[st.status] ?? 'muted'} />
 					<b>{stepLabel(st.step)}</b>
 					{#if st.attempts > 1}<span class="cell-sub">{st.attempts} attempts</span>{/if}
-					{#if st.status === 'pending' && st.next_attempt_at}<span class="cell-sub"
-							>next try {when(st.next_attempt_at)}</span
-						>{/if}
+					{#if st.status === 'pending' && st.next_attempt_at}<span class="cell-sub">
+							next try {when(st.next_attempt_at)}
+						</span>{/if}
 					{#if st.code || st.message}
 						<details class="raw">
 							<summary>Error details</summary>
-							<code class="mono">{st.code ?? ''}</code>{#if st.message}<span class="cell-sub"
-									>{st.message}</span
-								>{/if}
+							<code class="mono">{st.code ?? ''}</code>{#if st.message}<span class="cell-sub">
+									{st.message}
+								</span>{/if}
 						</details>
 					{/if}
 				</li>
@@ -507,8 +507,9 @@
 				{#if st.code || st.message}
 					<details class="raw">
 						<summary>Details</summary>
-						<code class="mono">{st.code ?? ''}</code>{#if st.message}<span class="cell-sub">{st.message}</span
-							>{/if}
+						<code class="mono">{st.code ?? ''}</code>{#if st.message}<span class="cell-sub">
+								{st.message}
+							</span>{/if}
 					</details>
 				{/if}
 			</li>
@@ -538,9 +539,9 @@
 </header>
 
 {#if !allowed}
-	<Callout kind="err" title="Super-admin only"
-		>Only a platform super admin reviews early-access signups.</Callout
-	>
+	<Callout kind="err" title="Super-admin only">
+		Only a platform super admin reviews early-access signups.
+	</Callout>
 {:else}
 	{#if linkError}<Callout kind="err" title="Link not found">{linkError}</Callout>{/if}
 	{#if notice}
@@ -555,8 +556,9 @@
 			<div class="empty" role="status" data-testid="signups-off">
 				<h2>Early access is off</h2>
 				<p>
-					Self-signup is not enabled on this deployment (carebus-api answers <code>signup_not_configured</code
-					>), so nobody can request a workspace and nothing can be approved here. It is switched on with
+					Self-signup is not enabled on this deployment (carebus-api answers <code>
+						signup_not_configured
+					</code>), so nobody can request a workspace and nothing can be approved here. It is switched on with
 					<code>CAREBUS_SIGNUP_ENABLED</code> once every part the approve needs is configured.
 				</p>
 				<p class="cell-sub">{list.message}</p>
@@ -572,21 +574,27 @@
 						class:on={filter === f}
 						aria-pressed={filter === f}
 						onclick={() => show(f)}
-						>{name}{#if meta && f === 'pending'}<span class="count">{meta.pending}</span
-							>{:else if meta && f === 'approved'}<span class="count">{meta.counts.approved}</span
-							>{:else if meta && f === 'rejected'}<span class="count">{meta.counts.rejected}</span
-							>{:else if meta && f === 'removed' && meta.counts.removed !== undefined}<span class="count"
-								>{meta.counts.removed}</span
-							>{/if}</button
 					>
+						{name}{#if meta && f === 'pending'}<span class="count">
+								{meta.pending}
+							</span>{:else if meta && f === 'approved'}<span class="count">
+								{meta.counts.approved}
+							</span>{:else if meta && f === 'rejected'}<span class="count">
+								{meta.counts.rejected}
+							</span>{:else if meta && f === 'removed' && meta.counts.removed !== undefined}<span
+								class="count"
+							>
+								{meta.counts.removed}
+							</span>{/if}
+					</button>
 				{/each}
 			</div>
 			{#if meta}
-				<span class="muted" data-testid="queue-meta"
-					>{meta.pending} of {meta.queue_cap} waiting · {meta.counts.received} received · as of {when(
+				<span class="muted" data-testid="queue-meta">
+					{meta.pending} of {meta.queue_cap} waiting · {meta.counts.received} received · as of {when(
 						meta.as_of,
-					)}</span
-				>
+					)}
+				</span>
 			{/if}
 		</div>
 
@@ -599,11 +607,11 @@
 				<div class="tbl-wrap">
 					<table class="tbl" data-testid="signup-rows">
 						<thead>
-							<tr
-								><th>Requested</th><th>Who</th><th>Company</th><th>Via</th><th>State</th><th>Steps</th><th
+							<tr>
+								<th>Requested</th><th>Who</th><th>Company</th><th>Via</th><th>State</th><th>Steps</th><th
 									aria-label="Actions"
-								></th></tr
-							>
+								></th>
+							</tr>
 						</thead>
 						<tbody>
 							{#each rows as s (s.id)}
@@ -613,8 +621,9 @@
 									<td class="nowrap">{when(s.created_at)}</td>
 									<td>
 										<button class="linkish" type="button" onclick={() => select(s.id)}>{s.name}</button>
-										<span class="cell-sub mono" title="Shown in full in the detail">{maskEmail(s.email)}</span
-										>
+										<span class="cell-sub mono" title="Shown in full in the detail">
+											{maskEmail(s.email)}
+										</span>
 									</td>
 									<td>{s.company ?? '—'}</td>
 									<td>
@@ -625,18 +634,18 @@
 									<td>
 										{#if sum.total}
 											<span data-testid="step-summary">{sum.done}/{sum.total} done</span>
-											{#if sum.failed.length}<span class="cell-sub err-text"
-													>{sum.failed.map((x) => stepLabel(x.step)).join(', ')} failed</span
-												>{:else if sum.pending.length}<span class="cell-sub"
-													>{stepLabel(sum.pending[0]!.step)} next</span
-												>{/if}
+											{#if sum.failed.length}<span class="cell-sub err-text">
+													{sum.failed.map((x) => stepLabel(x.step)).join(', ')} failed
+												</span>{:else if sum.pending.length}<span class="cell-sub">
+													{stepLabel(sum.pending[0]!.step)} next
+												</span>{/if}
 										{:else}
 											<span class="muted">—</span>
 										{/if}
 										{#if uncertainEmail(s)}
-											<span class="cell-sub warn-text" data-testid="uncertain-email"
-												>⚠ email outcome unknown</span
-											>
+											<span class="cell-sub warn-text" data-testid="uncertain-email">
+												⚠ email outcome unknown
+											</span>
 										{/if}
 									</td>
 									<td class="r nowrap">
@@ -646,14 +655,18 @@
 												type="button"
 												disabled={!!busy || s.approving}
 												title={s.approving ? 'An approve is running for this signup' : ''}
-												onclick={() => select(s.id, 'approve')}>Approve…</button
+												onclick={() => select(s.id, 'approve')}
 											>
+												Approve…
+											</button>
 											<button
 												class="btn sm"
 												type="button"
 												disabled={!!busy}
-												onclick={() => select(s.id, 'reject')}>Reject…</button
+												onclick={() => select(s.id, 'reject')}
 											>
+												Reject…
+											</button>
 										{:else if canRetry(s)}
 											<button
 												class="btn sm"
@@ -661,8 +674,9 @@
 												data-testid="signup-retry"
 												disabled={!!busy}
 												onclick={() => retry(s)}
-												>{label(s, 'retry', uncertainEmail(s) ? 'Retry…' : 'Retry', 'Retrying…')}</button
 											>
+												{label(s, 'retry', uncertainEmail(s) ? 'Retry…' : 'Retry', 'Retrying…')}
+											</button>
 										{/if}
 									</td>
 								</tr>
@@ -672,9 +686,9 @@
 				</div>
 			</Card>
 			{#if list.page.next}
-				<button class="btn" type="button" disabled={loadingMore} onclick={more}
-					>{loadingMore ? 'Loading…' : 'Load more'}</button
-				>
+				<button class="btn" type="button" disabled={loadingMore} onclick={more}>
+					{loadingMore ? 'Loading…' : 'Load more'}
+				</button>
 			{/if}
 		{:else}
 			<Card>
@@ -688,9 +702,9 @@
 							: `No ${filter === 'all' ? '' : `${filter} `}signups.`}
 				</p>
 				{#if filter === 'failed' && list.page.next}
-					<button class="btn sm" type="button" disabled={loadingMore} onclick={more}
-						>{loadingMore ? 'Loading…' : 'Look further'}</button
-					>
+					<button class="btn sm" type="button" disabled={loadingMore} onclick={more}>
+						{loadingMore ? 'Loading…' : 'Look further'}
+					</button>
 				{/if}
 			</Card>
 		{/if}
@@ -702,9 +716,9 @@
 	{#if detailState === 'loading'}
 		<p class="muted" role="status">Loading…</p>
 	{:else if detailState === 'missing'}
-		<Callout kind="err" title="Not found"
-			>No signup {selectedId}: the link is wrong or the request is gone.</Callout
-		>
+		<Callout kind="err" title="Not found">
+			No signup {selectedId}: the link is wrong or the request is gone.
+		</Callout>
 	{:else if detailState === 'error' || !detail}
 		<Unavailable
 			reason={detailError || 'Not loaded.'}
@@ -762,16 +776,14 @@
 			{/if}
 			{#if s.removal}
 				<div data-testid="removal" data-state={s.removal.state}>
-					<span class="label"
-						>Removal · {s.removal.state} · asked by {s.removal.requested_by} at {when(
-							s.removal.requested_at,
-						)}</span
-					>
+					<span class="label">
+						Removal · {s.removal.state} · asked by {s.removal.requested_by} at {when(s.removal.requested_at)}
+					</span>
 					{#if s.removal.state === 'blocked' || s.removal.state === 'failed'}
-						<Callout kind="err" title="Removal stopped"
-							>A step was refused. Look at its details, fix the cause, then Retry removal: the steps that
-							already landed are not run again.</Callout
-						>
+						<Callout kind="err" title="Removal stopped">
+							A step was refused. Look at its details, fix the cause, then Retry removal: the steps that
+							already landed are not run again.
+						</Callout>
 					{/if}
 					{@render removalJournal(s.removal.steps)}
 				</div>
@@ -802,12 +814,12 @@
 					</div>
 					{#if fault}{@render faultBox(fault)}{/if}
 					<div class="row">
-						<button class="btn primary" type="submit" disabled={!!busy}
-							>{label(s, 'approve', 'Approve and create workspace', 'Approving…')}</button
-						>
-						<button class="btn" type="button" disabled={!!busy} onclick={() => enter('view', s)}
-							>Cancel</button
-						>
+						<button class="btn primary" type="submit" disabled={!!busy}>
+							{label(s, 'approve', 'Approve and create workspace', 'Approving…')}
+						</button>
+						<button class="btn" type="button" disabled={!!busy} onclick={() => enter('view', s)}>
+							Cancel
+						</button>
 					</div>
 				</form>
 			{:else if mode === 'reject'}
@@ -823,12 +835,12 @@
 					</div>
 					{#if fault}{@render faultBox(fault)}{/if}
 					<div class="row">
-						<button class="btn danger" type="submit" disabled={!!busy}
-							>{label(s, 'reject', 'Reject signup', 'Rejecting…')}</button
-						>
-						<button class="btn" type="button" disabled={!!busy} onclick={() => enter('view', s)}
-							>Cancel</button
-						>
+						<button class="btn danger" type="submit" disabled={!!busy}>
+							{label(s, 'reject', 'Reject signup', 'Rejecting…')}
+						</button>
+						<button class="btn" type="button" disabled={!!busy} onclick={() => enter('view', s)}>
+							Cancel
+						</button>
 					</div>
 				</form>
 			{:else if mode === 'remove'}
@@ -844,9 +856,9 @@
 						<p class="note">This cannot be undone from here.</p>
 					</div>
 					<div class="field">
-						<label for="remove-confirm"
-							>Type the workspace slug <code class="mono">{s.tenant_slug ?? '…'}</code> to confirm</label
-						>
+						<label for="remove-confirm">
+							Type the workspace slug <code class="mono">{s.tenant_slug ?? '…'}</code> to confirm
+						</label>
 						<input
 							id="remove-confirm"
 							class="input mono"
@@ -861,11 +873,12 @@
 							class="btn danger"
 							type="submit"
 							disabled={!!busy || !removalConfirmed(confirmInput, s.tenant_slug)}
-							>{label(s, 'remove', 'Remove workspace', 'Removing…')}</button
 						>
-						<button class="btn" type="button" disabled={!!busy} onclick={() => enter('view', s)}
-							>Cancel</button
-						>
+							{label(s, 'remove', 'Remove workspace', 'Removing…')}
+						</button>
+						<button class="btn" type="button" disabled={!!busy} onclick={() => enter('view', s)}>
+							Cancel
+						</button>
 					</div>
 				</form>
 			{:else if mode === 'retry'}
@@ -877,12 +890,12 @@
 					</p>
 					{#if fault}{@render faultBox(fault)}{/if}
 					<div class="row">
-						<button class="btn primary" type="button" disabled={!!busy} onclick={() => retry(s, true)}
-							>{label(s, 'retry', 'Retry failed steps', 'Retrying…')}</button
-						>
-						<button class="btn" type="button" disabled={!!busy} onclick={() => enter('view', s)}
-							>Cancel</button
-						>
+						<button class="btn primary" type="button" disabled={!!busy} onclick={() => retry(s, true)}>
+							{label(s, 'retry', 'Retry failed steps', 'Retrying…')}
+						</button>
+						<button class="btn" type="button" disabled={!!busy} onclick={() => enter('view', s)}>
+							Cancel
+						</button>
 					</div>
 				</div>
 			{:else}
@@ -893,19 +906,22 @@
 							class="btn primary"
 							type="button"
 							disabled={!!busy || s.approving}
-							onclick={() => enter('approve', s)}>Approve…</button
+							onclick={() => enter('approve', s)}
 						>
-						<button class="btn" type="button" disabled={!!busy} onclick={() => enter('reject', s)}
-							>Reject…</button
-						>
+							Approve…
+						</button>
+						<button class="btn" type="button" disabled={!!busy} onclick={() => enter('reject', s)}>
+							Reject…
+						</button>
 					{:else if canRetry(s)}
 						<button
 							class="btn"
 							type="button"
 							disabled={!!busy}
 							onclick={() => (uncertainEmail(s) ? enter('retry', s) : retry(s, true))}
-							>{label(s, 'retry', uncertainEmail(s) ? 'Retry…' : 'Retry failed steps', 'Retrying…')}</button
 						>
+							{label(s, 'retry', uncertainEmail(s) ? 'Retry…' : 'Retry failed steps', 'Retrying…')}
+						</button>
 					{/if}
 					{#if canRemove(s)}
 						<button
@@ -914,8 +930,10 @@
 							data-testid="signup-remove"
 							disabled={!!busy || !s.tenant_slug}
 							title={s.tenant_slug ? '' : 'Loading the workspace slug…'}
-							onclick={() => enter('remove', s)}>Remove…</button
+							onclick={() => enter('remove', s)}
 						>
+							Remove…
+						</button>
 					{/if}
 					{#if canRetryRemoval(s)}
 						<button
@@ -924,8 +942,9 @@
 							data-testid="removal-retry"
 							disabled={!!busy}
 							onclick={() => retryRemoval(s)}
-							>{label(s, 'removal_retry', 'Retry removal', 'Retrying…')}</button
 						>
+							{label(s, 'removal_retry', 'Retry removal', 'Retrying…')}
+						</button>
 					{/if}
 					<button class="btn" type="button" onclick={() => readDetail(s.id)}>Reload</button>
 				</div>
@@ -968,9 +987,9 @@
 				placeholder={inv.company || inv.name || 'From the company or name'}
 				{...faultAttrs('tenantName')}
 			/>
-			{#if fieldMsg('tenantName')}<span class="field-err" id="inv-err-tenantName"
-					>{fieldMsg('tenantName')}</span
-				>{/if}
+			{#if fieldMsg('tenantName')}<span class="field-err" id="inv-err-tenantName">
+					{fieldMsg('tenantName')}
+				</span>{/if}
 		</div>
 		<div class="field">
 			<label for="inv-locale">Email language</label>
@@ -986,9 +1005,9 @@
 		</p>
 		{#if inviteError && !inviteError.field}{@render faultBox(inviteError)}{/if}
 		<div class="row">
-			<button class="btn primary" type="submit" disabled={inviting}
-				>{inviting ? 'Creating workspace and sending…' : 'Create workspace and send invite'}</button
-			>
+			<button class="btn primary" type="submit" disabled={inviting}>
+				{inviting ? 'Creating workspace and sending…' : 'Create workspace and send invite'}
+			</button>
 		</div>
 	</form>
 </Drawer>
