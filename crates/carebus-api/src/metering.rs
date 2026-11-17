@@ -410,7 +410,11 @@ pub fn spawn_drainer(st: AppState) -> Option<tokio::task::JoinHandle<()>> {
     Some(tokio::spawn(async move {
         let conn = loop {
             let c = match redis::Client::open(st.cfg.metering.redis_url.as_str()) {
-                Ok(client) => redis::aio::ConnectionManager::new(client).await,
+                Ok(client) => {
+                    let cfg = redis::aio::ConnectionManagerConfig::new()
+                        .set_response_timeout(Some(carebus::bus::RESPONSE_TIMEOUT));
+                    redis::aio::ConnectionManager::new_with_config(client, cfg).await
+                }
                 Err(e) => Err(e),
             };
             match c {
