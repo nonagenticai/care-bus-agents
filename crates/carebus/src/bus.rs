@@ -8,7 +8,7 @@ use std::future::Future;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result};
-use redis::aio::{ConnectionManager, MultiplexedConnection};
+use redis::aio::{ConnectionManager, ConnectionManagerConfig, MultiplexedConnection};
 use redis::streams::{
     StreamAutoClaimReply, StreamId, StreamInfoGroupsReply, StreamPendingCountReply, StreamReadReply,
 };
@@ -189,10 +189,16 @@ pub struct Bus {
     scope: Option<Scope>,
 }
 
+/// Per-command Redis response budget. The `redis` crate defaults to 500 ms, which a cross-site round trip
+/// (mf1 → worker3) exceeds often enough to fail ~0.5% of the 5 s deadline sweep. Bounded on purpose: long
+/// enough to absorb uplink jitter, short enough that a real stall still shows.
+pub const RESPONSE_TIMEOUT: Duration = Duration::from_secs(2);
+
 impl Bus {
     pub async fn connect(url: &str, prefix: &str) -> Result<Self> {
         let client = Client::open(url).with_context(|| format!("bad redis url {url}"))?;
-        let conn = ConnectionManager::new(client.clone())
+        let cfg = ConnectionManagerConfig::new().set_response_timeout(Some(RESPONSE_TIMEOUT));
+        let conn = ConnectionManager::new_with_config(client.clone(), cfg)
             .await
             .with_context(|| format!("connect {url}"))?;
         Ok(Self {
