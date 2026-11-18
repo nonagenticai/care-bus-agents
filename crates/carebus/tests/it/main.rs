@@ -13,6 +13,7 @@ mod live_vllm;
 mod mcp_http;
 mod mcp_tasks;
 mod procedures_http;
+mod reconnect;
 mod router_identity;
 mod spaces_http;
 mod supervisor;

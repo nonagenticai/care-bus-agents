@@ -12,22 +12,22 @@ anyhow = "1.0.104"
 base64 = "0.23.1"
 futures-util = "0.3.34"
 hex = "0.4.3"
-redis = { version = "1.7.1", features = ["tokio-comp", "streams", "aio", "connection-manager"] }
+redis = { version = "1.8.2", features = ["tokio-comp", "streams", "aio", "connection-manager"] }
 reqwest = { version = "0.13.5", features = ["json", "form", "query"] }
 rig-agent = "0.46.0"
 rig-core = { version = "0.46.0", features = ["reqwest"] }
 rig-reqwest = "0.46.0"
-rmcp = { version = "3.9.0", default-features = false, features = ["client", "reqwest", "transport-streamable-http-client-reqwest"] }
+rmcp = { version = "3.11.0", default-features = false, features = ["client", "reqwest", "transport-streamable-http-client-reqwest"] }
 schemars = "1"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
-sha2 = "0.10.9"
-sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "uuid"] }
+sha2 = "0.11.1"
+sqlx = { version = "0.9.1", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "uuid"] }
 thiserror = "2.0.21"
 tokio = { version = "1", features = ["full"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
-uuid = { version = "1.28.0", features = ["v4", "serde"] }
+uuid = { version = "1.29.3", features = ["v4", "serde"] }
 
 [dev-dependencies]
 axum = "0.8.9"
