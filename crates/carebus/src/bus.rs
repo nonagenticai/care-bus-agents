@@ -190,9 +190,13 @@ pub struct Bus {
 }
 
 /// Per-command Redis response budget. The `redis` crate defaults to 500 ms, which a cross-site round trip
-/// (mf1 → worker3) exceeds often enough to fail ~0.5% of the 5 s deadline sweep. Bounded on purpose: long
-/// enough to absorb uplink jitter, short enough that a real stall still shows.
-pub const RESPONSE_TIMEOUT: Duration = Duration::from_secs(2);
+/// (home site → worker3) exceeds often enough to fail ~0.5% of the 5 s deadline sweep. 10 s because the
+/// stall that matters is not a slow command but a whole-tunnel re-handshake: on hp1 (2026-11-18) a
+/// tailscale0 queue stall dropped every cross-site packet for several seconds at a time, and both the
+/// Redis sweeps and agent-api's Postgres pool timed out together while the Redis server itself was idle
+/// and healthy. Sweeps are lease-based and idempotent, so a late reply is safe; the budget only has to
+/// outlast the stall. Bounded on purpose — a real outage still surfaces, just 10 s later.
+pub const RESPONSE_TIMEOUT: Duration = Duration::from_secs(10);
 
 impl Bus {
     pub async fn connect(url: &str, prefix: &str) -> Result<Self> {
