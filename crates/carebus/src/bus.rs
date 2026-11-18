@@ -198,6 +198,42 @@ pub struct Bus {
 /// outlast the stall. Bounded on purpose — a real outage still surfaces, just 10 s later.
 pub const RESPONSE_TIMEOUT: Duration = Duration::from_secs(10);
 
+/// Bound on establishing the blocking consumer's own connection: a stalled tunnel breaks the connect too.
+pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// Slack above one `BLOCK` window for the blocking read. A live block returns within [`ConsumeOptions::block`]; a
+/// black-holed connection does not return at all, and without a bound the consumer waits for the kernel's
+/// retransmission timeout (~15 min on Linux) with no error, no reconnect and no log.
+pub const CONSUME_MARGIN: Duration = Duration::from_secs(10);
+
+/// First reconnect delay after a transport failure. Doubles per attempt, capped by [`RETRY_MAX`], and carries
+/// jitter so consumers that lost the same tunnel together do not reconnect as one wave.
+pub const RETRY_BASE: Duration = Duration::from_secs(1);
+/// Ceiling on the reconnect delay: a recovered tunnel is retried at least twice a minute.
+pub const RETRY_MAX: Duration = Duration::from_secs(30);
+
+/// `true` for the failures a stalled tunnel produces (I/O, connect and response timeouts) and `false` for the ones
+/// a retry cannot fix (a wrong password, a wrong key type, an unscoped bus). Only the former are retried.
+fn is_transport(e: &anyhow::Error) -> bool {
+    e.chain().any(|c| {
+        c.downcast_ref::<redis::RedisError>()
+            .is_some_and(|r| r.is_io_error() || r.is_timeout())
+    })
+}
+
+/// The delay before reconnect attempt `attempt` (1-based): [`RETRY_BASE`] doubled per attempt up to [`RETRY_MAX`],
+/// plus up to a quarter of that in jitter taken from the clock (no extra dependency).
+fn retry_delay(attempt: u32) -> Duration {
+    let factor = 1u32 << attempt.saturating_sub(1).min(5);
+    let base = RETRY_BASE.saturating_mul(factor).min(RETRY_MAX);
+    let span = u64::try_from(base.as_millis() / 4).unwrap_or(1).max(1);
+    let jitter = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| u64::from(d.subsec_nanos()))
+        % span;
+    base + Duration::from_millis(jitter)
+}
+
 impl Bus {
     pub async fn connect(url: &str, prefix: &str) -> Result<Self> {
         let client = Client::open(url).with_context(|| format!("bad redis url {url}"))?;
@@ -369,6 +405,10 @@ impl Bus {
 
     /// Consume `stream` as `consumer` in `group` until the task is dropped.
     /// `Ok` acks the entry; `Err` leaves it pending for redelivery.
+    ///
+    /// A transport failure (a stalled tunnel, or a connection the peer closed) is not returned: the session is
+    /// rebuilt with capped, jittered backoff, so one stream's dead connection cannot take down the pod's other
+    /// consumers through `consume_all`'s `try_join_all`. Only an error a retry cannot fix is returned.
     pub async fn consume<F, Fut>(
         &self,
         stream: &str,
@@ -381,11 +421,58 @@ impl Bus {
         F: Fn(Envelope) -> Fut,
         Fut: Future<Output = Result<()>>,
     {
+        let mut attempt = 0u32;
+        loop {
+            let started = tokio::time::Instant::now();
+            match self
+                .consume_session(stream, group, consumer, &opts, &handler)
+                .await
+            {
+                Ok(()) => return Ok(()),
+                Err(e) if is_transport(&e) => {
+                    // A session that stayed up was healthy: start the backoff over instead of waiting the cap.
+                    if started.elapsed() >= RETRY_MAX {
+                        attempt = 0;
+                    }
+                    attempt = attempt.saturating_add(1);
+                    let delay = retry_delay(attempt);
+                    tracing::warn!(
+                        stream,
+                        group,
+                        consumer,
+                        attempt,
+                        delay_ms = delay.as_millis(),
+                        "redis transport error; reconnecting: {e:#}"
+                    );
+                    tokio::time::sleep(delay).await;
+                }
+                Err(e) => return Err(e),
+            }
+        }
+    }
+
+    /// One reader connection's lifetime: `ensure_group`, then the blocking read loop. Returns only on an error
+    /// (the caller decides whether to retry) or when the task is dropped.
+    async fn consume_session<F, Fut>(
+        &self,
+        stream: &str,
+        group: &str,
+        consumer: &str,
+        opts: &ConsumeOptions,
+        handler: &F,
+    ) -> Result<()>
+    where
+        F: Fn(Envelope) -> Fut,
+        Fut: Future<Output = Result<()>>,
+    {
         self.ensure_group(stream, group).await?;
         // A blocking read needs its own connection: on a shared multiplexed
-        // connection BLOCK stalls every other command, and the default 500 ms
-        // response timeout would cut the block short.
-        let cfg = AsyncConnectionConfig::new().set_response_timeout(None);
+        // connection BLOCK stalls every other command. Bounded on purpose, not
+        // unbounded: one BLOCK window plus a margin, so a black-holed tunnel
+        // errors and reconnects instead of parking the consumer until the kernel gives up.
+        let cfg = AsyncConnectionConfig::new()
+            .set_connection_timeout(Some(CONNECT_TIMEOUT))
+            .set_response_timeout(Some(opts.block + CONSUME_MARGIN));
         let mut reader: MultiplexedConnection = self
             .client
             .get_multiplexed_async_connection_with_config(&cfg)
@@ -402,7 +489,7 @@ impl Bus {
                 .query_async(&mut reader)
                 .await?;
             for entry in &claimed.claimed {
-                self.process(stream, group, entry, &opts, &handler).await?;
+                self.process(stream, group, entry, opts, handler).await?;
             }
             let read: Option<StreamReadReply> = redis::cmd("XREADGROUP")
                 .arg("GROUP")
@@ -419,7 +506,7 @@ impl Bus {
                 .await?;
             for key in read.map(|r| r.keys).unwrap_or_default() {
                 for entry in &key.ids {
-                    self.process(stream, group, entry, &opts, &handler).await?;
+                    self.process(stream, group, entry, opts, handler).await?;
                 }
             }
         }
