@@ -19,25 +19,25 @@ futures-util = "0.3.34"
 hex = "0.4.3"
 jsonwebtoken = { version = "12.0.0", features = ["rust_crypto"] }
 quick-xml = "0.42.0"
-redis = { version = "1.7.1", features = ["tokio-comp", "streams", "aio", "connection-manager"] }
+redis = { version = "1.8.2", features = ["tokio-comp", "streams", "aio", "connection-manager"] }
 # Gate prechecks (admin-set patterns run before laya is asked).
-regex = "1.13.1"
+regex = "1.13.2"
 reqwest = { version = "0.13.5", features = ["json", "multipart", "form"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
-sha2 = "0.10.9"
+sha2 = "0.11.1"
 subtle = "2.6.1"
-sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "uuid", "chrono", "migrate", "macros", "json"] }
+sqlx = { version = "0.9.1", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "uuid", "chrono", "migrate", "macros", "json"] }
 thiserror = "2.0.21"
-tokio = { version = "1.53.3", features = ["full"] }
+tokio = { version = "1.54.1", features = ["full"] }
 tower-http = { version = "0.7.1", features = ["cors", "trace"] }
 tracing = "0.1.44"
-uuid = { version = "1.28.0", features = ["v4", "serde"] }
+uuid = { version = "1.29.3", features = ["v4", "serde"] }
 # XLSX column preview. Read-only deflate via zlib-rs; zip <9.0.3 is yanked (security advisories).
-zip = { version = "9.0.5", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+zip = { version = "9.7.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 
 [dev-dependencies]
-libc = "0.2.190"
+libc = "0.2.191"
 rsa = { version = "0.10.0", features = ["std"] }
 http-body-util = "0.1.5"
 testcontainers-modules = { version = "0.15.0", features = ["postgres"] }
