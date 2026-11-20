@@ -86,15 +86,16 @@ jobs:
           rustup show
           rustc --version
 
-      - uses: actions/cache@v6
+      # The cold cost of this job is compiling the DEPENDENCY graph, so cache target/ too, not
+      # just the registry. The shared-key matches preflight.yml, so a lane restores what main
+      # saved; save-if is main-only because a branch's entry would be restored by nothing and
+      # would only evict main's. env-vars folds the debug profile into the key.
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
-          # Registry only: target/ is multi-gigabyte and would thrash the 10 GB cache budget.
-          path: |
-            ~/.cargo/registry/index
-            ~/.cargo/registry/cache
-            ~/.cargo/git/db
-          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: cargo-${{ runner.os }}-
+          prefix-key: v1-rust
+          shared-key: carebus
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+          env-vars: CARGO_PROFILE_DEV_DEBUG
 
       - name: start Redis
         run: |
@@ -156,14 +157,16 @@ jobs:
           rustup show
           rustc --version
 
-      - uses: actions/cache@v6
+      # The cold cost of this job is compiling the DEPENDENCY graph, so cache target/ too, not
+      # just the registry. The shared-key matches preflight.yml, so a lane restores what main
+      # saved; save-if is main-only because a branch's entry would be restored by nothing and
+      # would only evict main's. env-vars folds the debug profile into the key.
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
-          path: |
-            ~/.cargo/registry/index
-            ~/.cargo/registry/cache
-            ~/.cargo/git/db
-          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: cargo-${{ runner.os }}-
+          prefix-key: v1-rust
+          shared-key: carebus
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+          env-vars: CARGO_PROFILE_DEV_DEBUG
 
       # ⛔ Both storage choices below are load-bearing and they are different resources.
       #   --shm-size: Docker's default /dev/shm is 64 MB and Postgres parallel workers allocate
@@ -222,14 +225,16 @@ jobs:
           rustup show
           rustc --version
 
-      - uses: actions/cache@v6
+      # The cold cost of this job is compiling the DEPENDENCY graph, so cache target/ too, not
+      # just the registry. The shared-key matches preflight.yml, so a lane restores what main
+      # saved; save-if is main-only because a branch's entry would be restored by nothing and
+      # would only evict main's. env-vars folds the debug profile into the key.
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
-          path: |
-            ~/.cargo/registry/index
-            ~/.cargo/registry/cache
-            ~/.cargo/git/db
-          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: cargo-${{ runner.os }}-
+          prefix-key: v1-rust
+          shared-key: carebus
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+          env-vars: CARGO_PROFILE_DEV_DEBUG
 
       - name: start Postgres 18
         run: |
@@ -325,8 +330,21 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # Layer cache on the GHA backend: each package job is otherwise a cold full build. The
+      # cache is EXPORTED on main only (a PR or lane run restores, never writes), so branches
+      # cannot evict the entry main produced.
+      - uses: docker/setup-buildx-action@v3
+
       - name: build
-        run: docker build --file Dockerfile.rust --build-arg PACKAGE=${{ matrix.package }} --tag "$IMG" .
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.rust
+          build-args: PACKAGE=${{ matrix.package }}
+          tags: ${{ env.IMG }}
+          load: true
+          cache-from: type=gha,scope=image-rust
+          cache-to: ${{ github.ref == 'refs/heads/main' && 'type=gha,scope=image-rust,mode=max' || '' }}
 
       - name: smoke
         run: docker run --rm --entrypoint sh "$IMG" -c '${{ matrix.smoke }}'
