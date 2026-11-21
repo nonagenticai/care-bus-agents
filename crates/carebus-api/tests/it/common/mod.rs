@@ -93,7 +93,7 @@ extern "C" fn drop_scratch_at_exit() {
     else {
         return;
     };
-    let _ = rt.block_on(async {
+    rt.block_on(async {
         let _ = tokio::time::timeout(
             std::time::Duration::from_secs(5),
             drop_scratch_databases(base, &names),
