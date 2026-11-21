@@ -1,8 +1,10 @@
 #![allow(dead_code)]
+mod latency;
 use std::time::{Duration, Instant};
 
 use carebus::Scope;
 use carebus::bus::{Bus, ConsumeOptions, Envelope};
+pub use latency::{DelayProxy, delay_proxy};
 use redis::streams::StreamRangeReply;
 
 pub fn fast() -> ConsumeOptions {
@@ -10,6 +12,7 @@ pub fn fast() -> ConsumeOptions {
         batch: 16,
         block: Duration::from_millis(100),
         reclaim_idle: Duration::from_millis(300),
+        reclaim_every: Duration::from_millis(100),
         max_deliveries: 3,
     }
 }
