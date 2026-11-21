@@ -1134,6 +1134,13 @@ impl<L: Llm, T: ToolSet, R: Resolver> Runner<L, T, R> {
 
     async fn verify(&self, s: RunScope, profile: Profile) -> Result<Outcome> {
         let input = store::load_verify_input(&self.db, s).await?;
+        let prepared = verify::PreparedSteps::new(
+            &input.steps,
+            input
+                .citations
+                .iter()
+                .filter_map(|c| c.citation.step_ordinal),
+        );
         let mut verdicts: Vec<(Uuid, Verdict)> = vec![];
         for c in &input.citations {
             let Some(hb) = store::renew(&self.db, s, &self.cfg.owner, self.cfg.lease_s).await?
@@ -1144,8 +1151,14 @@ impl<L: Llm, T: ToolSet, R: Resolver> Runner<L, T, R> {
             if hb.cancel_requested {
                 return self.cancelled(s).await;
             }
-            let v =
-                verify::verify_citation(s.tenant, &c.citation, &input.steps, &*self.resolver).await;
+            let v = verify::verify_citation_prepared(
+                s.tenant,
+                &c.citation,
+                &input.steps,
+                &prepared,
+                &*self.resolver,
+            )
+            .await;
             verdicts.push((c.id, v));
         }
         let by_id: HashMap<Uuid, (&CitationIn, &Verdict)> = input
