@@ -114,16 +114,72 @@ fn header(cells: Vec<String>) -> Vec<String> {
     out
 }
 
+/// One input row in its source form: CSV fields stay raw bytes until a preview cell needs the text, so
+/// scanning a large file for its row count costs no `String` per field; XLSX rows arrive as cells
+/// already and behave as before.
+enum Row {
+    Bytes(csv::ByteRecord),
+    Cells(Vec<String>),
+}
+
+impl Row {
+    /// Every field (or cell) is empty or whitespace.
+    fn is_blank(&self) -> bool {
+        match self {
+            Self::Bytes(r) => r
+                .iter()
+                .all(|f| String::from_utf8_lossy(f).trim().is_empty()),
+            Self::Cells(r) => r.iter().all(|c| c.trim().is_empty()),
+        }
+    }
+
+    /// Number of fields / cells.
+    fn width(&self) -> usize {
+        match self {
+            Self::Bytes(r) => r.len(),
+            Self::Cells(r) => r.len(),
+        }
+    }
+
+    /// The preview cells: CSV fields decoded, resized to `width` when the header fixes it, each cut to
+    /// [`MAX_CELL_BYTES`].
+    fn into_cells(self, width: Option<usize>) -> Vec<String> {
+        let mut cells = match self {
+            Self::Bytes(r) => r
+                .iter()
+                .map(|f| {
+                    note_csv_field_materialised();
+                    String::from_utf8_lossy(f).into_owned()
+                })
+                .collect::<Vec<_>>(),
+            Self::Cells(c) => c,
+        };
+        if let Some(w) = width {
+            cells.resize(w, String::new());
+        }
+        cells.iter_mut().for_each(cut_owned);
+        cells
+    }
+}
+
+#[cfg(test)]
+thread_local! { static CSV_FIELDS_MATERIALISED: Cell<usize> = const { Cell::new(0) }; }
+#[cfg(test)]
+fn note_csv_field_materialised() {
+    CSV_FIELDS_MATERIALISED.with(|n| n.set(n.get() + 1));
+}
+#[cfg(not(test))]
+fn note_csv_field_materialised() {}
+
 /// Streams the rows once and skips blank rows. With `header_row` the first non-blank row is the header;
 /// without it every row is data and the columns are `column_1..N`, N the widest row in the whole file (strata_ingest
 /// names every row's cells `column_N`, so a wider row past the sample still has its column). Every data
 /// row is counted and at most `MAX_SAMPLE_ROWS` are kept. Memory stays bounded whatever the input size.
 fn finish(
     format: TableFormat,
-    mut rows: impl Iterator<Item = Result<Vec<String>, PreviewError>>,
+    mut rows: impl Iterator<Item = Result<Row, PreviewError>>,
     header_row: bool,
 ) -> Result<ColumnPreview, PreviewError> {
-    let blank = |r: &Vec<String>| r.iter().all(|c| c.trim().is_empty());
     if !header_row {
         let (sample_rows, row_count, width) = data_rows(rows, None)?;
         if row_count == 0 {
@@ -150,17 +206,16 @@ fn finish(
     let mut head = None;
     for r in rows.by_ref() {
         let r = r?;
-        if !blank(&r) {
+        if !r.is_blank() {
             head = Some(r);
             break;
         }
     }
-    let mut head = head.ok_or(PreviewError::Empty)?;
-    if head.len() > MAX_COLUMNS {
+    let head = head.ok_or(PreviewError::Empty)?;
+    if head.width() > MAX_COLUMNS {
         return Err(PreviewError::TooManyColumns);
     }
-    head.iter_mut().for_each(cut_owned);
-    let columns = header(head);
+    let columns = header(head.into_cells(None));
     let (sample_rows, row_count, _) = data_rows(rows, Some(columns.len()))?;
     Ok(ColumnPreview {
         format,
@@ -173,26 +228,21 @@ fn finish(
 /// The non-blank rows: all counted, the first `MAX_SAMPLE_ROWS` kept with their cells cut, and padded or
 /// truncated to `width` when the header fixes it.
 fn data_rows(
-    rows: impl Iterator<Item = Result<Vec<String>, PreviewError>>,
+    rows: impl Iterator<Item = Result<Row, PreviewError>>,
     width: Option<usize>,
 ) -> Result<(Vec<Vec<String>>, u64, usize), PreviewError> {
-    let blank = |r: &Vec<String>| r.iter().all(|c| c.trim().is_empty());
     let mut sample_rows = Vec::new();
     let mut row_count = 0u64;
     let mut widest = 0usize;
     for r in rows {
-        let mut r = r?;
-        if blank(&r) {
+        let r = r?;
+        if r.is_blank() {
             continue;
         }
         row_count += 1;
-        widest = widest.max(r.len());
+        widest = widest.max(r.width());
         if sample_rows.len() < MAX_SAMPLE_ROWS {
-            if let Some(w) = width {
-                r.resize(w, String::new());
-            }
-            r.iter_mut().for_each(cut_owned);
-            sample_rows.push(r);
+            sample_rows.push(r.into_cells(width));
         }
     }
     Ok((sample_rows, row_count, widest))
@@ -225,10 +275,7 @@ pub fn preview_csv(bytes: &[u8], header_row: bool) -> Result<ColumnPreview, Prev
         if rec.len() > MAX_COLUMNS {
             return Err(PreviewError::TooManyColumns);
         }
-        Ok(rec
-            .iter()
-            .map(|f| String::from_utf8_lossy(f).into_owned())
-            .collect::<Vec<_>>())
+        Ok(Row::Bytes(rec))
     });
     finish(TableFormat::Csv, rows, header_row)
 }
@@ -594,14 +641,14 @@ impl SheetRows<'_, '_> {
 }
 
 impl Iterator for SheetRows<'_, '_> {
-    type Item = Result<Vec<String>, PreviewError>;
+    type Item = Result<Row, PreviewError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.done {
             return None;
         }
         match self.next_row() {
-            Ok(Some(r)) => Some(Ok(r)),
+            Ok(Some(r)) => Some(Ok(Row::Cells(r))),
             Ok(None) => {
                 self.done = true;
                 None
@@ -812,6 +859,20 @@ mod tests {
         assert_eq!(p.row_count, 200_000);
         assert_eq!(p.sample_rows.len(), 5);
         assert_eq!(p.sample_rows[0], ["0", "x"]);
+    }
+
+    #[test]
+    fn csv_cells_are_materialised_only_for_the_header_and_samples() {
+        let mut csv = String::from("h0,h1,h2,h3,h4\n");
+        for i in 0..10_000 {
+            csv.push_str(&format!("r{i}c0,r{i}c1,r{i}c2,r{i}c3,r{i}c4\n"));
+        }
+        CSV_FIELDS_MATERIALISED.with(|n| n.set(0));
+        let p = preview_csv(csv.as_bytes(), true).unwrap();
+        let materialised = CSV_FIELDS_MATERIALISED.with(Cell::get);
+        CSV_FIELDS_MATERIALISED.with(|n| n.set(0));
+        assert_eq!(p.row_count, 10_000);
+        assert_eq!(materialised, (MAX_SAMPLE_ROWS + 1) * 5);
     }
 
     #[test]

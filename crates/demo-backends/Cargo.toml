@@ -28,5 +28,6 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json"] }
 
 [dev-dependencies]
 http-body-util = "0.1.5"
+libc = "0.2.191"
 testcontainers-modules = { version = "0.15.0", features = ["postgres"] }
 tower = { version = "0.5", features = ["util"] }

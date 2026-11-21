@@ -56,6 +56,12 @@ struct Server {
 static SERVER: OnceCell<Server> = OnceCell::const_new();
 static CONTAINER_ID: std::sync::OnceLock<String> = std::sync::OnceLock::new();
 
+/// The scratch databases this process created on a shared `TEST_DATABASE_URL` server, and that server's URL.
+/// `drop_scratch_at_exit` drops them when the process exits normally.
+static SCRATCH_DBS: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+static SCRATCH_BASE: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+static CLEANUP_REGISTERED: std::sync::Once = std::sync::Once::new();
+
 /// Statics are never dropped and the harness runs no reaper, so remove the shared container when the process exits.
 extern "C" fn remove_container() {
     if let Some(id) = CONTAINER_ID.get() {
@@ -65,6 +71,62 @@ extern "C" fn remove_container() {
             .stderr(std::process::Stdio::null())
             .status();
     }
+}
+
+/// A shared `TEST_DATABASE_URL` server outlives every test process, so drop this process's scratch databases when it
+/// exits normally. The real limit: a SIGKILLed process (or a harness that kills a hung test) still leaves its
+/// databases behind; nothing in the process runs then.
+extern "C" fn drop_scratch_at_exit() {
+    let names: Vec<String> = match SCRATCH_DBS.lock() {
+        Ok(v) => v.clone(),
+        Err(_) => return,
+    };
+    if names.is_empty() {
+        return;
+    }
+    let Some(base) = SCRATCH_BASE.get() else {
+        return;
+    };
+    let Ok(rt) = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+    else {
+        return;
+    };
+    rt.block_on(async {
+        let _ = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            drop_scratch_databases(base, &names),
+        )
+        .await;
+    });
+}
+
+/// Drops each of `names` on the server at `base`; returns how many were dropped. `WITH (FORCE)` evicts any backend
+/// still attached, so a test's pools that have not finished closing cannot block the drop.
+pub async fn drop_scratch_databases(base: &str, names: &[String]) -> usize {
+    let pool = match sqlx::postgres::PgPoolOptions::new()
+        .max_connections(1)
+        .acquire_timeout(std::time::Duration::from_secs(2))
+        .connect(base)
+        .await
+    {
+        Ok(pool) => pool,
+        Err(e) => {
+            eprintln!("scratch database cleanup: cannot connect to {base}: {e}");
+            return 0;
+        }
+    };
+    let mut dropped = 0;
+    for name in names {
+        let sql = format!("DROP DATABASE IF EXISTS \"{name}\" WITH (FORCE)");
+        match sqlx::query(sqlx::AssertSqlSafe(sql)).execute(&pool).await {
+            Ok(_) => dropped += 1,
+            Err(e) => eprintln!("scratch database cleanup: dropping {name} failed: {e}"),
+        }
+    }
+    pool.close().await;
+    dropped
 }
 
 async fn start_container() -> (String, ContainerAsync<Postgres>) {
@@ -122,6 +184,13 @@ async fn server() -> &'static Server {
                 && !base.is_empty()
             {
                 ensure_app_role(&base).await;
+                // This server outlives the process, so its scratch databases need an exit hook; the container
+                // path below needs none, because `docker rm -v` takes its databases with it.
+                let _ = SCRATCH_BASE.set(base.clone());
+                CLEANUP_REGISTERED.call_once(|| {
+                    // SAFETY: registering a plain `extern "C" fn()` with atexit.
+                    unsafe { libc::atexit(drop_scratch_at_exit) };
+                });
                 return Server {
                     base,
                     _container: None,
@@ -139,6 +208,11 @@ async fn server() -> &'static Server {
             }
         })
         .await
+}
+
+/// The shared server's URL, for harness self-tests that create and drop a database on their own.
+pub async fn server_base() -> &'static str {
+    &server().await.base
 }
 
 /// The runtime role's test-only password. Production creates `carebus_app` LOGIN through the gitops provisioning
@@ -221,6 +295,9 @@ async fn database() -> String {
         .await
         .expect("create test database");
     admin.close().await;
+    if let Ok(mut names) = SCRATCH_DBS.lock() {
+        names.push(name.clone());
+    }
     with_db_name(&srv.base, &name)
 }
 
