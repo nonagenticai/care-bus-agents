@@ -180,13 +180,16 @@ async fn bus_attention(bus: &Bus) -> Vec<Value> {
     });
     let lag = bounded("consumer lag", async {
         let keys = ra::list_streams(bus).await?;
-        // The closure's argument needs its type spelled out: without it rustc infers a `FnOnce` that is
-        // only implemented for one lifetime ("not general enough").
-        let infos: Vec<_> =
-            futures_util::stream::iter(keys.iter().map(|k: &String| ra::stream_info(bus, k)))
-                .buffered(8)
-                .try_collect()
-                .await?;
+        // Build the probe futures in a loop, not a closure: rustc cannot prove a closure returning a
+        // future that borrows its argument is `FnOnce` for every lifetime ("not general enough").
+        let mut probes = Vec::with_capacity(keys.len());
+        for k in &keys {
+            probes.push(ra::stream_info(bus, k));
+        }
+        let infos: Vec<_> = futures_util::stream::iter(probes)
+            .buffered(8)
+            .try_collect()
+            .await?;
         Ok::<_, redis::RedisError>(keys.into_iter().zip(infos).collect::<Vec<_>>())
     });
     let (dead, lag) = tokio::join!(dead, lag);
