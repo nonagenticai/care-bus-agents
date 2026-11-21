@@ -179,10 +179,12 @@ extern "C" fn drop_scratch_at_exit() {
     else {
         return;
     };
-    let _ = rt.block_on(tokio::time::timeout(
-        Duration::from_secs(5),
-        drop_scratch_databases(base, &names),
-    ));
+    // The timeout must be created *inside* the runtime: `tokio::time::timeout` registers a timer, and
+    // constructing it before `block_on` panics with "there is no reactor running".
+    rt.block_on(async {
+        let _ = tokio::time::timeout(Duration::from_secs(5), drop_scratch_databases(base, &names))
+            .await;
+    });
 }
 
 pub fn test_config(url: &str) -> Config {
