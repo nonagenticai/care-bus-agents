@@ -363,6 +363,15 @@ impl Bus {
 
     /// XADD `env` stamped with this bus's scope. A root bus refuses.
     pub async fn publish(&self, stream: &str, env: &Envelope) -> Result<String> {
+        self.publish_with(stream, env, |_| {}).await
+    }
+
+    /// `publish` with `before`'s commands riding the same pipeline, so a state write and the entry that
+    /// announces it cost one round trip. Their replies are ignored; the XADD's id is the return value.
+    pub async fn publish_with<F>(&self, stream: &str, env: &Envelope, before: F) -> Result<String>
+    where
+        F: FnOnce(&mut redis::Pipeline),
+    {
         let scope = self.require_scope(&format!("XADD {stream}"))?;
         let mut env = env.clone();
         env.tenant_id = Some(scope.tenant);
@@ -370,17 +379,25 @@ impl Bus {
         let env = &env;
         let json = serde_json::to_string(env)?;
         let mut c = self.conn.clone();
-        let id: String = redis::cmd("XADD")
+        let mut pipe = redis::pipe();
+        before(&mut pipe);
+        pipe.cmd("XADD")
             .arg(stream)
             .arg("MAXLEN")
             .arg("~")
             .arg(self.maxlen)
             .arg("*")
             .arg("envelope")
-            .arg(&json)
+            .arg(&json);
+        let replies: Vec<redis::Value> = pipe
             .query_async(&mut c)
             .await
             .with_context(|| format!("XADD {stream}"))?;
+        let last = replies
+            .into_iter()
+            .next_back()
+            .ok_or_else(|| anyhow::anyhow!("XADD {stream}: empty pipeline reply"))?;
+        let id: String = redis::from_redis_value(last).with_context(|| format!("XADD {stream}"))?;
         // `acked` is false at XADD time; the recipient's XACK follows as a `kind: "ack"` frame (see `mirror_ack`).
         let group = self.streams.consumer_group(stream, &env.topic);
         let acked = group.as_ref().map(|_| false);

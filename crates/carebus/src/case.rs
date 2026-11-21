@@ -315,21 +315,30 @@ impl CaseStore {
         results_from(all)
     }
 
+    /// Queue the status write on a caller's pipeline, for folding it into another round trip.
+    pub fn queue_work_status(
+        &self,
+        pipe: &mut redis::Pipeline,
+        case_id: &str,
+        work_id: &str,
+        status: &Value,
+    ) {
+        pipe.cmd("HSET")
+            .arg(self.key(case_id))
+            .arg(format!("work:{work_id}"))
+            .arg(status.to_string());
+    }
+
     pub async fn set_work_status(
         &self,
         case_id: &str,
         work_id: &str,
         status: &Value,
     ) -> Result<()> {
-        let _: () = self
-            .bus
-            .conn()
-            .hset(
-                self.key(case_id),
-                format!("work:{work_id}"),
-                status.to_string(),
-            )
-            .await?;
+        let mut c = self.bus.conn();
+        let mut pipe = redis::pipe();
+        self.queue_work_status(&mut pipe, case_id, work_id, status);
+        let _: Vec<redis::Value> = pipe.query_async(&mut c).await?;
         Ok(())
     }
 

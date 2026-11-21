@@ -382,13 +382,19 @@ impl<A: ProcedureSource> Orchestrator<A> {
             request_type: req.request_type.clone(),
             side_effect: step.side_effect,
         };
-        self.cases
-            .set_work_status(&req.case_id, &work.work_id, &json!({"work_id": work.work_id, "worker": work.worker, "action": work.action, "attempt": attempt, "status": "outstanding"}))
-            .await?;
+        let status = json!({"work_id": work.work_id, "worker": work.worker, "action": work.action, "attempt": attempt, "status": "outstanding"});
         let env = Envelope::new(&req.topic(WORK_REQUESTED), NAME, &req.case_id, &work)?
             .with_procedure(procedure);
+        // The status write and the work entry share one pipeline: one round trip.
         self.bus
-            .publish(&self.bus.streams.worker(&req.area, &step.worker), &env)
+            .publish_with(
+                &self.bus.streams.worker(&req.area, &step.worker),
+                &env,
+                |pipe| {
+                    self.cases
+                        .queue_work_status(pipe, &req.case_id, &work.work_id, &status);
+                },
+            )
             .await?;
         Ok(())
     }

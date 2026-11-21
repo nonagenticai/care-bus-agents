@@ -143,10 +143,25 @@ impl<M: McpClient> ToolExecutor<M> {
                     .await?;
                 if claimed.is_some() {
                     let resp = self.execute(&call).await;
-                    let _: () = c
-                        .set_ex(&done, serde_json::to_string(&resp)?, 86_400)
+                    let payload = serde_json::to_string(&resp)?;
+                    let work = &call.work;
+                    let env = Envelope::new(
+                        &topic,
+                        &format!("mcp:{}", work.worker),
+                        &work.case_id,
+                        &resp,
+                    )?;
+                    // The stored response and the entry carrying it share one pipeline: one round trip.
+                    self.bus
+                        .publish_with(&self.bus.streams.tool(&work.worker), &env, |pipe| {
+                            pipe.cmd("SET")
+                                .arg(&done)
+                                .arg(payload)
+                                .arg("EX")
+                                .arg(86_400);
+                        })
                         .await?;
-                    resp
+                    return Ok(());
                 } else {
                     // Another replica is executing this call. Answer if it has finished;
                     // otherwise fail this delivery so the entry stays pending and a later
