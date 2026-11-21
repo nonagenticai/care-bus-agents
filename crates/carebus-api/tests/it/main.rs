@@ -13,6 +13,7 @@ mod demo;
 mod effective;
 mod events;
 mod gates;
+mod harness;
 mod health;
 mod ingest_proxy;
 mod knowledge_eval;

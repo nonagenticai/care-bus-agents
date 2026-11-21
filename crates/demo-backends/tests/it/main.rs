@@ -3,6 +3,7 @@ mod actions;
 mod admin;
 mod common;
 mod faults;
+mod harness;
 mod health_auth;
 mod reads;
 mod records;

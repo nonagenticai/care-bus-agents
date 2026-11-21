@@ -37,6 +37,11 @@ fn free_port() -> u16 {
 
 static DB_COUNTER: AtomicU64 = AtomicU64::new(0);
 
+/// Scratch databases this process created on a shared `TEST_DATABASE_URL` server, dropped at process exit.
+static SCRATCH_DBS: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+static SCRATCH_BASE: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+static CLEANUP_REGISTERED: std::sync::Once = std::sync::Once::new();
+
 impl TestDb {
     pub async fn start() -> TestDb {
         if let Ok(base) = std::env::var("TEST_DATABASE_URL")
@@ -94,6 +99,15 @@ impl TestDb {
             .await
             .expect("create test database");
         admin.close().await;
+        // A SIGKILLed process still leaves its databases: nothing runs at exit.
+        let _ = SCRATCH_BASE.set(base.to_string());
+        CLEANUP_REGISTERED.call_once(|| {
+            // SAFETY: registering a plain `extern "C" fn()` with atexit.
+            unsafe { libc::atexit(drop_scratch_at_exit) };
+        });
+        if let Ok(mut dbs) = SCRATCH_DBS.lock() {
+            dbs.push(name.clone());
+        }
         let url = with_db_name(base, &name);
         let pool = db::connect(&url)
             .await
@@ -122,6 +136,52 @@ fn with_db_name(url: &str, name: &str) -> String {
         Some(q) => format!("{base}/{name}?{q}"),
         None => format!("{base}/{name}"),
     }
+}
+
+/// Drop the given scratch databases on `base`, returning how many were dropped.
+pub async fn drop_scratch_databases(base: &str, names: &[String]) -> usize {
+    let pool = match sqlx::postgres::PgPoolOptions::new()
+        .max_connections(1)
+        .acquire_timeout(Duration::from_secs(2))
+        .connect(base)
+        .await
+    {
+        Ok(pool) => pool,
+        Err(e) => {
+            eprintln!("scratch database cleanup: cannot connect to {base}: {e}");
+            return 0;
+        }
+    };
+    let mut dropped = 0;
+    for name in names {
+        let sql = format!("DROP DATABASE IF EXISTS \"{name}\" WITH (FORCE)");
+        match sqlx::query(sqlx::AssertSqlSafe(sql)).execute(&pool).await {
+            Ok(_) => dropped += 1,
+            Err(e) => eprintln!("scratch database cleanup: {name}: {e}"),
+        }
+    }
+    pool.close().await;
+    dropped
+}
+
+/// Statics are never dropped and the harness runs no reaper, so drop this process's scratch databases at exit.
+extern "C" fn drop_scratch_at_exit() {
+    let Ok(names) = SCRATCH_DBS.lock().map(|dbs| dbs.clone()) else {
+        return;
+    };
+    let Some(base) = SCRATCH_BASE.get() else {
+        return;
+    };
+    let Ok(rt) = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+    else {
+        return;
+    };
+    let _ = rt.block_on(tokio::time::timeout(
+        Duration::from_secs(5),
+        drop_scratch_databases(base, &names),
+    ));
 }
 
 pub fn test_config(url: &str) -> Config {
