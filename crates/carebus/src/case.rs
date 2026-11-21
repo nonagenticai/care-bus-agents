@@ -58,6 +58,13 @@ end
 return redis.call('HGET', KEYS[1], 'resolution')
 "#;
 
+/// Write `resolved` and clear the deadline entry in one step, so a write that fails exits before the
+/// ZREM. KEYS: case hash, deadline zset. ARGV: outcome, case id.
+const MARK_RESOLVED: &str = r#"
+redis.call('HSETNX', KEYS[1], 'resolved', ARGV[1])
+return redis.call('ZREM', KEYS[2], ARGV[2])
+"#;
+
 /// Lease an overdue case: only if its score is due, push the score `lease` ms out and return 1.
 /// KEYS: deadline zset. ARGV: case id, now ms, lease ms.
 const LEASE_OVERDUE: &str = r#"
@@ -373,15 +380,16 @@ impl CaseStore {
             .await?)
     }
 
+    /// First outcome wins; the deadline is cleared only when the write did not fail. One round trip:
+    /// the Lua script aborts on a failed HSETNX before the ZREM.
     pub async fn mark_resolved(&self, case_id: &str, outcome: &str) -> Result<()> {
-        let mut c = self.bus.conn();
-        let mut pipe = redis::pipe();
-        pipe.cmd("HSETNX")
-            .arg(self.key(case_id))
-            .arg("resolved")
-            .arg(outcome);
-        pipe.cmd("ZREM").arg(self.deadline_key()).arg(case_id);
-        let _: Vec<redis::Value> = pipe.query_async(&mut c).await?;
+        let _: i64 = Script::new(MARK_RESOLVED)
+            .key(self.key(case_id))
+            .key(self.deadline_key())
+            .arg(outcome)
+            .arg(case_id)
+            .invoke_async(&mut self.bus.conn())
+            .await?;
         Ok(())
     }
 }

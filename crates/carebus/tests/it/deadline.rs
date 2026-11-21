@@ -326,3 +326,29 @@ fn an_envelope_without_procedure_deserializes() {
     .unwrap();
     assert_eq!(e.procedure, None);
 }
+
+/// A WRONGTYPE HSETNX must not clear the deadline: the script aborts before the ZREM.
+#[tokio::test]
+async fn a_failed_write_does_not_clear_the_deadline() {
+    let bus = bus("deadline-write-fail").await;
+    let cases = carebus::case::CaseStore::new(bus.clone());
+    let case = "CASE-W1";
+    let _: () = bus
+        .conn()
+        .set(bus.streams.key(&format!("case:{case}")), "not-a-hash")
+        .await
+        .unwrap();
+    let _: i64 = bus
+        .conn()
+        .zadd(bus.streams.key("cases:deadline"), case, 0)
+        .await
+        .unwrap();
+    assert!(
+        cases.mark_resolved(case, "completed").await.is_err(),
+        "HSETNX on a string key must fail"
+    );
+    assert!(
+        in_zset(&bus, case).await,
+        "a failed write must not remove the deadline"
+    );
+}
