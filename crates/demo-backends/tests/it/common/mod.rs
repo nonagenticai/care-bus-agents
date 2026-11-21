@@ -93,18 +93,19 @@ impl TestDb {
             .unwrap()
             .as_nanos();
         let name = format!("cb02_t_{}_{nanos}_{n}", std::process::id());
+        // Register before the CREATE: a process that died between the CREATE and the registration would leak
+        // the database. A SIGKILLed process still leaves its databases: nothing runs at exit.
+        let _ = SCRATCH_BASE.set(base.to_string());
+        CLEANUP_REGISTERED.call_once(|| {
+            // SAFETY: registering a plain `extern "C" fn()` with atexit.
+            unsafe { libc::atexit(drop_scratch_at_exit) };
+        });
         let admin = db::connect(base).await.expect("connect TEST_DATABASE_URL");
         sqlx::query(sqlx::AssertSqlSafe(format!("CREATE DATABASE {name}")))
             .execute(&admin)
             .await
             .expect("create test database");
         admin.close().await;
-        // A SIGKILLed process still leaves its databases: nothing runs at exit.
-        let _ = SCRATCH_BASE.set(base.to_string());
-        CLEANUP_REGISTERED.call_once(|| {
-            // SAFETY: registering a plain `extern "C" fn()` with atexit.
-            unsafe { libc::atexit(drop_scratch_at_exit) };
-        });
         if let Ok(mut dbs) = SCRATCH_DBS.lock() {
             dbs.push(name.clone());
         }

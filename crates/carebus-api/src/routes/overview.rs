@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use axum::{Json, Router, extract::State, routing::get};
 use carebus::Bus;
-use futures_util::{StreamExt, TryStreamExt};
+use futures_util::{FutureExt, StreamExt, TryStreamExt};
 use serde_json::{Value, json};
 use uuid::Uuid;
 
@@ -26,7 +26,7 @@ const STEP: Duration = Duration::from_secs(2);
 
 /// Runs `f` for at most `STEP`; `Err("timed out")` on expiry, `Err("unreachable")` on any other failure.
 async fn bounded<T, E: std::fmt::Display>(
-    what: &str,
+    what: &'static str,
     f: impl std::future::Future<Output = Result<T, E>>,
 ) -> Result<T, &'static str> {
     match tokio::time::timeout(STEP, f).await {
@@ -300,6 +300,9 @@ async fn overview(JobMember(ctx): JobMember, State(s): State<AppState>) -> Json<
     // Down-dependency items stay first; the bus group and the Postgres group then run together, so the page pays
     // one round trip per group instead of one per query. The group results are appended bus-then-DB, which keeps
     // the attention order (and so the JSON body) identical to the sequential version.
+    // Boxed: the handler future must be `Send` for every lifetime, and rustc's auto-trait solver cannot
+    // prove that for a bare block that holds `&Bus` across an await (the "not general enough" error).
+    // Boxing fixes the lifetime at the join site.
     let bus_group = async {
         if redis_ok {
             let bus = s.bus.scoped(&ctx.scope());
@@ -307,14 +310,16 @@ async fn overview(JobMember(ctx): JobMember, State(s): State<AppState>) -> Json<
         } else {
             Vec::new()
         }
-    };
+    }
+    .boxed();
     let db_group = async {
         if pg_ok {
             tokio::join!(db_attention(&s, &ctx), day(&s, &ctx, 0), day(&s, &ctx, 7))
         } else {
             (Vec::new(), None, None)
         }
-    };
+    }
+    .boxed();
     let (bus_items, (db_items, today, week_ago)) = tokio::join!(bus_group, db_group);
     attention.extend(bus_items);
     attention.extend(db_items);

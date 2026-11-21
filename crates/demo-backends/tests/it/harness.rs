@@ -24,7 +24,7 @@ async fn a_scratch_database_is_dropped() {
         .execute(&admin)
         .await
         .expect("create scratch database");
-    let dropped = crate::common::drop_scratch_databases(&base, &[name.clone()]).await;
+    let dropped = crate::common::drop_scratch_databases(&base, std::slice::from_ref(&name)).await;
     assert_eq!(dropped, 1, "the named database is dropped");
     let exists: bool =
         sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname = $1)")
