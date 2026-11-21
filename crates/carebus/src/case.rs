@@ -34,15 +34,28 @@ return 0
 "#;
 
 /// Create the case hash and its deadline entry in one step, so a crash cannot leave a case with no
-/// deadline. KEYS: case hash, deadline zset. ARGV: request json, due ms, ttl s, case id. Returns 1 if created.
+/// deadline. KEYS: case hash, deadline zset. ARGV: request json, deadline ms from now, ttl s, case
+/// id. The clock is Redis's own (`TIME`), so replicas agree despite skew and the caller needs no
+/// second round trip. Returns 1 if created.
 const CREATE_CASE: &str = r#"
+local now = redis.call('TIME')
+local due = tonumber(now[1]) * 1000 + math.floor(tonumber(now[2]) / 1000) + tonumber(ARGV[2])
 if redis.call('HSETNX', KEYS[1], 'request', ARGV[1]) == 1 then
   redis.call('HSETNX', KEYS[1], 'phase', 0)
   redis.call('EXPIRE', KEYS[1], ARGV[3])
-  redis.call('ZADD', KEYS[2], 'NX', ARGV[2], ARGV[4])
+  redis.call('ZADD', KEYS[2], 'NX', due, ARGV[4])
   return 1
 end
 return 0
+"#;
+
+/// Store a resolution once and return the one that is stored (first writer wins), in one round
+/// trip: the caller publishes exactly what every caller would publish.
+const SET_RESOLUTION: &str = r#"
+if redis.call('HSETNX', KEYS[1], 'resolution', ARGV[1]) == 1 then
+  return ARGV[1]
+end
+return redis.call('HGET', KEYS[1], 'resolution')
 "#;
 
 /// Lease an overdue case: only if its score is due, push the score `lease` ms out and return 1.
@@ -64,6 +77,16 @@ pub struct CaseStore {
     bus: Bus,
     /// How long a newly created case may stay unresolved before the sweeper fails it.
     deadline: Duration,
+}
+
+/// What a handler reads before it acts, in one round trip instead of one per field.
+#[derive(Clone, Debug, Default)]
+pub struct CaseSnapshot {
+    pub request: Option<QualifiedRequest>,
+    pub plan: Option<Plan>,
+    pub phase: usize,
+    /// The case has a resolution (the field's value is the outcome).
+    pub resolved: bool,
 }
 
 /// Default case deadline (`CASE_DEADLINE_MS`).
@@ -122,15 +145,15 @@ impl CaseStore {
         Ok(())
     }
 
-    /// First resolution wins. Returns the stored one, which every caller must publish.
+    /// First resolution wins. Returns the stored one, which every caller must publish. One round
+    /// trip: the Lua script stores and returns atomically.
     pub async fn set_resolution(&self, case_id: &str, res: &Resolution) -> Result<Resolution> {
-        let mut c = self.bus.conn();
-        let key = self.key(case_id);
-        let _: bool = c
-            .hset_nx(&key, "resolution", serde_json::to_string(res)?)
+        let stored: String = Script::new(SET_RESOLUTION)
+            .key(self.key(case_id))
+            .arg(serde_json::to_string(res)?)
+            .invoke_async(&mut self.bus.conn())
             .await?;
-        let raw: String = c.hget(&key, "resolution").await?;
-        Ok(serde_json::from_str(&raw)?)
+        Ok(serde_json::from_str(&stored)?)
     }
 
     fn key(&self, case_id: &str) -> String {
@@ -138,19 +161,43 @@ impl CaseStore {
     }
 
     /// Returns false when the case already existed (a duplicate delivery). Hash, phase, expiry and
-    /// deadline entry are written by one Lua script, so a crash cannot leave a case without a deadline.
+    /// deadline entry are written by one Lua script, so a crash cannot leave a case without a
+    /// deadline.
     pub async fn create(&self, req: &QualifiedRequest) -> Result<bool> {
-        let due = self.now_ms().await? + self.deadline.as_millis() as i64;
         let created: i64 = Script::new(CREATE_CASE)
             .key(self.key(&req.case_id))
             .key(self.deadline_key())
             .arg(serde_json::to_string(req)?)
-            .arg(due)
+            .arg(self.deadline.as_millis() as i64)
             .arg(7 * 86_400)
             .arg(&req.case_id)
             .invoke_async(&mut self.bus.conn())
             .await?;
         Ok(created == 1)
+    }
+
+    /// `request`, `plan`, `phase` and `resolved` in one round trip.
+    pub async fn snapshot(&self, case_id: &str) -> Result<CaseSnapshot> {
+        let mut c = self.bus.conn();
+        let (request, plan, phase, resolved): (
+            Option<String>,
+            Option<String>,
+            Option<usize>,
+            Option<String>,
+        ) = redis::cmd("HMGET")
+            .arg(self.key(case_id))
+            .arg("request")
+            .arg("plan")
+            .arg("phase")
+            .arg("resolved")
+            .query_async(&mut c)
+            .await?;
+        Ok(CaseSnapshot {
+            request: request.map(|r| serde_json::from_str(&r)).transpose()?,
+            plan: plan.map(|p| serde_json::from_str(&p)).transpose()?,
+            phase: phase.unwrap_or(0),
+            resolved: resolved.is_some(),
+        })
     }
 
     pub async fn request(&self, case_id: &str) -> Result<QualifiedRequest> {
@@ -209,6 +256,25 @@ impl CaseStore {
         Ok(r.unwrap_or(i64::MAX))
     }
 
+    /// Set the phase's pending count (first writer wins) and read the recorded results in one
+    /// round trip: the caller skips the steps that already have a result, with no per-step read.
+    pub async fn begin_phase(
+        &self,
+        case_id: &str,
+        phase: usize,
+        steps: usize,
+    ) -> Result<Map<String, Value>> {
+        let mut c = self.bus.conn();
+        let mut pipe = redis::pipe();
+        pipe.cmd("HSETNX")
+            .arg(self.key(case_id))
+            .arg(format!("pending:{phase}"))
+            .arg(steps);
+        pipe.cmd("HGETALL").arg(self.key(case_id));
+        let (_, all): (i64, Vec<(String, String)>) = pipe.query_async(&mut c).await?;
+        results_from(all)
+    }
+
     pub async fn has_result(&self, case_id: &str, as_name: &str) -> Result<bool> {
         Ok(self
             .bus
@@ -246,13 +312,7 @@ impl CaseStore {
 
     pub async fn results(&self, case_id: &str) -> Result<Map<String, Value>> {
         let all: Vec<(String, String)> = self.bus.conn().hgetall(self.key(case_id)).await?;
-        let mut out = Map::new();
-        for (field, raw) in all {
-            if let Some(name) = field.strip_prefix("result:") {
-                out.insert(name.into(), serde_json::from_str(&raw)?);
-            }
-        }
-        Ok(out)
+        results_from(all)
     }
 
     pub async fn set_work_status(
@@ -305,12 +365,25 @@ impl CaseStore {
     }
 
     pub async fn mark_resolved(&self, case_id: &str, outcome: &str) -> Result<()> {
-        let _: bool = self
-            .bus
-            .conn()
-            .hset_nx(self.key(case_id), "resolved", outcome)
-            .await?;
-        let _: i64 = self.bus.conn().zrem(self.deadline_key(), case_id).await?;
+        let mut c = self.bus.conn();
+        let mut pipe = redis::pipe();
+        pipe.cmd("HSETNX")
+            .arg(self.key(case_id))
+            .arg("resolved")
+            .arg(outcome);
+        pipe.cmd("ZREM").arg(self.deadline_key()).arg(case_id);
+        let _: Vec<redis::Value> = pipe.query_async(&mut c).await?;
         Ok(())
     }
+}
+
+/// The `result:` fields of a case hash, by name.
+fn results_from(all: Vec<(String, String)>) -> Result<Map<String, Value>> {
+    let mut out = Map::new();
+    for (field, raw) in all {
+        if let Some(name) = field.strip_prefix("result:") {
+            out.insert(name.into(), serde_json::from_str(&raw)?);
+        }
+    }
+    Ok(out)
 }
