@@ -234,6 +234,7 @@ async fn dead_letter_via_consume(bus: &Bus) {
         batch: 16,
         block: Duration::from_millis(100),
         reclaim_idle: Duration::from_millis(200),
+        reclaim_every: Duration::from_millis(50),
         max_deliveries: 2,
     };
     let b = bus.clone();

@@ -15,3 +15,8 @@ services:
       POSTGRES_PASSWORD: carebus_demo
       PGPORT: "5442"
     ports: ["5442:5442"]
+    # Docker's default /dev/shm is 64 MB; Postgres parallel workers allocate dynamic shared
+    # memory there and fail the whole query (53100 dsm_impl.c) once one needs more. The CI job
+    # has always passed --shm-size=1g for this reason; without it a parallel plan fails locally
+    # with "could not resize shared memory segment ... No space left on device".
+    shm_size: 1g

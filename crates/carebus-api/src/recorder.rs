@@ -94,14 +94,20 @@ pub async fn handle_customer(s: &AppState, ids: &ScopeIds, env: &Envelope) -> Ap
         Some(REQUEST_QUALIFIED) => {
             let q: QualifiedRequest = env.payload_as()?;
             let conv = conversation_of(ids, &q.case_id).await?;
-            let mut tx = ids.begin(&s.db).await?;
+            // One statement, no transaction: `true` makes each GUC local to this statement's implicit transaction,
+            // the same contract `begin_scoped` gives, and scanning `g` evaluates them before the INSERT reads its
+            // tenant/job defaults and the RLS checks.
             sqlx::query(
-                "INSERT INTO case_history
+                "WITH g AS (SELECT set_config('app.current_tenant',$1,true), set_config('app.current_job',$2,true),
+                                   set_config('app.current_sub','',true), set_config('app.current_sub_admin','',true))
+                 INSERT INTO case_history
                    (case_id, conversation_id, customer_id, request_type, area, context_space, started_at)
-                 VALUES ($1,$2,$3,$4,$5,$6,$7)
+                 SELECT $3,$4,$5,$6,$7,$8,$9 FROM g
                  ON CONFLICT (case_id) DO UPDATE
                    SET conversation_id = COALESCE(case_history.conversation_id, EXCLUDED.conversation_id)",
             )
+            .bind(ids.tenant.to_string())
+            .bind(ids.job_id.to_string())
             .bind(&q.case_id)
             .bind(conv)
             .bind(&q.customer_id)
@@ -109,9 +115,8 @@ pub async fn handle_customer(s: &AppState, ids: &ScopeIds, env: &Envelope) -> Ap
             .bind(&q.area)
             .bind(&q.context_space)
             .bind(at(env))
-            .execute(&mut *tx)
+            .execute(&s.db)
             .await?;
-            tx.commit().await?;
         }
         Some(REQUEST_RESOLVED) => {
             let r: Resolution = env.payload_as()?;
@@ -130,6 +135,7 @@ pub async fn handle_customer(s: &AppState, ids: &ScopeIds, env: &Envelope) -> Ap
                 Some((n, v)) => (Some(n), Some(v)),
                 None => (None, None),
             };
+            // Stays on ids.begin: its UPDATE's rows_affected marks "already resolved", and a plan that applied the RLS qual before a FROM-clause set_config would silently update zero rows and read as resolved; an INSERT instead errors on a NULL tenant default.
             let mut tx = ids.begin(&s.db).await?;
             let done = sqlx::query(
                 "UPDATE case_history
@@ -178,21 +184,25 @@ pub async fn handle_tool(s: &AppState, ids: &ScopeIds, env: &Envelope) -> ApiRes
         return Ok(());
     }
     let r: ToolResponse = env.payload_as()?;
-    let mut tx = ids.begin(&s.db).await?;
+    // One statement, no transaction: `true` makes each GUC local to this statement's implicit transaction, the same
+    // contract `begin_scoped` gives, and scanning `g` evaluates them before the INSERT reads its tenant/job defaults.
     sqlx::query(
-        "INSERT INTO audit_events
+        "WITH g AS (SELECT set_config('app.current_tenant',$1,true), set_config('app.current_job',$2,true),
+                           set_config('app.current_sub','',true), set_config('app.current_sub_admin','',true))
+         INSERT INTO audit_events
            (timestamp, actor_id, actor_type, action_type, resource_type, resource_id, status, details, request_id)
-         VALUES ($1,'tool-executor','system','execute','tool',$2,$3,$4,$5)
+         SELECT $3,'tool-executor','system','execute','tool',$4,$5,$6,$7 FROM g
          ON CONFLICT (tenant_id, request_id) WHERE action_type = 'execute' DO NOTHING",
     )
+    .bind(ids.tenant.to_string())
+    .bind(ids.job_id.to_string())
     .bind(at(env))
     .bind(&r.mcp_tool)
     .bind(if r.ok { "success" } else { "failure" })
     .bind(json!({"case_id": env.correlation_id, "latency_ms": r.latency_ms, "error": r.error}))
     .bind(&r.call_id)
-    .execute(&mut *tx)
+    .execute(&s.db)
     .await?;
-    tx.commit().await?;
     Ok(())
 }
 

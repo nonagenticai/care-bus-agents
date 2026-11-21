@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use carebus::domain::{QualifiedRequest, REQUEST_QUALIFIED, RequestType, Slots};
 use carebus::{Envelope, Scope};
+use redis::AsyncCommands;
 use uuid::Uuid;
 
 fn qualified_env(case: &str) -> Envelope {
@@ -122,6 +123,87 @@ async fn recorder_writes_in_the_envelope_scope() {
     assert_eq!(seen, ["CASE-OTHER"]);
     drop(tx);
     recorder.abort();
+}
+
+/// The same case_id already recorded in tenant A, replayed through tenant B's scope: the write must stay inside B
+/// or fail, and A's row must be untouched (a cross-tenant update would put B's conversation link on it).
+#[tokio::test]
+async fn a_scoped_insert_cannot_write_another_tenants_case() {
+    let e = crate::common::env("recorder-cross-tenant").await;
+    let owner = crate::common::pool(&e);
+    let a: Uuid = crate::common::BOOT_TENANT.parse().unwrap();
+    let a_job: Uuid = sqlx::query_scalar("SELECT id FROM jobs WHERE tenant_id = $1 AND key = $2")
+        .bind(a)
+        .bind(crate::common::BOOT_JOB)
+        .fetch_one(owner)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO case_history
+           (tenant_id, job_id, case_id, conversation_id, customer_id, request_type, area, context_space, started_at)
+         VALUES ($1, $2, 'CASE-SHARED', NULL, 'C-10482', 'return', 'order-support',
+                 'retail:order-support:returns', now())",
+    )
+    .bind(a)
+    .bind(a_job)
+    .execute(owner)
+    .await
+    .unwrap();
+
+    let b = crate::common::insert_tenant(owner, crate::common::OTHER_TENANT).await;
+    let b_job = crate::common::insert_job(owner, b, crate::common::BOOT_JOB).await;
+    let scope_b = Scope {
+        tenant: b,
+        job: crate::common::BOOT_JOB.into(),
+    };
+    let bus_b = e.state.bus.scoped(&scope_b);
+    // B's scoped read of the case conversation returns a value, so a cross-tenant UPDATE of A's NULL would show.
+    let mut conn = bus_b.conn();
+    let _: () = conn
+        .set(
+            carebus::chat::case_conv_key(&bus_b, "CASE-SHARED"),
+            "conv-b",
+        )
+        .await
+        .unwrap();
+
+    let ids = carebus_api::recorder::ScopeIds {
+        tenant: b,
+        job_id: b_job,
+        bus: bus_b,
+    };
+    // Either outcome is safe; Postgres 18 raises the RLS USING violation on the conflict update.
+    let _ =
+        carebus_api::recorder::handle_customer(&e.state, &ids, &qualified_env("CASE-SHARED")).await;
+
+    let (tenant_of_row, conv): (Uuid, Option<String>) = sqlx::query_as(
+        "SELECT tenant_id, conversation_id FROM case_history WHERE case_id = 'CASE-SHARED'",
+    )
+    .fetch_one(owner)
+    .await
+    .unwrap();
+    assert_eq!(tenant_of_row, a, "the case still belongs to tenant A");
+    assert_eq!(
+        conv, None,
+        "tenant B's conversation link never reached tenant A's row"
+    );
+    let rows: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM case_history WHERE case_id = 'CASE-SHARED'")
+            .fetch_one(owner)
+            .await
+            .unwrap();
+    assert_eq!(
+        rows, 1,
+        "one row for the case_id, never a second one for tenant B"
+    );
+    let in_b: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM case_history WHERE case_id = 'CASE-SHARED' AND tenant_id = $1",
+    )
+    .bind(b)
+    .fetch_one(owner)
+    .await
+    .unwrap();
+    assert_eq!(in_b, 0, "nothing written for tenant B");
 }
 
 #[tokio::test]

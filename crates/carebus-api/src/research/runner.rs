@@ -58,6 +58,10 @@ pub const SAME_TOOL_NUDGE: u32 = 8;
 /// Consecutive model turns whose every tool call was refused (repeats, unknown tools) after which the research
 /// phase ends and the model must write (`no_progress`).
 pub const STALL_TURNS: u32 = 3;
+/// While verifying, renew the run lease at most this often (and every [`RENEW_EVERY_CITATIONS`] citations) instead of
+/// once per citation: one renewal is a short transaction, and a verification can visit hundreds of citations.
+const RENEW_EVERY: std::time::Duration = std::time::Duration::from_secs(30);
+const RENEW_EVERY_CITATIONS: usize = 50;
 
 pub struct RunnerConfig {
     /// `lease_owner`: unique per worker (host:pid:worker).
@@ -1134,18 +1138,38 @@ impl<L: Llm, T: ToolSet, R: Resolver> Runner<L, T, R> {
 
     async fn verify(&self, s: RunScope, profile: Profile) -> Result<Outcome> {
         let input = store::load_verify_input(&self.db, s).await?;
+        let prepared = verify::PreparedSteps::new(
+            &input.steps,
+            input
+                .citations
+                .iter()
+                .filter_map(|c| c.citation.step_ordinal),
+        );
         let mut verdicts: Vec<(Uuid, Verdict)> = vec![];
-        for c in &input.citations {
-            let Some(hb) = store::renew(&self.db, s, &self.cfg.owner, self.cfg.lease_s).await?
-            else {
-                return Ok(Outcome::LeaseLost);
-            };
-            // Cancelled while verifying: stop here; the final write below checks once more.
-            if hb.cancel_requested {
-                return self.cancelled(s).await;
+        let mut last_renew: Option<Instant> = None;
+        for (i, c) in input.citations.iter().enumerate() {
+            let due = last_renew.is_none_or(|t: Instant| t.elapsed() >= RENEW_EVERY)
+                || i % RENEW_EVERY_CITATIONS == 0;
+            if due {
+                let Some(hb) = store::renew(&self.db, s, &self.cfg.owner, self.cfg.lease_s).await?
+                else {
+                    return Ok(Outcome::LeaseLost);
+                };
+                // Cancellation is observed at the next renewal (within `RENEW_EVERY`) or at the final save below,
+                // not on every citation; stop here when seen.
+                if hb.cancel_requested {
+                    return self.cancelled(s).await;
+                }
+                last_renew = Some(Instant::now());
             }
-            let v =
-                verify::verify_citation(s.tenant, &c.citation, &input.steps, &*self.resolver).await;
+            let v = verify::verify_citation_prepared(
+                s.tenant,
+                &c.citation,
+                &input.steps,
+                &prepared,
+                &*self.resolver,
+            )
+            .await;
             verdicts.push((c.id, v));
         }
         let by_id: HashMap<Uuid, (&CitationIn, &Verdict)> = input

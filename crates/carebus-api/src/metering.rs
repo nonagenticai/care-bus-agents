@@ -230,39 +230,54 @@ pub async fn record_with(
         UsageSource::Research { run_id } => (None, Some(run_id)),
     };
     let mut tx = begin_scoped(db, a.tenant, Some(a.job_id)).await?;
+    // One statement per table: the rows go in as one jsonb array, not one INSERT each.
+    let mut ledger_rows: Vec<serde_json::Value> = Vec::with_capacity(usage.len());
+    let mut outbox_rows: Vec<serde_json::Value> = Vec::with_capacity(usage.len());
     for u in usage {
         let key = Uuid::new_v4();
         let at = Utc::now();
-        sqlx::query(
-            "INSERT INTO usage_ledger
-               (event_key, occurred_at, source, conversation_id, research_run_id, provider, model, input_tokens,
-                output_tokens, calls, latency_ms, license_id, subject_id)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)",
-        )
-        .bind(key)
-        .bind(at)
-        .bind(a.source.ledger_source())
-        .bind(conversation_id)
-        .bind(research_run_id)
-        .bind(&u.provider)
-        .bind(&u.model)
-        .bind(int(u.input_tokens))
-        .bind(int(u.output_tokens))
-        .bind(i32::try_from(u.calls).unwrap_or(i32::MAX))
-        .bind(int(u.latency_ms))
-        .bind(licence.and_then(|l| l.license_id.as_deref()))
-        .bind(licence.and_then(|l| l.subject_id.as_deref()))
-        .execute(&mut *tx)
-        .await?;
+        ledger_rows.push(json!({
+            "event_key": key,
+            "occurred_at": at,
+            "source": a.source.ledger_source(),
+            "conversation_id": conversation_id,
+            "research_run_id": research_run_id,
+            "provider": u.provider,
+            "model": u.model,
+            "input_tokens": int(u.input_tokens),
+            "output_tokens": int(u.output_tokens),
+            "calls": i32::try_from(u.calls).unwrap_or(i32::MAX),
+            "latency_ms": int(u.latency_ms),
+            "license_id": licence.and_then(|l| l.license_id.as_deref()),
+            "subject_id": licence.and_then(|l| l.subject_id.as_deref()),
+        }));
         if !emit {
             continue;
         }
         let fields = cost_event_fields(key, at, a, u, licence);
-        sqlx::query("INSERT INTO metering_outbox (event_key, fields) VALUES ($1, $2)")
-            .bind(key)
-            .bind(json!(fields))
-            .execute(&mut *tx)
-            .await?;
+        outbox_rows.push(json!({"event_key": key, "fields": fields}));
+    }
+    sqlx::query(
+        "INSERT INTO usage_ledger
+           (event_key, occurred_at, source, conversation_id, research_run_id, provider, model, input_tokens,
+            output_tokens, calls, latency_ms, license_id, subject_id)
+         SELECT x.event_key, x.occurred_at, x.source, x.conversation_id, x.research_run_id, x.provider, x.model,
+                x.input_tokens, x.output_tokens, x.calls, x.latency_ms, x.license_id, x.subject_id
+           FROM jsonb_to_recordset($1::jsonb) AS x(event_key uuid, occurred_at timestamptz, source text,
+                conversation_id text, research_run_id uuid, provider text, model text, input_tokens bigint,
+                output_tokens bigint, calls int, latency_ms bigint, license_id text, subject_id text)",
+    )
+    .bind(json!(ledger_rows))
+    .execute(&mut *tx)
+    .await?;
+    if emit {
+        sqlx::query(
+            "INSERT INTO metering_outbox (event_key, fields)
+             SELECT x.event_key, x.fields FROM jsonb_to_recordset($1::jsonb) AS x(event_key uuid, fields jsonb)",
+        )
+        .bind(json!(outbox_rows))
+        .execute(&mut *tx)
+        .await?;
     }
     tx.commit().await?;
     Ok(())
@@ -299,15 +314,17 @@ pub struct Drained {
     pub failed: usize,
 }
 
-async fn xadd(
-    conn: &mut redis::aio::ConnectionManager,
+/// Queue one outbox row's `XADD` on `pipe`. A `fields` value that is not a JSON object is a local failure: no command
+/// is queued for it.
+fn queue_xadd(
+    pipe: &mut redis::Pipeline,
     stream: &str,
     fields: &serde_json::Value,
 ) -> anyhow::Result<()> {
     let obj = fields
         .as_object()
         .context("outbox fields are not an object")?;
-    let mut cmd = redis::cmd("XADD");
+    let cmd = pipe.cmd("XADD");
     cmd.arg(stream)
         .arg("MAXLEN")
         .arg("~")
@@ -316,13 +333,14 @@ async fn xadd(
     for (k, v) in obj {
         cmd.arg(k.as_str()).arg(v.as_str().unwrap_or_default());
     }
-    let _id: String = cmd.query_async(conn).await?;
     Ok(())
 }
 
 /// Send the scope's due outbox rows to the costs stream and mark them sent; a failed send backs off. The rows are
 /// locked `FOR UPDATE SKIP LOCKED` for the tick, so two replicas never send the same row; a crash between XADD and
-/// COMMIT re-sends it, which billing dedups on `event_key` (at-least-once).
+/// COMMIT re-sends it, which billing dedups on `event_key` (at-least-once). All due XADDs go in one pipeline, so the
+/// transaction spans one Redis round trip, not one per row; a failed pipeline marks every queued row failed (some may
+/// have reached the stream), and their re-send is deduped on `event_key`.
 pub async fn drain_once(
     st: &AppState,
     tenant: Uuid,
@@ -340,35 +358,69 @@ pub async fn drain_once(
     .fetch_all(&mut *tx)
     .await?;
     let mut out = Drained::default();
+    let mut pipe = redis::pipe();
+    let mut queued: Vec<(i64, i32)> = Vec::with_capacity(due.len());
+    // (id, attempts after this tick, last_error)
+    let mut retry: Vec<(i64, i32, String)> = Vec::new();
     for (id, fields, attempts) in due {
-        match xadd(conn, stream, &fields).await {
-            Ok(()) => {
-                sqlx::query(
-                    "UPDATE metering_outbox SET status = 'sent', sent_at = now(), last_error = NULL
-                      WHERE id = $1 AND status = 'pending'",
-                )
-                .bind(id)
-                .execute(&mut *tx)
-                .await?;
-                out.sent += 1;
-            }
+        match queue_xadd(&mut pipe, stream, &fields) {
+            Ok(()) => queued.push((id, attempts)),
             Err(e) => {
                 let attempts = attempts.saturating_add(1);
-                tracing::warn!(%tenant, outbox_id = id, attempts, error = %format!("{e:#}"), "sending a cost event failed; backing off");
-                sqlx::query(
-                    "UPDATE metering_outbox
-                        SET attempts = $2, last_error = $3, next_attempt_at = now() + make_interval(secs => $4)
-                      WHERE id = $1 AND status = 'pending'",
-                )
-                .bind(id)
-                .bind(attempts)
-                .bind(format!("send failed: {e:#}"))
-                .bind(backoff_secs(attempts))
-                .execute(&mut *tx)
-                .await?;
-                out.failed += 1;
+                let last_error = format!("send failed: {e:#}");
+                tracing::warn!(%tenant, outbox_id = id, attempts, error = %e, "building a cost event failed; backing off");
+                retry.push((id, attempts, last_error));
             }
         }
+    }
+    if !queued.is_empty() {
+        match pipe.query_async::<()>(conn).await {
+            Ok(()) => {
+                out.sent = queued.len();
+                let ids: Vec<serde_json::Value> =
+                    queued.iter().map(|(id, _)| json!({"id": id})).collect();
+                sqlx::query(
+                    "UPDATE metering_outbox c SET status = 'sent', sent_at = now(), last_error = NULL
+                       FROM jsonb_to_recordset($1::jsonb) AS x(id bigint)
+                      WHERE c.id = x.id AND c.status = 'pending'",
+                )
+                .bind(json!(ids))
+                .execute(&mut *tx)
+                .await?;
+            }
+            Err(e) => {
+                let last_error = format!("send failed: {e:#}");
+                tracing::warn!(%tenant, rows = queued.len(), error = %format!("{e:#}"), "sending cost events failed; backing off all of them");
+                for (id, attempts) in queued {
+                    retry.push((id, attempts.saturating_add(1), last_error.clone()));
+                }
+            }
+        }
+    }
+    out.failed = retry.len();
+    if !retry.is_empty() {
+        let rows: Vec<serde_json::Value> = retry
+            .iter()
+            .map(|(id, attempts, last_error)| {
+                json!({
+                    "id": id,
+                    "attempts": attempts,
+                    "last_error": last_error,
+                    "backoff_s": backoff_secs(*attempts) as i64,
+                })
+            })
+            .collect();
+        sqlx::query(
+            "UPDATE metering_outbox c
+                SET attempts = x.attempts, last_error = x.last_error,
+                    next_attempt_at = now() + make_interval(secs => x.backoff_s)
+               FROM jsonb_to_recordset($1::jsonb)
+                    AS x(id bigint, attempts int, last_error text, backoff_s int)
+              WHERE c.id = x.id AND c.status = 'pending'",
+        )
+        .bind(json!(rows))
+        .execute(&mut *tx)
+        .await?;
     }
     tx.commit().await?;
     Ok(out)

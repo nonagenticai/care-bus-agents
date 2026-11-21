@@ -165,28 +165,23 @@ async fn insert_step(
     lease_s: i32,
     st: &NewStep,
 ) -> Result<bool> {
-    let held: Option<Uuid> = sqlx::query_scalar(
-        "UPDATE research_runs
-            SET steps_used = steps_used + $3, tokens_used = tokens_used + $4,
-                lease_until = now() + make_interval(secs => $5), updated_at = now()
-          WHERE id = $1 AND lease_owner = $2 AND status IN ('running', 'verifying')
-         RETURNING id",
+    // The lease-gated UPDATE and the step INSERT in one statement: no step row when the lease is lost.
+    let written = sqlx::query(
+        "WITH held AS (
+            UPDATE research_runs
+               SET steps_used = steps_used + $3, tokens_used = tokens_used + $4,
+                   lease_until = now() + make_interval(secs => $5), updated_at = now()
+             WHERE id = $1 AND lease_owner = $2 AND status IN ('running', 'verifying')
+            RETURNING id
+         )
+         INSERT INTO research_steps (run_id, ordinal, kind, request, response, status, duration_ms)
+         SELECT $1, $6, $7, $8, $9, $10, $11 FROM held",
     )
     .bind(s.run)
     .bind(owner)
     .bind(st.turns)
     .bind(st.tokens)
     .bind(lease_s)
-    .fetch_optional(&mut *tx)
-    .await?;
-    if held.is_none() {
-        return Ok(false);
-    }
-    sqlx::query(
-        "INSERT INTO research_steps (run_id, ordinal, kind, request, response, status, duration_ms)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)",
-    )
-    .bind(s.run)
     .bind(st.ordinal)
     .bind(st.kind)
     .bind(&st.request)
@@ -195,7 +190,7 @@ async fn insert_step(
     .bind(st.duration_ms)
     .execute(&mut *tx)
     .await?;
-    Ok(true)
+    Ok(written.rows_affected() == 1)
 }
 
 /// Writes one step and advances the counters; `false` (nothing written) when the lease is lost.
@@ -302,33 +297,51 @@ pub async fn accept_report(
     if !insert_step(&mut tx, s, owner, lease_s, st).await? {
         return Ok(false);
     }
+    // One INSERT per table: the citation and claim rows are built here and flattened to JSON.
+    let mut citations: Vec<Value> = vec![];
+    let mut claims: Vec<Value> = vec![];
     for (i, (text, cits)) in report.claims.iter().enumerate() {
         let mut ids = vec![];
         for c in cits {
             let id = Uuid::new_v4();
-            sqlx::query(
-                "INSERT INTO research_citations (run_id, id, source_kind, locator, title, quote, step_ordinal)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7)",
-            )
-            .bind(s.run)
-            .bind(id)
-            .bind(c.source_kind.as_str())
-            .bind(&c.locator)
-            .bind(&c.title)
-            .bind(&c.quote)
-            .bind(c.step_ordinal)
-            .execute(&mut *tx)
-            .await?;
+            citations.push(json!({
+                "id": id,
+                "source_kind": c.source_kind.as_str(),
+                "locator": &c.locator,
+                "title": &c.title,
+                "quote": &c.quote,
+                "step_ordinal": c.step_ordinal,
+            }));
             ids.push(id);
         }
+        claims.push(json!({
+            "id": Uuid::new_v4(),
+            "ordinal": i32::try_from(i).unwrap_or(i32::MAX),
+            "text": text,
+            "citation_ids": ids,
+        }));
+    }
+    if !citations.is_empty() {
         sqlx::query(
-            "INSERT INTO research_claims (run_id, id, ordinal, text, citation_ids) VALUES ($1, $2, $3, $4, $5)",
+            "INSERT INTO research_citations (run_id, id, source_kind, locator, title, quote, step_ordinal)
+             SELECT $1, x.id, x.source_kind, x.locator, x.title, x.quote, x.step_ordinal
+               FROM jsonb_to_recordset($2::jsonb)
+                    AS x(id uuid, source_kind text, locator text, title text, quote text, step_ordinal int)",
         )
         .bind(s.run)
-        .bind(Uuid::new_v4())
-        .bind(i32::try_from(i).unwrap_or(i32::MAX))
-        .bind(text)
-        .bind(&ids)
+        .bind(Value::Array(citations))
+        .execute(&mut *tx)
+        .await?;
+    }
+    if !claims.is_empty() {
+        sqlx::query(
+            "INSERT INTO research_claims (run_id, id, ordinal, text, citation_ids)
+             SELECT $1, x.id, x.ordinal, x.text,
+                    ARRAY(SELECT jsonb_array_elements_text(x.citation_ids)::uuid)
+               FROM jsonb_to_recordset($2::jsonb) AS x(id uuid, ordinal int, text text, citation_ids jsonb)",
+        )
+        .bind(s.run)
+        .bind(Value::Array(claims))
         .execute(&mut *tx)
         .await?;
     }
@@ -505,26 +518,46 @@ pub async fn save_verification(
     let Some(cancel) = held else {
         return Ok(Saved::LeaseLost);
     };
-    for (id, v) in verdicts {
+    // One UPDATE per table: every verdict and claim status applied from one recordset. A repeated id would be
+    // applied once, by an arbitrary recordset row (the old per-row loop was last-wins); the verifier emits one
+    // verdict and one status per stored id, so that cannot happen.
+    if !verdicts.is_empty() {
+        let rows: Vec<Value> = verdicts
+            .iter()
+            .map(|(id, v)| {
+                json!({"id": id, "verify_status": v.status.as_str(), "verify_detail": &v.detail})
+            })
+            .collect();
         sqlx::query(
-            "UPDATE research_citations SET verify_status = $2, verify_detail = $3, verified_at = now() WHERE id = $1",
+            "UPDATE research_citations c
+                SET verify_status = x.verify_status, verify_detail = x.verify_detail, verified_at = now()
+               FROM jsonb_to_recordset($1::jsonb)
+                    AS x(id uuid, verify_status text, verify_detail jsonb)
+              WHERE c.id = x.id",
         )
-        .bind(id)
-        .bind(v.status.as_str())
-        .bind(&v.detail)
+        .bind(Value::Array(rows))
         .execute(&mut *tx)
         .await?;
     }
-    for (id, supported) in claims {
-        sqlx::query("UPDATE research_claims SET status = $2 WHERE id = $1")
-            .bind(id)
-            .bind(if *supported {
-                "supported"
-            } else {
-                "unsupported"
+    if !claims.is_empty() {
+        let rows: Vec<Value> = claims
+            .iter()
+            .map(|(id, supported)| {
+                json!({
+                    "id": id,
+                    "status": if *supported { "supported" } else { "unsupported" },
+                })
             })
-            .execute(&mut *tx)
-            .await?;
+            .collect();
+        sqlx::query(
+            "UPDATE research_claims c
+                SET status = x.status
+               FROM jsonb_to_recordset($1::jsonb) AS x(id uuid, status text)
+              WHERE c.id = x.id",
+        )
+        .bind(Value::Array(rows))
+        .execute(&mut *tx)
+        .await?;
     }
     sqlx::query(
         "UPDATE research_runs

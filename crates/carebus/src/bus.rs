@@ -5,7 +5,8 @@
 //! Delivery is at-least-once. Every handler must be idempotent.
 
 use std::future::Future;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::sync::Arc;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result};
 use redis::aio::{ConnectionManager, ConnectionManagerConfig, MultiplexedConnection};
@@ -162,6 +163,9 @@ pub struct ConsumeOptions {
     pub block: Duration,
     /// An entry pending longer than this is taken over from its consumer.
     pub reclaim_idle: Duration,
+    /// How often the takeover sweep (`XAUTOCLAIM`) runs. Between sweeps the consumer only reads new
+    /// entries, so an idle-then-busy stream does not pay a sweep round trip on every read.
+    pub reclaim_every: Duration,
     pub max_deliveries: u64,
 }
 
@@ -171,6 +175,7 @@ impl Default for ConsumeOptions {
             batch: 16,
             block: Duration::from_secs(2),
             reclaim_idle: Duration::from_secs(30),
+            reclaim_every: Duration::from_secs(1),
             max_deliveries: 5,
         }
     }
@@ -187,6 +192,68 @@ pub struct Bus {
     root_prefix: String,
     /// `None` on the root bus, which may only touch the scope registry (`root_key`).
     scope: Option<Scope>,
+    /// The console live mirror, queued off the caller's critical path.
+    mirror: Arc<Mirror>,
+}
+
+/// The console live mirror: every publish and ack frame is queued and flushed by one background
+/// task, so mirroring never costs a caller a round trip. Lossy by design, like the mirror itself:
+/// a full queue, or a connection that will not open, drops frames. The channel rides each frame
+/// because one root bus serves every scope, and a scoped bus mirrors to its scoped console.
+struct Mirror {
+    tx: tokio::sync::mpsc::Sender<(String, String)>,
+}
+
+/// One entry whose handler succeeded, waiting for the batch's `XACK`.
+struct Acked {
+    entry_id: String,
+    counter: String,
+    env: Envelope,
+}
+
+impl Mirror {
+    fn new(client: Client) -> Self {
+        let (tx, mut rx) = tokio::sync::mpsc::channel::<(String, String)>(1024);
+        tokio::spawn(async move {
+            let mut conn: Option<MultiplexedConnection> = None;
+            while let Some(first) = rx.recv().await {
+                // One SUBSCRIBE-channel PUBLISH per frame, flushed as one pipeline: frames queued
+                // while the last flush was in flight ride the next.
+                let mut frames = vec![first];
+                while let Ok(frame) = rx.try_recv() {
+                    frames.push(frame);
+                }
+                let mut c = match conn.clone() {
+                    Some(c) => c,
+                    None => match client.get_multiplexed_async_connection().await {
+                        Ok(c) => {
+                            conn = Some(c.clone());
+                            c
+                        }
+                        Err(e) => {
+                            tracing::warn!(error = %e, "console mirror connection failed; frames dropped");
+                            continue;
+                        }
+                    },
+                };
+                let mut pipe = redis::pipe();
+                for (channel, frame) in &frames {
+                    pipe.cmd("PUBLISH").arg(channel).arg(frame);
+                }
+                let flushed: redis::RedisResult<Vec<i64>> = pipe.query_async(&mut c).await;
+                if let Err(e) = flushed {
+                    tracing::warn!(error = %e, "console mirror PUBLISH failed; frames dropped");
+                    conn = None;
+                }
+            }
+        });
+        Self { tx }
+    }
+
+    /// Queue a frame; a full or closed queue drops it, which is what the mirror already promised.
+    fn send(&self, channel: &str, frame: String) {
+        let _ = self.tx.try_send((channel.to_string(), frame));
+    }
 }
 
 /// Per-command Redis response budget. The `redis` crate defaults to 500 ms, which a cross-site round trip
@@ -241,13 +308,16 @@ impl Bus {
         let conn = ConnectionManager::new_with_config(client.clone(), cfg)
             .await
             .with_context(|| format!("connect {url}"))?;
+        let streams = Streams::new(prefix);
+        let mirror = Arc::new(Mirror::new(client.clone()));
         Ok(Self {
             client,
             conn,
-            streams: Streams::new(prefix),
+            streams,
             maxlen: 100_000,
             root_prefix: prefix.to_string(),
             scope: None,
+            mirror,
         })
     }
 
@@ -260,6 +330,7 @@ impl Bus {
             maxlen: self.maxlen,
             root_prefix: self.root_prefix.clone(),
             scope: Some(s.clone()),
+            mirror: self.mirror.clone(),
         }
     }
 
@@ -292,6 +363,15 @@ impl Bus {
 
     /// XADD `env` stamped with this bus's scope. A root bus refuses.
     pub async fn publish(&self, stream: &str, env: &Envelope) -> Result<String> {
+        self.publish_with(stream, env, |_| {}).await
+    }
+
+    /// `publish` with `before`'s commands riding the same pipeline, so a state write and the entry that
+    /// announces it cost one round trip. Their replies are ignored; the XADD's id is the return value.
+    pub async fn publish_with<F>(&self, stream: &str, env: &Envelope, before: F) -> Result<String>
+    where
+        F: FnOnce(&mut redis::Pipeline),
+    {
         let scope = self.require_scope(&format!("XADD {stream}"))?;
         let mut env = env.clone();
         env.tenant_id = Some(scope.tenant);
@@ -299,17 +379,25 @@ impl Bus {
         let env = &env;
         let json = serde_json::to_string(env)?;
         let mut c = self.conn.clone();
-        let id: String = redis::cmd("XADD")
+        let mut pipe = redis::pipe();
+        before(&mut pipe);
+        pipe.cmd("XADD")
             .arg(stream)
             .arg("MAXLEN")
             .arg("~")
             .arg(self.maxlen)
             .arg("*")
             .arg("envelope")
-            .arg(&json)
+            .arg(&json);
+        let replies: Vec<redis::Value> = pipe
             .query_async(&mut c)
             .await
             .with_context(|| format!("XADD {stream}"))?;
+        let last = replies
+            .into_iter()
+            .next_back()
+            .ok_or_else(|| anyhow::anyhow!("XADD {stream}: empty pipeline reply"))?;
+        let id: String = redis::from_redis_value(last).with_context(|| format!("XADD {stream}"))?;
         // `acked` is false at XADD time; the recipient's XACK follows as a `kind: "ack"` frame (see `mirror_ack`).
         let group = self.streams.consumer_group(stream, &env.topic);
         let acked = group.as_ref().map(|_| false);
@@ -321,12 +409,10 @@ impl Bus {
             "acked": acked,
         })
         .to_string();
-        // The console mirror is lossy by design: the entry is already on the stream, so a failed
-        // mirror must not make the caller think nothing was published.
-        let mirrored: redis::RedisResult<i64> = c.publish(self.streams.console(), live).await;
-        if let Err(e) = mirrored {
-            tracing::warn!(stream, entry_id = %id, error = %e, "console mirror PUBLISH failed; entry is on the stream");
-        }
+        // The console mirror is lossy by design: the entry is already on the stream, so a dropped
+        // frame must not make the caller think nothing was published. It is queued, never awaited:
+        // a publish costs one round trip, the `XADD`'s.
+        self.mirror.send(&self.streams.console(), live);
         Ok(id)
     }
 
@@ -364,25 +450,29 @@ impl Bus {
         Ok(pending.ids.is_empty())
     }
 
-    /// Mirror the recipient group's XACK on the console channel, lossy like the publish mirror. Acks by the other
-    /// groups that read the same stream (and skip the entry) are not mirrored: they say nothing about handling.
-    async fn mirror_ack(&self, stream: &str, group: &str, entry_id: &str, env: &Envelope) {
+    /// The console frame mirroring the recipient group's XACK, lossy like the publish mirror, or
+    /// `None` for a group the entry was not for. Acks by the other groups that read the same
+    /// stream (and skip the entry) are not mirrored: they say nothing about handling.
+    fn ack_frame(
+        &self,
+        stream: &str,
+        group: &str,
+        entry_id: &str,
+        env: &Envelope,
+    ) -> Option<String> {
         if self.streams.consumer_group(stream, &env.topic).as_deref() != Some(group) {
-            return;
+            return None;
         }
-        let frame = serde_json::json!({
-            "kind": "ack",
-            "stream": stream,
-            "entry_id": entry_id,
-            "consumer_group": group,
-            "correlation_id": env.correlation_id,
-        })
-        .to_string();
-        let mut c = self.conn.clone();
-        let r: redis::RedisResult<i64> = c.publish(self.streams.console(), frame).await;
-        if let Err(e) = r {
-            tracing::warn!(stream, group, entry_id, error = %e, "console ack mirror PUBLISH failed; the XACK stands");
-        }
+        Some(
+            serde_json::json!({
+                "kind": "ack",
+                "stream": stream,
+                "entry_id": entry_id,
+                "consumer_group": group,
+                "correlation_id": env.correlation_id,
+            })
+            .to_string(),
+        )
     }
 
     pub async fn ensure_group(&self, stream: &str, group: &str) -> Result<()> {
@@ -477,19 +567,28 @@ impl Bus {
             .client
             .get_multiplexed_async_connection_with_config(&cfg)
             .await?;
+        // Delivery counters and acks are not blocking: they ride the shared connection.
+        let mut admin = self.conn.clone();
+        // The takeover sweep walks the pending list with a cursor and runs at most every
+        // `reclaim_every`: a busy stream does not pay a sweep round trip per read.
+        let mut reclaim_at = "0-0".to_string();
+        let mut last_reclaim: Option<Instant> = None;
         loop {
-            let claimed: StreamAutoClaimReply = redis::cmd("XAUTOCLAIM")
-                .arg(stream)
-                .arg(group)
-                .arg(consumer)
-                .arg(opts.reclaim_idle.as_millis() as u64)
-                .arg("0-0")
-                .arg("COUNT")
-                .arg(opts.batch)
-                .query_async(&mut reader)
-                .await?;
-            for entry in &claimed.claimed {
-                self.process(stream, group, entry, opts, handler).await?;
+            let mut entries: Vec<StreamId> = Vec::new();
+            if last_reclaim.is_none_or(|at: Instant| at.elapsed() >= opts.reclaim_every) {
+                last_reclaim = Some(Instant::now());
+                let claimed: StreamAutoClaimReply = redis::cmd("XAUTOCLAIM")
+                    .arg(stream)
+                    .arg(group)
+                    .arg(consumer)
+                    .arg(opts.reclaim_idle.as_millis() as u64)
+                    .arg(&reclaim_at)
+                    .arg("COUNT")
+                    .arg(opts.batch)
+                    .query_async(&mut reader)
+                    .await?;
+                reclaim_at = claimed.next_stream_id.clone();
+                entries.extend(claimed.claimed);
             }
             let read: Option<StreamReadReply> = redis::cmd("XREADGROUP")
                 .arg("GROUP")
@@ -505,9 +604,45 @@ impl Bus {
                 .query_async(&mut reader)
                 .await?;
             for key in read.map(|r| r.keys).unwrap_or_default() {
-                for entry in &key.ids {
-                    self.process(stream, group, entry, opts, handler).await?;
+                entries.extend(key.ids);
+            }
+            if entries.is_empty() {
+                continue;
+            }
+
+            // Every delivery counter in one pipeline: the batch pays one round trip, not one each.
+            let counters: Vec<String> = entries
+                .iter()
+                .map(|e| {
+                    self.streams
+                        .key(&format!("deliveries:{stream}:{group}:{}", e.id))
+                })
+                .collect();
+            let mut pipe = redis::pipe();
+            for counter in &counters {
+                pipe.cmd("INCR").arg(counter);
+                pipe.cmd("EXPIRE").arg(counter).arg(86_400);
+            }
+            let counts: Vec<i64> = pipe
+                .query_async(&mut admin)
+                .await
+                .with_context(|| format!("INCR deliveries {stream} {group}"))?;
+
+            let mut acks: Vec<Acked> = Vec::new();
+            for (i, entry) in entries.iter().enumerate() {
+                let deliveries = counts.get(2 * i).copied().unwrap_or(1).max(1) as u64;
+                if let Some(acked) = self
+                    .handle_entry(stream, group, entry, deliveries, opts, handler)
+                    .await?
+                {
+                    acks.push(acked);
                 }
+            }
+            // XACK, the counter DELs and the console ack frames in one pipeline: one round trip for
+            // the whole batch. At-least-once is unchanged: a crash before this flush redelivers the
+            // entries, and every handler is idempotent.
+            if !acks.is_empty() {
+                self.ack_batch(stream, group, &acks).await?;
             }
         }
     }
@@ -534,40 +669,39 @@ impl Bus {
         Ok(())
     }
 
-    async fn process<F, Fut>(
+    /// Run one delivered entry's handler. `Ok(Some(_))` = handled, to be acked with the batch;
+    /// `Ok(None)` = dead-lettered, or the handler failed and the entry stays pending.
+    async fn handle_entry<F, Fut>(
         &self,
         stream: &str,
         group: &str,
         entry: &StreamId,
+        deliveries: u64,
         opts: &ConsumeOptions,
         handler: &F,
-    ) -> Result<()>
+    ) -> Result<Option<Acked>>
     where
         F: Fn(Envelope) -> Fut,
         Fut: Future<Output = Result<()>>,
     {
-        let mut c = self.conn.clone();
         let counter = self
             .streams
             .key(&format!("deliveries:{stream}:{group}:{}", entry.id));
-        let deliveries: u64 = c.incr(&counter, 1).await?;
-        let _: bool = c.expire(&counter, 86_400).await?;
-
         let env = entry
             .get::<String>("envelope")
             .and_then(|raw| serde_json::from_str::<Envelope>(&raw).ok());
         let Some(env) = env else {
-            return self
-                .dead_letter(
-                    stream,
-                    group,
-                    entry,
-                    deliveries,
-                    "unparseable envelope",
-                    None,
-                    &counter,
-                )
-                .await;
+            self.dead_letter(
+                stream,
+                group,
+                entry,
+                deliveries,
+                "unparseable envelope",
+                None,
+                &counter,
+            )
+            .await?;
+            return Ok(None);
         };
         let scope = self.require_scope(&format!("consume {stream}"))?;
         if env.tenant_id != Some(scope.tenant) || env.job.as_deref() != Some(scope.job.as_str()) {
@@ -576,42 +710,64 @@ impl Bus {
                 _ => "no scope".to_string(),
             };
             let reason = format!("scope_mismatch: stamped {stamped}, stream is {scope}");
-            return self
-                .dead_letter(
-                    stream,
-                    group,
-                    entry,
-                    deliveries,
-                    &reason,
-                    Some(&env),
-                    &counter,
-                )
-                .await;
+            self.dead_letter(
+                stream,
+                group,
+                entry,
+                deliveries,
+                &reason,
+                Some(&env),
+                &counter,
+            )
+            .await?;
+            return Ok(None);
         }
         if deliveries > opts.max_deliveries {
             let reason = format!("gave up after {} deliveries", deliveries - 1);
-            return self
-                .dead_letter(
-                    stream,
-                    group,
-                    entry,
-                    deliveries,
-                    &reason,
-                    Some(&env),
-                    &counter,
-                )
-                .await;
+            self.dead_letter(
+                stream,
+                group,
+                entry,
+                deliveries,
+                &reason,
+                Some(&env),
+                &counter,
+            )
+            .await?;
+            return Ok(None);
         }
         match handler(env.clone()).await {
-            Ok(()) => {
-                let _: i64 = c.xack(stream, group, &[&entry.id]).await?;
-                let _: i64 = c.del(&counter).await?;
-                self.mirror_ack(stream, group, &entry.id, &env).await;
-            }
+            Ok(()) => Ok(Some(Acked {
+                entry_id: entry.id.clone(),
+                counter,
+                env,
+            })),
             Err(e) => {
                 tracing::warn!(stream, group, entry = %entry.id, topic = %env.topic, deliveries, "handler failed, left pending: {e:#}");
+                Ok(None)
             }
         }
+    }
+
+    /// Acknowledge a read batch in one round trip: `XACK` for every entry, the counter `DEL`s, and
+    /// the console ack frames, all in one pipeline. Non-atomic like the per-entry commands were: a
+    /// dropped connection mid-pipeline redelivers whatever it did not ack.
+    async fn ack_batch(&self, stream: &str, group: &str, acks: &[Acked]) -> Result<()> {
+        let ids: Vec<&str> = acks.iter().map(|a| a.entry_id.as_str()).collect();
+        let counters: Vec<&str> = acks.iter().map(|a| a.counter.as_str()).collect();
+        let mut c = self.conn.clone();
+        let mut pipe = redis::pipe();
+        pipe.cmd("XACK").arg(stream).arg(group).arg(&ids);
+        pipe.cmd("DEL").arg(&counters);
+        for acked in acks {
+            if let Some(frame) = self.ack_frame(stream, group, &acked.entry_id, &acked.env) {
+                pipe.cmd("PUBLISH").arg(self.streams.console()).arg(frame);
+            }
+        }
+        let _: Vec<redis::Value> = pipe
+            .query_async(&mut c)
+            .await
+            .with_context(|| format!("XACK {stream} {group} ({} entries)", ids.len()))?;
         Ok(())
     }
 
@@ -637,8 +793,10 @@ impl Bus {
         let mut c = self.conn.clone();
         let _: i64 = c.xack(stream, group, &[&entry.id]).await?;
         let _: i64 = c.del(counter).await?;
-        if let Some(env) = env {
-            self.mirror_ack(stream, group, &entry.id, env).await;
+        if let Some(env) = env
+            && let Some(frame) = self.ack_frame(stream, group, &entry.id, env)
+        {
+            self.mirror.send(&self.streams.console(), frame);
         }
         tracing::error!(stream, group, entry = %entry.id, reason, "dead-lettered");
         Ok(())

@@ -27,6 +27,7 @@ mod metering;
 mod migrations;
 mod ontology;
 mod overview;
+mod perf;
 mod procedures;
 mod providers;
 mod recorder;

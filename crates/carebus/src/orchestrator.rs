@@ -215,10 +215,12 @@ impl<A: ProcedureSource> Orchestrator<A> {
     pub async fn on_qualified(&self, env: Envelope) -> Result<()> {
         let req: QualifiedRequest = env.payload_as()?;
         self.cases.create(&req).await?;
-        if self.cases.is_resolved(&req.case_id).await? {
+        // One read for resolved, plan and phase: three answers, one round trip.
+        let snap = self.cases.snapshot(&req.case_id).await?;
+        if snap.resolved {
             return Ok(());
         }
-        let plan = match self.cases.plan(&req.case_id).await? {
+        let plan = match snap.plan {
             Some(p) => p,
             None => match self.sources.plan(&self.space_for(&req)).await {
                 Ok(p) => self.cases.set_plan(&req.case_id, &p).await?,
@@ -235,8 +237,7 @@ impl<A: ProcedureSource> Orchestrator<A> {
                 }
             },
         };
-        let phase = self.cases.phase(&req.case_id).await?;
-        self.start_phase(&req, &plan, phase).await
+        self.start_phase(&req, &plan, snap.phase).await
     }
 
     pub async fn on_result(&self, env: Envelope) -> Result<()> {
@@ -244,14 +245,16 @@ impl<A: ProcedureSource> Orchestrator<A> {
             return Ok(());
         }
         let o: WorkOutcome = env.payload_as()?;
-        if self.cases.is_resolved(&o.case_id).await? {
+        // resolved, request and plan in one round trip.
+        let snap = self.cases.snapshot(&o.case_id).await?;
+        if snap.resolved {
             return Ok(());
         }
-        let req = self.cases.request(&o.case_id).await?;
-        let plan = self
-            .cases
-            .plan(&o.case_id)
-            .await?
+        let req = snap
+            .request
+            .ok_or_else(|| anyhow::anyhow!("unknown case {}", o.case_id))?;
+        let plan = snap
+            .plan
             .ok_or_else(|| anyhow::anyhow!("case {} has no plan", o.case_id))?;
         let status = if o.ok { "succeeded" } else { "failed" };
         self.cases
@@ -302,12 +305,18 @@ impl<A: ProcedureSource> Orchestrator<A> {
         let Some(phase) = plan.phases.get(idx) else {
             return self.finish(req, Outcome::Completed, None).await;
         };
-        self.cases
-            .init_pending(&req.case_id, idx, phase.steps.len())
+        // The pending count and every recorded result in one round trip: a step with a result is
+        // skipped from memory, with no per-step read.
+        let results = self
+            .cases
+            .begin_phase(&req.case_id, idx, phase.steps.len())
             .await?;
-        let ctx = self.cases.context(req).await?;
+        let mut ctx = results.clone();
+        let mut request = serde_json::to_value(&req.slots)?;
+        request["customer_id"] = Value::String(req.customer_id.clone());
+        ctx.insert("request".into(), request);
         for step in &phase.steps {
-            if !self.cases.has_result(&req.case_id, &step.as_name).await? {
+            if !results.contains_key(&step.as_name) {
                 self.dispatch(
                     req,
                     idx,
@@ -324,6 +333,8 @@ impl<A: ProcedureSource> Orchestrator<A> {
     }
 
     async fn maybe_advance(&self, req: &QualifiedRequest, plan: &Plan, idx: usize) -> Result<()> {
+        // One tiny read is all the common path needs; the results hash is only pulled when a gate
+        // must be read, so a result does not drag the whole case across the link.
         if self.cases.remaining(&req.case_id, idx).await? > 0 {
             return Ok(());
         }
@@ -337,7 +348,11 @@ impl<A: ProcedureSource> Orchestrator<A> {
                 return self.finish(req, Outcome::NotEligible, reason).await;
             }
         }
-        self.cases.advance_phase(&req.case_id, idx, idx + 1).await?;
+        // The winner of the phase move knows the new phase without reading it back.
+        if self.cases.advance_phase(&req.case_id, idx, idx + 1).await? {
+            return Box::pin(self.start_phase(req, plan, idx + 1)).await;
+        }
+        // Another replica moved the phase: read where it landed.
         if self.cases.phase(&req.case_id).await? == idx + 1 {
             return Box::pin(self.start_phase(req, plan, idx + 1)).await;
         }
@@ -367,13 +382,19 @@ impl<A: ProcedureSource> Orchestrator<A> {
             request_type: req.request_type.clone(),
             side_effect: step.side_effect,
         };
-        self.cases
-            .set_work_status(&req.case_id, &work.work_id, &json!({"work_id": work.work_id, "worker": work.worker, "action": work.action, "attempt": attempt, "status": "outstanding"}))
-            .await?;
+        let status = json!({"work_id": work.work_id, "worker": work.worker, "action": work.action, "attempt": attempt, "status": "outstanding"});
         let env = Envelope::new(&req.topic(WORK_REQUESTED), NAME, &req.case_id, &work)?
             .with_procedure(procedure);
+        // The status write and the work entry share one pipeline: one round trip.
         self.bus
-            .publish(&self.bus.streams.worker(&req.area, &step.worker), &env)
+            .publish_with(
+                &self.bus.streams.worker(&req.area, &step.worker),
+                &env,
+                |pipe| {
+                    self.cases
+                        .queue_work_status(pipe, &req.case_id, &work.work_id, &status);
+                },
+            )
             .await?;
         Ok(())
     }
@@ -384,7 +405,9 @@ impl<A: ProcedureSource> Orchestrator<A> {
         outcome: Outcome,
         reason: Option<String>,
     ) -> Result<()> {
-        if self.cases.is_resolved(&req.case_id).await? {
+        // resolved and the plan in one round trip.
+        let snap = self.cases.snapshot(&req.case_id).await?;
+        if snap.resolved {
             return Ok(());
         }
         let proposed = Resolution {
@@ -399,11 +422,7 @@ impl<A: ProcedureSource> Orchestrator<A> {
         let res = self.cases.set_resolution(&req.case_id, &proposed).await?;
         // The version the case ran, from the plan stored on the case (first plan wins, so every replica and a
         // republish stamp the same one). None when no plan was ever chosen (registry down) or it was built in.
-        let procedure = self
-            .cases
-            .plan(&req.case_id)
-            .await?
-            .and_then(|p| p.procedure);
+        let procedure = snap.plan.and_then(|p| p.procedure);
         // Publish before marking: a crash in between republishes, and the
         // interaction agent drops the duplicate by case id.
         let env = Envelope::new(&req.topic(REQUEST_RESOLVED), NAME, &req.case_id, &res)?

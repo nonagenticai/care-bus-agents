@@ -4,6 +4,9 @@
 //! register re-resolves `eli` / `saos` / `eurlex`. `literature` quotes must be in the title or abstract of the cited
 //! paper's own record in that step. `other` sources, `stats` (computed numbers, not a source) and citations without
 //! a step are never verified. A claim is supported iff at least one of its citations is verified.
+use std::borrow::Cow;
+use std::collections::HashMap;
+
 use serde_json::{Value, json};
 
 use super::SourceKind;
@@ -11,7 +14,7 @@ use super::prompts::{
     LEGAL_DISCLAIMER, LEGAL_REPORT_TITLE, RESEARCH_DISCLAIMER, RESEARCH_REPORT_TITLE,
     UNVERIFIED_HEADING,
 };
-use super::tools::{Resolution, Resolver, eli_base, strata_result_ids, strata_texts_for};
+use super::tools::{Resolution, Resolver, eli_base};
 
 /// A normalised quote shorter than this cannot verify anything (a few characters occur in any text).
 pub const MIN_QUOTE_CHARS: usize = 20;
@@ -100,13 +103,13 @@ pub fn normalise(s: &str) -> String {
     out
 }
 
-/// The normalised texts a quote may be found in: the result text itself and, when it is JSON, its string values
-/// (so a quote of a passage matches even though the passage is JSON-escaped in the text).
-fn haystacks(text: &str) -> Vec<String> {
+/// The normalised texts a quote may be found in: the result text itself and, when it is JSON (already parsed into
+/// `parsed`), its string values (so a quote of a passage matches even though the passage is JSON-escaped in the text).
+fn haystacks(text: &str, parsed: Option<&Value>) -> Vec<String> {
     let mut out = vec![normalise(text)];
-    if let Ok(v) = serde_json::from_str::<Value>(text) {
+    if let Some(v) = parsed {
         let mut leaves = vec![];
-        collect_strings(&v, &mut leaves);
+        collect_strings(v, &mut leaves);
         out.extend(leaves.into_iter().map(|s| normalise(&s)));
     }
     out
@@ -121,10 +124,6 @@ fn collect_strings(v: &Value, out: &mut Vec<String>) {
     }
 }
 
-fn contains_normalised(text: &str, needle_norm: &str) -> bool {
-    haystacks(text).iter().any(|h| h.contains(needle_norm))
-}
-
 pub const LITERATURE_RECORD: &str = "research_literature_record";
 pub const LITERATURE_SEARCH: &str = "research_literature_search";
 
@@ -136,13 +135,77 @@ pub const LEGAL_DOCUMENT_TOOLS: [&str; 3] = [
     "legal_duw_document",
 ];
 
-/// The parsed result of a [`LEGAL_DOCUMENT_TOOLS`] step; `None` for any other tool or a result that is not JSON
-/// (e.g. cut to the cap).
-fn legal_document(step: &ToolStepView) -> Option<Value> {
-    if !LEGAL_DOCUMENT_TOOLS.contains(&step.name.as_str()) {
-        return None;
+/// The parsed result of a [`LEGAL_DOCUMENT_TOOLS`] step, from the step's already-parsed result; `None` for any other
+/// tool or a result that is not JSON (e.g. cut to the cap).
+fn legal_document(step: &ToolStepView, parsed: Option<&Value>) -> Option<Value> {
+    parsed
+        .filter(|_| LEGAL_DOCUMENT_TOOLS.contains(&step.name.as_str()))
+        .cloned()
+}
+
+/// The derived data of one cited step, computed once per run ([`PreparedSteps`]) instead of once per citation.
+#[derive(Clone, Debug)]
+pub struct PreparedStep {
+    haystacks: Vec<String>,
+    legal: Option<Value>,
+    legal_text_normalised: Option<String>,
+    literature: Vec<Value>,
+    strata: Vec<Value>,
+}
+
+impl PreparedStep {
+    /// Everything [`verify_local_prepared`] reads from one step: one parse of the result serves every field.
+    fn new(step: &ToolStepView) -> Self {
+        let parsed = serde_json::from_str::<Value>(&step.text).ok();
+        let legal = legal_document(step, parsed.as_ref());
+        let legal_text_normalised = legal
+            .as_ref()
+            .and_then(|v| v["text"].as_str())
+            .map(normalise);
+        let literature = literature_selected(&step.name, parsed.as_ref());
+        let strata = parsed
+            .as_ref()
+            .and_then(|v| v["results"].as_array().cloned())
+            .unwrap_or_default();
+        Self {
+            haystacks: haystacks(&step.text, parsed.as_ref()),
+            legal,
+            legal_text_normalised,
+            literature,
+            strata,
+        }
     }
-    serde_json::from_str(&step.text).ok()
+}
+
+/// The steps a verification pass will cite, prepared once ([`PreparedStep`] per distinct ordinal) and read once
+/// per citation. An ordinal missing from the map is prepared on demand, so a caller that under-prepares still gets
+/// the same verdict, never a different one.
+#[derive(Clone, Debug, Default)]
+pub struct PreparedSteps {
+    by_ordinal: HashMap<i32, PreparedStep>,
+}
+
+impl PreparedSteps {
+    /// One entry per distinct ordinal of `ordinals` that exists in `steps`; ordinals without a step are skipped.
+    pub fn new(steps: &[ToolStepView], ordinals: impl IntoIterator<Item = i32>) -> Self {
+        let mut by_ordinal = HashMap::new();
+        for ordinal in ordinals {
+            if let std::collections::hash_map::Entry::Vacant(entry) = by_ordinal.entry(ordinal)
+                && let Some(step) = steps.iter().find(|s| s.ordinal == ordinal)
+            {
+                entry.insert(PreparedStep::new(step));
+            }
+        }
+        Self { by_ordinal }
+    }
+
+    /// The prepared data for `step`: an ordinal this set does not hold is prepared now (correct, just not shared).
+    fn get(&self, step: &ToolStepView, ordinal: i32) -> Cow<'_, PreparedStep> {
+        match self.by_ordinal.get(&ordinal) {
+            Some(p) => Cow::Borrowed(p),
+            None => Cow::Owned(PreparedStep::new(step)),
+        }
+    }
 }
 
 /// The only tools whose result may carry a quote of this kind of source; empty = no tool can (`other`, `stats`).
@@ -218,23 +281,25 @@ pub fn parse_literature_locator(locator: &str) -> Option<LiteratureLocator> {
     (l.id.is_some() || l.doi.is_some() || l.pmid.is_some()).then_some(l)
 }
 
-/// The records of a stored `research_literature_*` result that the locator names: the record itself
+/// The records a stored `research_literature_*` result carries, before any locator filtering: the record itself
+/// (`research_literature_record`) or the search `items`.
+fn literature_selected(name: &str, parsed: Option<&Value>) -> Vec<Value> {
+    match (name, parsed) {
+        (LITERATURE_RECORD, Some(v)) => vec![v.clone()],
+        (LITERATURE_SEARCH, Some(v)) => v["items"].as_array().cloned().unwrap_or_default(),
+        _ => vec![],
+    }
+}
+
+/// The records of those already selected that the locator names: the record itself
 /// (`research_literature_record`) or the search `items` whose id / doi / pmid equal every part the locator gives.
-pub fn literature_records(step: &ToolStepView, locator: &str) -> Vec<Value> {
+fn literature_matching<'a>(records: &'a [Value], locator: &str) -> Vec<&'a Value> {
     let Some(l) = parse_literature_locator(locator) else {
         return vec![];
     };
-    let Ok(v) = serde_json::from_str::<Value>(&step.text) else {
-        return vec![];
-    };
-    let records = match step.name.as_str() {
-        LITERATURE_RECORD => vec![v],
-        LITERATURE_SEARCH => v["items"].as_array().cloned().unwrap_or_default(),
-        _ => vec![],
-    };
     let field = |r: &Value, k: &str| arg_text(&r[k]).filter(|s| !s.is_empty());
     records
-        .into_iter()
+        .iter()
         .filter(|r| {
             l.id.as_ref().is_none_or(|want| {
                 field(r, "id")
@@ -248,6 +313,17 @@ pub fn literature_records(step: &ToolStepView, locator: &str) -> Vec<Value> {
                     .as_ref()
                     .is_none_or(|want| field(r, "pmid").is_some_and(|g| g == *want))
         })
+        .collect()
+}
+
+/// The records of a stored `research_literature_*` result that the locator names: the record itself
+/// (`research_literature_record`) or the search `items` whose id / doi / pmid equal every part the locator gives.
+pub fn literature_records(step: &ToolStepView, locator: &str) -> Vec<Value> {
+    let parsed = serde_json::from_str::<Value>(&step.text).ok();
+    let selected = literature_selected(&step.name, parsed.as_ref());
+    literature_matching(&selected, locator)
+        .into_iter()
+        .cloned()
         .collect()
 }
 
@@ -385,10 +461,39 @@ fn url_key(s: &str) -> &str {
     t.strip_suffix('/').unwrap_or(t)
 }
 
+/// The chunk and document ids of prepared `strata_search` results (the parse-free mirror of
+/// `tools::strata_result_ids`).
+fn strata_ids(results: &[Value]) -> Vec<String> {
+    let mut ids = vec![];
+    for r in results {
+        for k in ["chunk_id", "document_id"] {
+            if let Some(id) = r[k].as_str().filter(|id| !id.is_empty()) {
+                ids.push(id.to_string());
+            }
+        }
+    }
+    ids
+}
+
+/// The texts of prepared `strata_search` results whose chunk or document id is `id` (the parse-free mirror of
+/// `tools::strata_texts_for`).
+fn strata_texts<'a>(results: &'a [Value], id: &str) -> Vec<&'a str> {
+    results
+        .iter()
+        .filter(|r| r["chunk_id"].as_str() == Some(id) || r["document_id"].as_str() == Some(id))
+        .filter_map(|r| r["text"].as_str())
+        .collect()
+}
+
 /// Whether the step (already known to be one of the kind's [`source_tools`]) is the call for this locator: its
-/// arguments name it (`strata`: its result lists it as a chunk or document id; a legal document step: its result's
-/// `url`).
-pub fn locator_matches(kind: SourceKind, locator: &str, step: &ToolStepView) -> bool {
+/// arguments name it (`strata`: its prepared result lists it as a chunk or document id; a legal document step: its
+/// prepared result's `url`; `literature`: a prepared record matches).
+pub fn locator_matches(
+    kind: SourceKind,
+    locator: &str,
+    step: &ToolStepView,
+    prepared: &PreparedStep,
+) -> bool {
     let loc = locator.trim();
     let args = &step.arguments;
     match kind {
@@ -406,9 +511,9 @@ pub fn locator_matches(kind: SourceKind, locator: &str, step: &ToolStepView) -> 
             (Some(a), Some(b)) => a == b,
             _ => false,
         },
-        // a legal document step: the canonical `url` in its result; `web_scrape`: the url it was called with
+        // a legal document step: the canonical `url` in its prepared result; `web_scrape`: the url it was called with
         SourceKind::Web if LEGAL_DOCUMENT_TOOLS.contains(&step.name.as_str()) => {
-            legal_document(step).is_some_and(|v| {
+            prepared.legal.as_ref().is_some_and(|v| {
                 v["url"]
                     .as_str()
                     .is_some_and(|u| !url_key(u).is_empty() && url_key(u) == url_key(loc))
@@ -417,15 +522,20 @@ pub fn locator_matches(kind: SourceKind, locator: &str, step: &ToolStepView) -> 
         SourceKind::Web => args["url"]
             .as_str()
             .is_some_and(|u| !url_key(u).is_empty() && url_key(u) == url_key(loc)),
-        SourceKind::Strata => strata_result_ids(&step.text).iter().any(|id| id == loc),
-        SourceKind::Literature => !literature_records(step, loc).is_empty(),
+        SourceKind::Strata => strata_ids(&prepared.strata).iter().any(|id| id == loc),
+        SourceKind::Literature => !literature_matching(&prepared.literature, loc).is_empty(),
         SourceKind::Stats | SourceKind::Other => false,
     }
 }
 
-/// Every check that needs no register: quote length, provenance (the named step is the source call for the
-/// locator) and the quote in that step's result. `Ok(None)` = passed, and the kind needs [`Resolver::resolve`].
-pub fn verify_local(c: &CitationIn, steps: &[ToolStepView]) -> Result<Option<Verdict>, Verdict> {
+/// Every check that needs no register, against steps whose derived data is prepared once per run
+/// ([`PreparedSteps`]): quote length, provenance (the named step is the source call for the locator) and the quote
+/// in that step's result. `Ok(None)` = passed, and the kind needs [`Resolver::resolve`].
+pub fn verify_local_prepared(
+    c: &CitationIn,
+    steps: &[ToolStepView],
+    prepared: &PreparedSteps,
+) -> Result<Option<Verdict>, Verdict> {
     // a `research_stats_*` result is a computation over the model's own inputs, not a source: never verified, so
     // a claim resting on it alone lands under "Not verified" with this reason (before the quote-length check: its
     // quote is usually just a number)
@@ -461,13 +571,14 @@ pub fn verify_local(c: &CitationIn, steps: &[ToolStepView]) -> Result<Option<Ver
             json!({"reason": "step_not_found", "step_ordinal": n}),
         ));
     };
+    let p = prepared.get(step, n);
     if !tools.contains(&step.name.as_str()) {
         return Err(Verdict::new(
             VerifyStatus::QuoteMismatch,
             json!({"reason": "wrong_step_kind", "step_ordinal": n, "step_tool": step.name, "expected_tool": tools.join("|")}),
         ));
     }
-    if !locator_matches(c.source_kind, &c.locator, step) {
+    if !locator_matches(c.source_kind, &c.locator, step, &p) {
         // a paper missing from a cut result may have been in the part that was cut: say so, not "wrong paper"
         if c.source_kind == SourceKind::Literature && step.truncated {
             return Err(Verdict::new(
@@ -498,23 +609,22 @@ pub fn verify_local(c: &CitationIn, steps: &[ToolStepView]) -> Result<Option<Ver
     // strata: the quote must be in the cited chunk (or document) itself, not anywhere in the result;
     // literature: in the cited paper's own title or abstract
     let found = match c.source_kind {
-        SourceKind::Strata => strata_texts_for(&step.text, c.locator.trim())
-            .iter()
+        SourceKind::Strata => strata_texts(&p.strata, c.locator.trim())
+            .into_iter()
             .any(|t| normalise(t).contains(&q)),
-        SourceKind::Literature => literature_records(step, &c.locator).iter().any(|r| {
-            ["title", "abstract"]
-                .iter()
-                .any(|k| r[*k].as_str().is_some_and(|t| normalise(t).contains(&q)))
-        }),
+        SourceKind::Literature => literature_matching(&p.literature, &c.locator)
+            .into_iter()
+            .any(|r| {
+                ["title", "abstract"]
+                    .iter()
+                    .any(|k| r[*k].as_str().is_some_and(|t| normalise(t).contains(&q)))
+            }),
         // a legal document: in its plain `text`, not its metadata
-        SourceKind::Web if LEGAL_DOCUMENT_TOOLS.contains(&step.name.as_str()) => {
-            legal_document(step).is_some_and(|v| {
-                v["text"]
-                    .as_str()
-                    .is_some_and(|t| normalise(t).contains(&q))
-            })
-        }
-        _ => contains_normalised(&step.text, &q),
+        SourceKind::Web if LEGAL_DOCUMENT_TOOLS.contains(&step.name.as_str()) => p
+            .legal_text_normalised
+            .as_ref()
+            .is_some_and(|t| t.contains(&q)),
+        _ => p.haystacks.iter().any(|h| h.contains(&q)),
     };
     if !found {
         return Err(Verdict::new(
@@ -529,6 +639,11 @@ pub fn verify_local(c: &CitationIn, steps: &[ToolStepView]) -> Result<Option<Ver
             json!({"step_ordinal": n}),
         )),
     })
+}
+
+/// [`verify_local_prepared`] for one citation: prepares only the step it cites.
+pub fn verify_local(c: &CitationIn, steps: &[ToolStepView]) -> Result<Option<Verdict>, Verdict> {
+    verify_local_prepared(c, steps, &PreparedSteps::new(steps, c.step_ordinal))
 }
 
 /// The register's answer as a verdict (the quote already matched).
@@ -551,6 +666,22 @@ pub fn verdict_of(r: &Resolution) -> Verdict {
     }
 }
 
+/// [`verify_citation`] with each cited step's derived data prepared once for the whole run
+/// ([`PreparedSteps`]); the register-backed kinds resolve exactly as in [`verify_citation`].
+pub async fn verify_citation_prepared<R: Resolver>(
+    tenant: uuid::Uuid,
+    c: &CitationIn,
+    steps: &[ToolStepView],
+    prepared: &PreparedSteps,
+    resolver: &R,
+) -> Verdict {
+    match verify_local_prepared(c, steps, prepared) {
+        Err(v) => v,
+        Ok(Some(v)) => v,
+        Ok(None) => verdict_of(&resolver.resolve(tenant, c.source_kind, &c.locator).await),
+    }
+}
+
 /// `tenant`: the run's tenant, whose MCP credentials the register lookup uses.
 pub async fn verify_citation<R: Resolver>(
     tenant: uuid::Uuid,
@@ -558,11 +689,8 @@ pub async fn verify_citation<R: Resolver>(
     steps: &[ToolStepView],
     resolver: &R,
 ) -> Verdict {
-    match verify_local(c, steps) {
-        Err(v) => v,
-        Ok(Some(v)) => v,
-        Ok(None) => verdict_of(&resolver.resolve(tenant, c.source_kind, &c.locator).await),
-    }
+    let prepared = PreparedSteps::new(steps, c.step_ordinal);
+    verify_citation_prepared(tenant, c, steps, &prepared, resolver).await
 }
 
 /// A claim with its citations and their verdicts, in citation order.
@@ -1421,5 +1549,105 @@ mod tests {
         assert!(!plain.contains(UNVERIFIED_HEADING) && !plain.contains("pomocniczo"));
         let none = build_report(false, &claims[1..]);
         assert!(none.contains("No verified findings") && none.contains(UNVERIFIED_HEADING));
+    }
+
+    /// The one-citation path and the prepared path agree on every fixture: web, literature, strata, a legal
+    /// document, an `eli` citation, a missing step and a wrong step kind; a set missing the cited ordinal prepares
+    /// it on demand, never giving a different verdict.
+    #[tokio::test]
+    async fn prepared_verification_matches_the_one_citation_path() {
+        let mut all = steps();
+        all.extend(kio_steps());
+        let citations = [
+            cit(
+                SourceKind::Eli,
+                "DU/1964/59 art. 133 § 1",
+                ELI_QUOTE,
+                Some(1),
+            ),
+            // step_not_found
+            cit(SourceKind::Eli, "DU/1964/59 art. 133", ELI_QUOTE, Some(42)),
+            // the quote lives in a web step: wrong step kind for `eli`
+            cit(SourceKind::Eli, "DU/1964/59", ELI_QUOTE, Some(5)),
+            cit(SourceKind::Eli, "DU/1965/1", ELI_QUOTE, Some(1)),
+            cit(SourceKind::Web, "https://example.pl/a", WEB_QUOTE, Some(5)),
+            cit(
+                SourceKind::Strata,
+                "c-11",
+                "Wypowiedzenie wymaga formy pisemnej",
+                Some(3),
+            ),
+            cit(
+                SourceKind::Strata,
+                "c-10",
+                "Wypowiedzenie wymaga formy pisemnej",
+                Some(3),
+            ),
+            cit(SourceKind::Literature, PAPER_A, LIT_QUOTE, Some(11)),
+            cit(SourceKind::Literature, PAPER_A, LIT_QUOTE, Some(12)),
+            // the quote is in paper A, not in the cited paper B
+            cit(SourceKind::Literature, PAPER_B, LIT_QUOTE, Some(12)),
+            cit(SourceKind::Web, KIO_URL, KIO_QUOTE, Some(21)),
+            // a search step is not a source
+            cit(SourceKind::Web, KIO_URL, KIO_QUOTE, Some(20)),
+            cit(
+                SourceKind::Saos,
+                "12345",
+                "roszczenie jest zasadne",
+                Some(6),
+            ),
+            cit(
+                SourceKind::Eurlex,
+                "32016R0679",
+                "rozporządzenie chroni podstawowe prawa",
+                Some(7),
+            ),
+            cit(
+                SourceKind::Krs,
+                "0000012345",
+                "Przykładowa Spółka z ograniczoną",
+                Some(8),
+            ),
+        ];
+        let expected = [
+            VerifyStatus::Verified,
+            VerifyStatus::QuoteMismatch,
+            VerifyStatus::QuoteMismatch,
+            VerifyStatus::QuoteMismatch,
+            VerifyStatus::Verified,
+            VerifyStatus::Verified,
+            VerifyStatus::QuoteMismatch,
+            VerifyStatus::Verified,
+            VerifyStatus::Verified,
+            VerifyStatus::QuoteMismatch,
+            VerifyStatus::Verified,
+            VerifyStatus::QuoteMismatch,
+            VerifyStatus::Verified,
+            VerifyStatus::Verified,
+            VerifyStatus::Verified,
+        ];
+        let every = PreparedSteps::new(&all, all.iter().map(|s| s.ordinal));
+        let none = PreparedSteps::new(&all, []);
+        for (c, want) in citations.iter().zip(expected.iter().copied()) {
+            let direct = verify_local(c, &all);
+            assert_eq!(direct, verify_local_prepared(c, &all, &every), "{c:?}");
+            assert_eq!(
+                direct,
+                verify_local_prepared(c, &all, &none),
+                "on-demand fallback: {c:?}"
+            );
+            let plain = verify_citation(uuid::Uuid::nil(), c, &all, &found()).await;
+            assert_eq!(
+                plain,
+                verify_citation_prepared(uuid::Uuid::nil(), c, &all, &every, &found()).await,
+                "{c:?}"
+            );
+            assert_eq!(
+                plain,
+                verify_citation_prepared(uuid::Uuid::nil(), c, &all, &none, &found()).await,
+                "on-demand fallback: {c:?}"
+            );
+            assert_eq!(plain.status, want, "{c:?}: {:?}", plain.detail);
+        }
     }
 }

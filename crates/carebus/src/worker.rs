@@ -161,20 +161,19 @@ impl Worker {
             work: w.clone(),
         };
         let key = self.call_key(&call.call_id);
-        // One command: a crash can never leave the record without its expiry.
-        let _: Option<String> = redis::cmd("SET")
-            .arg(&key)
-            .arg(serde_json::to_string(&w)?)
-            .arg("NX")
-            .arg("EX")
-            .arg(86_400)
-            .query_async(&mut c)
-            .await?;
+        let payload = serde_json::to_string(&w)?;
+        let env = Envelope::new(&space.topic(TOOL_CALL), &self.name(), &w.case_id, &call)?;
+        // One command for the record (a crash can never leave it without its expiry), and one pipeline
+        // with the entry that announces it: the two share a round trip.
         self.bus
-            .publish(
-                &self.bus.streams.tool(&w.worker),
-                &Envelope::new(&space.topic(TOOL_CALL), &self.name(), &w.case_id, &call)?,
-            )
+            .publish_with(&self.bus.streams.tool(&w.worker), &env, |pipe| {
+                pipe.cmd("SET")
+                    .arg(&key)
+                    .arg(payload)
+                    .arg("NX")
+                    .arg("EX")
+                    .arg(86_400);
+            })
             .await?;
         Ok(())
     }

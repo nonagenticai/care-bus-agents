@@ -31,10 +31,10 @@ const WORKERS: [&str; 6] = [
     "procedures",
 ];
 
-struct Harness {
-    bus: Bus,
-    tools: FakeTools,
-    mcp: FakeMcp,
+pub(crate) struct Harness {
+    pub(crate) bus: Bus,
+    pub(crate) tools: FakeTools,
+    pub(crate) mcp: FakeMcp,
     tasks: Vec<JoinHandle<()>>,
 }
 
@@ -54,7 +54,15 @@ async fn harness_with(test: &str, executor_timeout: Duration) -> Harness {
 
 /// The agents of one scope serving `spaces` as its context spaces.
 async fn harness_in(test: &str, executor_timeout: Duration, spaces: SpaceCatalog) -> Harness {
-    let bus = bus(test).await;
+    harness_at(bus(test).await, executor_timeout, spaces).await
+}
+
+/// The same agents on a caller-supplied bus (the perf benchmarks point it through a delay proxy).
+pub(crate) async fn harness_at(
+    bus: Bus,
+    executor_timeout: Duration,
+    spaces: SpaceCatalog,
+) -> Harness {
     let tools = FakeTools::default();
     let mcp = FakeMcp::new(tools.clone());
     let mut tasks = Vec::new();

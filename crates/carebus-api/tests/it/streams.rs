@@ -53,6 +53,7 @@ async fn dead_letter_via_consume(bus: &carebus::Bus, origin: &str, case: &str) {
         batch: 16,
         block: std::time::Duration::from_millis(100),
         reclaim_idle: std::time::Duration::from_millis(200),
+        reclaim_every: std::time::Duration::from_millis(50),
         max_deliveries: 2,
     };
     let (b, o) = (bus.clone(), origin.to_string());
