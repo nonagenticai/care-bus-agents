@@ -2,6 +2,11 @@
 //! so these benches measure the current cost of the verify loop per source kind. Ignored by default; CI never runs
 //! them:
 //!
+//! Each bench prints two lines. The first is the one-shot `verify_citation` wrapper, which prepares the cited step
+//! for every call. The second is the production run shape: `PreparedSteps` is built once per run (inside the timed
+//! region, because a run pays for it) and `verify_citation_prepared` then verifies each citation against it. Both
+//! shapes must agree on every verdict, and each bench asserts that.
+//!
 //! ```text
 //! cargo test -p carebus-api --test it -- --ignored perf --nocapture
 //! ```
@@ -11,8 +16,8 @@ use std::time::Instant;
 use carebus_api::research::SourceKind;
 use carebus_api::research::tools::{Resolution, Resolver};
 use carebus_api::research::verify::{
-    CitationIn, LITERATURE_SEARCH, MIN_QUOTE_CHARS, MIN_QUOTE_WORDS, ToolStepView, VerifyStatus,
-    normalise, verify_citation,
+    CitationIn, LITERATURE_SEARCH, MIN_QUOTE_CHARS, MIN_QUOTE_WORDS, PreparedSteps, ToolStepView,
+    VerifyStatus, normalise, verify_citation, verify_citation_prepared,
 };
 use serde_json::{Value, json};
 use uuid::Uuid;
@@ -205,32 +210,80 @@ fn report(kind: &str, n: usize, elapsed: std::time::Duration) {
     println!("perf verify {kind}: {n} citations in {ms:.1}ms = {per_citation:.1} µs/citation");
 }
 
-/// Cost of verifying 200 citations whose quotes live in `web_scrape` results.
+/// Cost of verifying 200 citations whose quotes live in `web_scrape` results: the one-shot wrapper, then the
+/// production run shape that prepares each cited step once.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 #[ignore = "benchmark: cargo test -p carebus-api --test it -- --ignored perf --nocapture"]
 async fn perf_verify_web() {
     let fixture = fixture();
     let resolver = MissingResolver;
+    let citations = &fixture.web;
     let started = Instant::now();
-    for citation in &fixture.web {
+    let mut one_shot = Vec::with_capacity(citations.len());
+    for citation in citations {
         let verdict = verify_citation(Uuid::nil(), citation, &fixture.steps, &resolver).await;
         std::hint::black_box(verdict.status);
+        one_shot.push(verdict.status);
     }
-    report("web", fixture.web.len(), started.elapsed());
+    report("web", citations.len(), started.elapsed());
+
+    // The production run shape: every cited step prepared once, then every citation verified against it.
+    let started = Instant::now();
+    let prepared = PreparedSteps::new(
+        &fixture.steps,
+        citations.iter().filter_map(|c| c.step_ordinal),
+    );
+    let mut run = Vec::with_capacity(citations.len());
+    for citation in citations {
+        let verdict =
+            verify_citation_prepared(Uuid::nil(), citation, &fixture.steps, &prepared, &resolver)
+                .await;
+        std::hint::black_box(verdict.status);
+        run.push(verdict.status);
+    }
+    report("run web", citations.len(), started.elapsed());
+    assert_eq!(
+        one_shot, run,
+        "run shape disagreed with the one-shot wrapper; that is a bug, not a benchmark result"
+    );
 }
 
-/// Cost of verifying 200 citations whose quotes live in `research_literature_search` results.
+/// Cost of verifying 200 citations whose quotes live in `research_literature_search` results: the one-shot
+/// wrapper, then the production run shape that prepares each cited step once.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 #[ignore = "benchmark: cargo test -p carebus-api --test it -- --ignored perf --nocapture"]
 async fn perf_verify_literature() {
     let fixture = fixture();
     let resolver = MissingResolver;
+    let citations = &fixture.literature;
     let started = Instant::now();
-    for citation in &fixture.literature {
+    let mut one_shot = Vec::with_capacity(citations.len());
+    for citation in citations {
         let verdict = verify_citation(Uuid::nil(), citation, &fixture.steps, &resolver).await;
         std::hint::black_box(verdict.status);
+        one_shot.push(verdict.status);
     }
-    report("literature", fixture.literature.len(), started.elapsed());
+    report("literature", citations.len(), started.elapsed());
+
+    // The production run shape: every cited step prepared once, then every citation verified against it.
+    let started = Instant::now();
+    let prepared = PreparedSteps::new(
+        &fixture.steps,
+        citations.iter().filter_map(|c| c.step_ordinal),
+    );
+    let mut run = Vec::with_capacity(citations.len());
+    for citation in citations {
+        let verdict =
+            verify_citation_prepared(Uuid::nil(), citation, &fixture.steps, &prepared, &resolver)
+                .await;
+        std::hint::black_box(verdict.status);
+        run.push(verdict.status);
+    }
+    report("run literature", citations.len(), started.elapsed());
+    assert_eq!(
+        one_shot, run,
+        "run shape disagreed with the one-shot wrapper; that is a bug, not a benchmark result"
+    );
 }
 
 /// Stops both benches from silently measuring an early return: the fixtures are at the cap, every quote is long
