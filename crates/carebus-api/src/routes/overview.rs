@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use axum::{Json, Router, extract::State, routing::get};
 use carebus::Bus;
+use futures_util::{StreamExt, TryStreamExt};
 use serde_json::{Value, json};
 use uuid::Uuid;
 
@@ -167,15 +168,27 @@ fn attn(severity: &str, title: String, page: &str) -> Value {
     json!({"severity": severity, "title": title, "page": page})
 }
 
-async fn bus_attention(bus: &Bus, out: &mut Vec<Value>) {
+async fn bus_attention(bus: &Bus) -> Vec<Value> {
+    // The dead-letter count and the per-stream lag reads are independent round trips: run them together. The lag
+    // reads keep stream order (so the items match the sequential version) but hold at most 8 streams in flight.
     let dead = bounded("dead-letter count", async {
         if ra::owns(bus, DEAD).await? {
             Ok(ra::stream_info(bus, DEAD).await?.length)
         } else {
             Ok::<u64, redis::RedisError>(0)
         }
-    })
-    .await;
+    });
+    let lag = bounded("consumer lag", async {
+        let keys = ra::list_streams(bus).await?;
+        let infos: Vec<_> =
+            futures_util::stream::iter(keys.iter().map(|k| ra::stream_info(bus, k)))
+                .buffered(8)
+                .try_collect()
+                .await?;
+        Ok::<_, redis::RedisError>(keys.into_iter().zip(infos).collect::<Vec<_>>())
+    });
+    let (dead, lag) = tokio::join!(dead, lag);
+    let mut out = Vec::new();
     match dead {
         Ok(0) => {}
         Ok(n) => out.push(attn(
@@ -189,15 +202,6 @@ async fn bus_attention(bus: &Bus, out: &mut Vec<Value>) {
             "buses",
         )),
     }
-    let lag = bounded("consumer lag", async {
-        let mut infos = Vec::new();
-        for k in ra::list_streams(bus).await? {
-            let i = ra::stream_info(bus, &k).await?;
-            infos.push((k, i));
-        }
-        Ok::<_, redis::RedisError>(infos)
-    })
-    .await;
     match lag {
         Ok(infos) => {
             for (k, i) in infos {
@@ -220,9 +224,11 @@ async fn bus_attention(bus: &Bus, out: &mut Vec<Value>) {
             "buses",
         )),
     }
+    out
 }
 
-async fn db_attention(s: &AppState, ctx: &JobCtx, out: &mut Vec<Value>) {
+async fn db_attention(s: &AppState, ctx: &JobCtx) -> Vec<Value> {
+    let mut out = Vec::new();
     match bounded("canary procedures", async {
         let mut tx = ctx.begin(&s.db).await?;
         let rows = sqlx::query_scalar::<_, String>(
@@ -249,6 +255,7 @@ async fn db_attention(s: &AppState, ctx: &JobCtx, out: &mut Vec<Value>) {
             "procedures",
         )),
     }
+    out
 }
 
 async fn overview(JobMember(ctx): JobMember, State(s): State<AppState>) -> Json<Value> {
@@ -290,15 +297,27 @@ async fn overview(JobMember(ctx): JobMember, State(s): State<AppState>) -> Json<
             ));
         }
     }
-    if redis_ok {
-        bus_attention(&s.bus.scoped(&ctx.scope()), &mut attention).await;
-    }
-    let (today, week_ago) = if pg_ok {
-        db_attention(&s, &ctx, &mut attention).await;
-        (day(&s, &ctx, 0).await, day(&s, &ctx, 7).await)
-    } else {
-        (None, None)
+    // Down-dependency items stay first; the bus group and the Postgres group then run together, so the page pays
+    // one round trip per group instead of one per query. The group results are appended bus-then-DB, which keeps
+    // the attention order (and so the JSON body) identical to the sequential version.
+    let bus_group = async {
+        if redis_ok {
+            let bus = s.bus.scoped(&ctx.scope());
+            bus_attention(&bus).await
+        } else {
+            Vec::new()
+        }
     };
+    let db_group = async {
+        if pg_ok {
+            tokio::join!(db_attention(&s, &ctx), day(&s, &ctx, 0), day(&s, &ctx, 7))
+        } else {
+            (Vec::new(), None, None)
+        }
+    };
+    let (bus_items, (db_items, today, week_ago)) = tokio::join!(bus_group, db_group);
+    attention.extend(bus_items);
+    attention.extend(db_items);
 
     Json(json!({
         "today": today,
