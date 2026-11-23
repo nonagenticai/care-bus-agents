@@ -447,10 +447,6 @@ pub fn replay(profile: Profile, question: &str, steps: &[StepRow]) -> Replay {
 /// The assistant message as it is stored and sent back: `content` and `tool_calls` only (no reasoning fields),
 /// every call with an id and string arguments.
 pub fn assistant_message(raw: &Value, ordinal: i32) -> Value {
-    let content = match &raw["content"] {
-        Value::String(s) => Value::String(s.clone()),
-        _ => Value::Null,
-    };
     let calls: Vec<Value> = raw["tool_calls"]
         .as_array()
         .map(|a| {
@@ -473,11 +469,24 @@ pub fn assistant_message(raw: &Value, ordinal: i32) -> Value {
                 .collect()
         })
         .unwrap_or_default();
+    // A tool-call turn must replay with a string `content` (some OpenAI-compatible servers reject `null`); its
+    // textless form is `""`. Without tool calls the content is passed through as before.
+    let content = match &raw["content"] {
+        Value::String(s) => Value::String(s.clone()),
+        _ if !calls.is_empty() => Value::String(String::new()),
+        _ => Value::Null,
+    };
     let mut m = json!({"role": "assistant", "content": content});
     if !calls.is_empty() {
         m["tool_calls"] = Value::Array(calls);
     }
     m
+}
+
+/// A reply cut at the token budget. The runner sends no `max_tokens`, so a `length` finish means the context ran
+/// out: permanent, never worth another call.
+pub fn truncated(finish_reason: Option<&str>) -> bool {
+    finish_reason == Some("length")
 }
 
 const MAX_CLAIMS: usize = 200;
@@ -986,6 +995,11 @@ impl<L: Llm, T: ToolSet, R: Resolver> Runner<L, T, R> {
                 return Ok(Outcome::LeaseLost);
             }
             written += 1;
+            // The step above is kept for diagnosis, but a `length` finish is final: with no `max_tokens` cap it
+            // means the context is exhausted, and the 3-attempt backoff would burn two more calls on it.
+            if truncated(reply.finish_reason.as_deref()) {
+                return self.fail(s, "llm_error: truncated").await;
+            }
         }
     }
 
@@ -1632,10 +1646,32 @@ mod tests {
         );
         assert_eq!(m["role"], "assistant");
         assert!(m.get("reasoning_content").is_none());
+        assert_eq!(m["content"], "hi");
         assert_eq!(m["tool_calls"][0]["id"], "call_7_0");
         assert_eq!(m["tool_calls"][0]["function"]["arguments"], "{\"a\":1}");
         let plain = assistant_message(&json!({"content": "x"}), 0);
         assert!(plain.get("tool_calls").is_none());
+        assert_eq!(plain["content"], "x");
+        // A tool-call turn with null or non-string content replays as ""; without calls the null stays.
+        for raw in [
+            json!({"content": null, "tool_calls": [{"function": {"name": "f", "arguments": "{}"}}]}),
+            json!({"content": 3, "tool_calls": [{"function": {"name": "f", "arguments": "{}"}}]}),
+        ] {
+            assert_eq!(assistant_message(&raw, 0)["content"], "");
+        }
+        let no_call = assistant_message(&json!({"content": null}), 0);
+        assert!(no_call.get("tool_calls").is_none());
+        assert!(no_call["content"].is_null());
+        let empty_calls = assistant_message(&json!({"content": null, "tool_calls": []}), 0);
+        assert!(empty_calls["content"].is_null());
+    }
+
+    #[test]
+    fn only_a_length_finish_is_truncated() {
+        assert!(truncated(Some("length")));
+        assert!(!truncated(Some("stop")));
+        assert!(!truncated(Some("tool_calls")));
+        assert!(!truncated(None));
     }
 
     #[test]
