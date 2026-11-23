@@ -48,6 +48,8 @@ use crate::walls;
 pub const DEFAULT_LEASE_S: i32 = 600;
 /// `RESEARCHER_MAX_ATTEMPTS`.
 pub const DEFAULT_MAX_ATTEMPTS: i32 = 3;
+/// The longest a server's `Retry-After` may hold a research retry (the router's shed is ~30 s).
+const RETRY_AFTER_CAP: Duration = Duration::from_secs(30);
 /// Forced `submit_report` turns a run gets once its research budget is used up, before it fails. More than one, so
 /// a report rejected for its form (the rejection says what to fix) can be resubmitted. They run on top of the
 /// [`Budget`]: a run that used `max_steps` model turns can take up to `max_steps + WRITE_TURNS`, and the write turns'
@@ -1017,15 +1019,27 @@ impl<L: Llm, T: ToolSet, R: Resolver> Runner<L, T, R> {
             let stopping = *shutdown.borrow();
             match result {
                 Ok(r) => return Ok(r),
-                Err(LlmError::Transient(m)) if attempt < attempts && !stopping => {
-                    tracing::warn!(attempt, error = %m, "research model call failed; retrying");
-                    tokio::time::sleep(delay).await;
+                Err(error @ LlmError::Transient { .. }) if attempt < attempts && !stopping => {
+                    // The router puts `Retry-After` on every 503, and its shed wait (~30 s) outlives
+                    // a 2 s/4 s doubling: wait the hint (bounded) instead of guessing. Without a
+                    // hint the configured doubling is unchanged.
+                    let wait = error
+                        .retry_after()
+                        .map(|hint| hint.min(RETRY_AFTER_CAP))
+                        .unwrap_or(delay);
+                    tracing::warn!(
+                        attempt,
+                        error = %error,
+                        wait_s = wait.as_secs_f32(),
+                        "research model call failed; retrying"
+                    );
+                    tokio::time::sleep(wait).await;
                     delay *= 2;
                 }
                 Err(e) => return Err(e),
             }
         }
-        Err(LlmError::Transient("no attempt made".into()))
+        Err(LlmError::transient("no attempt made"))
     }
 
     async fn tool_step(

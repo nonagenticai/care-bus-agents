@@ -256,8 +256,10 @@ pub const LLM_RETRIES: u64 = 2;
 /// Worst-case time one `Qualifier::extract` call can take.
 pub const QUALIFIER_BUDGET_SECS: u64 = LLM_TIMEOUT_SECS * (LLM_RETRIES + 1);
 pub const LLM_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(LLM_TIMEOUT_SECS);
-/// Reasoning tokens count against this budget, so it is generous.
-const MAX_TOKENS: u64 = 4096;
+/// Reasoning tokens count against this budget, so it is generous. 6144, not 4096: rig 0.46's typed
+/// extractor discards `finish_reason`, so a reply cut at the cap surfaces only as a parse failure
+/// after its two retries; the extra headroom is a ceiling (the model still stops at EOS), not a spend.
+const MAX_TOKENS: u64 = 6144;
 
 /// What one model-backed extraction spent, all retries included (W3 plan 15: the API writes it to its usage ledger).
 #[derive(Clone, Debug, Default, PartialEq)]
