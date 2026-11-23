@@ -95,11 +95,34 @@ pub struct ChatReply {
 
 #[derive(Debug, thiserror::Error)]
 pub enum LlmError {
-    /// Worth retrying: network, timeout, 429, 5xx.
-    #[error("{0}")]
-    Transient(String),
+    /// Worth retrying: network, timeout, 429, 5xx. `retry_after` is the server's own pacing hint
+    /// (the inference-router now puts one on every 503), so the caller can wait the shed out
+    /// instead of guessing with a doubling backoff.
+    #[error("{message}")]
+    Transient {
+        message: String,
+        retry_after: Option<std::time::Duration>,
+    },
     #[error("{0}")]
     Permanent(String),
+}
+
+impl LlmError {
+    /// A transient failure with no server hint.
+    pub fn transient(message: impl Into<String>) -> Self {
+        Self::Transient {
+            message: message.into(),
+            retry_after: None,
+        }
+    }
+
+    /// The server's pacing hint, when it gave one.
+    pub fn retry_after(&self) -> Option<std::time::Duration> {
+        match self {
+            Self::Transient { retry_after, .. } => *retry_after,
+            Self::Permanent(_) => None,
+        }
+    }
 }
 
 pub trait Llm: Send + Sync + 'static {
@@ -116,17 +139,18 @@ pub struct OpenAiLlm;
 impl Llm for OpenAiLlm {
     async fn chat(&self, ep: &LlmEndpoint, req: &ChatRequest) -> Result<ChatReply, LlmError> {
         let resp = chat_request(ep, req).send().await.map_err(|e| {
-            LlmError::Transient(if e.is_timeout() {
-                "the model did not answer in time".into()
+            LlmError::transient(if e.is_timeout() {
+                "the model did not answer in time"
             } else {
-                "the model endpoint is unreachable".into()
+                "the model endpoint is unreachable"
             })
         })?;
         let status = resp.status();
+        let retry_after = retry_after_hint(resp.headers());
         let text = resp
             .text()
             .await
-            .map_err(|_| LlmError::Transient("the model reply could not be read".into()))?;
+            .map_err(|_| LlmError::transient("the model reply could not be read"))?;
         if !status.is_success() {
             let excerpt: String = text.chars().take(300).collect();
             let msg = format!(
@@ -135,7 +159,10 @@ impl Llm for OpenAiLlm {
             );
             return Err(
                 if status.is_server_error() || status.as_u16() == 429 || status.as_u16() == 408 {
-                    LlmError::Transient(msg)
+                    LlmError::Transient {
+                        message: msg,
+                        retry_after,
+                    }
                 } else {
                     LlmError::Permanent(msg)
                 },
@@ -143,6 +170,23 @@ impl Llm for OpenAiLlm {
         }
         parse_reply(&text)
     }
+}
+
+/// The server's `Retry-After` — delay-seconds or an HTTP-date — as a wait duration.
+fn retry_after_hint(headers: &reqwest::header::HeaderMap) -> Option<std::time::Duration> {
+    let value = headers
+        .get(reqwest::header::RETRY_AFTER)?
+        .to_str()
+        .ok()?
+        .trim();
+    if let Ok(seconds) = value.parse::<u64>() {
+        return Some(std::time::Duration::from_secs(seconds));
+    }
+    let when = chrono::DateTime::parse_from_rfc2822(value).ok()?;
+    let wait = when.with_timezone(&chrono::Utc) - chrono::Utc::now();
+    Some(std::time::Duration::from_secs(
+        wait.num_seconds().max(0) as u64
+    ))
 }
 
 /// `POST {base_url}/chat/completions` for `req`: bearer `ep.token`, and, when `ep.effective_tenant` is set (the
@@ -171,11 +215,11 @@ pub fn chat_request(ep: &LlmEndpoint, req: &ChatRequest) -> reqwest::RequestBuil
 /// `choices[0].message`, its `finish_reason` and `usage` from a chat-completions body.
 pub fn parse_reply(text: &str) -> Result<ChatReply, LlmError> {
     let v: Value = serde_json::from_str(text)
-        .map_err(|_| LlmError::Transient("the model reply is not JSON".into()))?;
+        .map_err(|_| LlmError::transient("the model reply is not JSON"))?;
     let choice = &v["choices"][0];
     let message = choice["message"].clone();
     if !message.is_object() {
-        return Err(LlmError::Transient("the model reply has no message".into()));
+        return Err(LlmError::transient("the model reply has no message"));
     }
     let u = &v["usage"];
     let n = |k: &str| u[k].as_u64().unwrap_or(0);
@@ -327,6 +371,42 @@ pub async fn resolve_endpoint(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_retry_after_header_becomes_a_wait() {
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert(reqwest::header::RETRY_AFTER, "30".parse().expect("value"));
+        assert_eq!(
+            retry_after_hint(&headers),
+            Some(std::time::Duration::from_secs(30))
+        );
+
+        let when = chrono::Utc::now() + chrono::Duration::seconds(45);
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert(
+            reqwest::header::RETRY_AFTER,
+            when.to_rfc2822().parse().expect("value"),
+        );
+        let wait = retry_after_hint(&headers).expect("a date parses");
+        assert!(
+            (40..=45).contains(&wait.as_secs()),
+            "got {}",
+            wait.as_secs()
+        );
+
+        assert_eq!(retry_after_hint(&reqwest::header::HeaderMap::new()), None);
+    }
+
+    #[test]
+    fn only_a_transient_error_carries_a_hint() {
+        let e = LlmError::Transient {
+            message: "shed".into(),
+            retry_after: Some(std::time::Duration::from_secs(5)),
+        };
+        assert_eq!(e.retry_after(), Some(std::time::Duration::from_secs(5)));
+        assert_eq!(LlmError::transient("x").retry_after(), None);
+        assert_eq!(LlmError::Permanent("x".into()).retry_after(), None);
+    }
 
     #[test]
     fn defaults_go_through_the_gateway() {
