@@ -333,10 +333,10 @@ jobs:
       # Layer cache on the GHA backend: each package job is otherwise a cold full build. The
       # cache is EXPORTED on main only (a PR or lane run restores, never writes), so branches
       # cannot evict the entry main produced.
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
 
       - name: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: Dockerfile.rust
@@ -411,7 +411,7 @@ jobs:
   # test) in a kata Pod, from one reusable workflow pinned to one coding commit. The licence
   # token is an Actions secret; a fork PR never receives it, so the called job skips there.
   gate:
-    uses: nonagenticai/coding/.github/workflows/gate.yml@ee24e1b774fd177c5911c33194093c488ec08836
+    uses: nonagenticai/coding/.github/workflows/gate.yml@d4b6996b72af374e989847cf21f58e8384db7943
     with:
       client_ref: ee24e1b774fd177c5911c33194093c488ec08836
     secrets: inherit
