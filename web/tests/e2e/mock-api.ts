@@ -145,8 +145,8 @@ type VersionState = { version_status: string; reviewers: string[] };
 
 /**
  * Procedure versions are stateful like routes::procedures: `approve` adds the caller to a CANARY version's reviewers
- * (409 not_in_review / already_approved), and `status` to PUBLISHED needs two distinct reviewers (409
- * needs_two_reviewers, nothing written) and archives the name's current PUBLISHED version.
+ * (409 not_in_review / already_approved), and `status` to PUBLISHED archives the name's current PUBLISHED version
+ * (no reviewer minimum: owner ruling 2026-11-27).
  */
 function procedureStore() {
 	const items: ({ name: string; version: string } & VersionState)[] = fx('procedures').items;
@@ -189,12 +189,6 @@ function procedureStore() {
 			const to: string = route.request().postDataJSON().to;
 			const v = get(name, version);
 			if (to === 'PUBLISHED') {
-				if (new Set(v.reviewers).size < 2)
-					return conflict(
-						route,
-						'needs_two_reviewers',
-						`${v.reviewers.length} reviewer(s) so far; publishing needs two distinct reviewers`,
-					);
 				for (const [k, other] of state)
 					if (k.startsWith(`${name}@`) && other.version_status === 'PUBLISHED')
 						other.version_status = 'ARCHIVED';

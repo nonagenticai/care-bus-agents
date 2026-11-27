@@ -78,29 +78,16 @@ async fn adopt_as_tenant(e: &crate::common::TestEnv, name: &str) {
     }
 }
 
-/// Approve and publish are separate calls: approving records a reviewer (200 with the detail), publishing with
-/// fewer than two distinct reviewers is refused and writes nothing, and the publish after a second approval archives
-/// the old version.
+/// Approve and publish are separate calls: approving records a reviewer (200 with the detail), and a CANARY
+/// version publishes without a reviewer minimum (owner ruling 2026-11-27: a solo tenant publishes on its own);
+/// the publish archives the old version.
 #[tokio::test]
-async fn approve_then_publish_needs_two_distinct_reviewers_and_archives_the_old_version() {
+async fn approve_records_a_reviewer_and_one_admin_publishes_and_archives_the_old_version() {
     let e = crate::common::env("proc").await;
     adopt_as_tenant(&e, "return").await;
     let admin = admin_as("a.bakker");
     let status = &crate::common::j("/procedures/return/versions/1.4.0-beta/status");
     let approve = &crate::common::j("/procedures/return/versions/1.4.0-beta/approve");
-    // CANARY seed has one reviewer (a.bakker): publishing now is refused and changes nothing
-    let (s, b) = crate::common::send(
-        &e.app,
-        crate::common::json("POST", status, Some(&admin), json!({"to":"PUBLISHED"})),
-    )
-    .await;
-    assert_eq!(s, StatusCode::CONFLICT);
-    assert_eq!(b["error"]["code"], "needs_two_reviewers");
-    assert_eq!(
-        reviewers_of(&e, "return", "1.4.0-beta").await,
-        vec!["a.bakker".to_string()],
-        "a refused publish does not touch the reviewers"
-    );
     // the caller already approved: a second approval is refused
     let (s, b) = crate::common::send(
         &e.app,
@@ -238,8 +225,8 @@ async fn approve_is_refused_outside_review() {
     .await;
     assert_eq!(s, StatusCode::OK, "{p}");
     assert_eq!(p["reviewers"], json!(["a.bakker"]));
-    // one reviewer is not enough to publish, and the refusal leaves the one approval in place
-    let (s, b) = crate::common::send(
+    // one reviewer publishes: the two-reviewer minimum is gone (owner ruling 2026-11-27)
+    let (s, p) = crate::common::send(
         &e.app,
         crate::common::json(
             "POST",
@@ -249,10 +236,8 @@ async fn approve_is_refused_outside_review() {
         ),
     )
     .await;
-    assert_eq!(
-        (s, b["error"]["code"].clone()),
-        (StatusCode::CONFLICT, json!("needs_two_reviewers"))
-    );
+    assert_eq!(s, StatusCode::OK, "{p}");
+    assert_eq!(p["version_status"], "PUBLISHED");
     assert_eq!(
         reviewers_of(&e, "approve_me", "1.0.0").await,
         vec!["a.bakker".to_string()]
@@ -1054,28 +1039,12 @@ async fn rollback_republishes_an_archived_version_and_archives_the_current_one()
     .await;
     assert_eq!(s, StatusCode::OK, "{b}");
     assert_eq!(status("1.3.0").await, "ARCHIVED");
-    // an archived version with fewer than two reviewers is not re-published
+    // an archived version without reviewers re-publishes (no reviewer minimum)
     sqlx::query("UPDATE procedures SET reviewers='{}' WHERE name='return' AND version='1.3.0'")
         .execute(db)
         .await
         .unwrap();
     let url = &crate::common::j("/procedures/return/versions/1.3.0/status");
-    let (s, b) = crate::common::send(
-        &e.app,
-        crate::common::json("POST", url, Some(&admin), json!({"to":"PUBLISHED"})),
-    )
-    .await;
-    assert_eq!(
-        (s, b["error"]["code"].clone()),
-        (StatusCode::CONFLICT, json!("needs_two_reviewers"))
-    );
-    assert_eq!(status("1.3.0").await, "ARCHIVED");
-    assert_eq!(status("1.4.0-beta").await, "PUBLISHED", "nothing moved");
-    // with its two reviewers back, the roll-back goes through
-    sqlx::query("UPDATE procedures SET reviewers='{a.bakker,r.visser}' WHERE name='return' AND version='1.3.0'")
-        .execute(db)
-        .await
-        .unwrap();
     let (s, p) = crate::common::send(
         &e.app,
         crate::common::json("POST", url, Some(&admin), json!({"to":"PUBLISHED"})),
@@ -1091,8 +1060,7 @@ async fn rollback_republishes_an_archived_version_and_archives_the_current_one()
     .await
     .unwrap();
     assert_eq!(published, 1);
-    // the rolled-back-to version's history: archived by the canary's publish, then the re-publish (the refused
-    // attempt wrote nothing)
+    // the rolled-back-to version's history: archived by the canary's publish, then the re-publish
     assert_eq!(
         history_of(&p),
         vec![

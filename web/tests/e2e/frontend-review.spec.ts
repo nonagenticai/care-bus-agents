@@ -54,11 +54,9 @@ for (const [path, endpoint] of [
 	});
 }
 
-test('approve and publish are separate: an approval is recorded, publish unlocks at two reviewers', async ({
-	page,
-}) => {
-	// The mock is stateful like routes::procedures: return@1.4.0-beta is CANARY with one reviewer (a.bakker), and the
-	// fake auth acts as 'e2e', a distinct second reviewer.
+test('publish is one action: a solo admin publishes without a second reviewer', async ({ page }) => {
+	// Owner ruling 2026-11-27: the two-distinct-reviewer minimum is gone. Approving still records a reviewer of a
+	// CANARY version; publishing is its own call and never waits for one.
 	const sent = await mockApi(page);
 	await page.goto('/admin/procedures');
 	await page.getByRole('row', { name: /1\.4\.0-beta/ }).click();
@@ -67,16 +65,12 @@ test('approve and publish are separate: an approval is recorded, publish unlocks
 	await dialog.getByRole('tab', { name: /^Versions/ }).click();
 	const approve = dialog.getByRole('button', { name: 'Approve', exact: true });
 	const publish = dialog.getByRole('button', { name: 'Publish', exact: true });
-	await expect(publish).toBeDisabled();
-	await expect(dialog.getByText('Needs 1 more approval', { exact: true })).toBeVisible();
+	await expect(publish).toBeEnabled();
+	await expect(dialog.getByText(/more approval/)).toHaveCount(0);
 	await approve.click();
 	await expect(dialog.getByRole('status').filter({ hasText: 'Your approval was recorded.' })).toBeVisible();
-	await expect(dialog.getByText('You approved this version.')).toBeVisible();
 	await expect(dialog).toContainText('Approved by a.bakker and e2e.');
 	await expect(approve).toBeDisabled();
-	await expect(page.getByText(/Not saved|Not approved/)).toHaveCount(0);
-	// Two distinct reviewers: publishing is its own action now.
-	await expect(dialog.getByText(/more approval/)).toHaveCount(0);
 	await expect(publish).toBeEnabled();
 	await publish.click();
 	await expect(

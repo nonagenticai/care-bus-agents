@@ -9,16 +9,16 @@ script completes the job and proves it with one live turn:
   knowledge check -> channel secret -> first answer
 
 Routes are authenticated with a person token (tenant admin / super_admin) plus
-`X-Active-Tenant-Id`. Publishing a tenant procedure needs TWO distinct reviewers,
-so CAREBUS_REVIEWER_TOKEN must belong to a different person. Both tokens are
-short-lived: run the script immediately after they are minted.
+`X-Active-Tenant-Id`. Publishing no longer needs two reviewers (owner ruling
+2026-11-27); CAREBUS_REVIEWER_TOKEN is optional and, when set, its approval is
+recorded too. The token is short-lived: run the script immediately after minting.
 
 Environment:
   CAREBUS_API_URL         default https://cust.nonagentic.ai
   CAREBUS_TENANT_ID       required
   CAREBUS_JOB             default website_chat
   CAREBUS_TOKEN           required  (person A)
-  CAREBUS_REVIEWER_TOKEN  required to publish (person B)
+  CAREBUS_REVIEWER_TOKEN  optional: a second person's approval, recorded when given
   CAREBUS_CHANNEL_KEY     default the key minted on 2026-11-27
   CAREBUS_SECRET_FILE     default ~/.carebus/website-webchat.secret
   CAREBUS_ROTATE_CHANNEL  "1" mints a new secret (the old one stops working)
@@ -389,18 +389,18 @@ def ensure_reviewer(name: str, version: str, token: str, user: str) -> None:
     must(st, out, f"approve as {user}")
 
 
-def step_procedure() -> tuple[bool, bool]:
-    """Returns (published in this run, blocked on the second reviewer)."""
+def step_procedure() -> bool:
+    """Returns True when it published in this run (the plan cache then needs 60 s)."""
     name = PROCEDURE["name"]
     row = procedure_row(name)
     if row and row.get("version_status") == "PUBLISHED":
         print(f"procedure: {name}@{row.get('version')} already PUBLISHED")
-        return False, False
+        return False
     version = row.get("version") if row else PROCEDURE["version"]
     status = row.get("version_status") if row else None
     if row is None:
         if want(PROCEDURE, f"create {name}@{version}"):
-            return False, False
+            return False
         st, out = call("POST", f"/api/jobs/{JOB}/procedures", body=PROCEDURE)
         must(st, out, f"create {name}@{version}")
         print(f"procedure: created {name}@{version} (DRAFT)")
@@ -416,22 +416,17 @@ def step_procedure() -> tuple[bool, bool]:
             print(f"procedure: {name}@{version} CANARY")
     if status in ("DRAFT", "CANARY"):
         ensure_reviewer(name, version, TOKEN, USER_A)
-        if not REVIEWER:
-            print(
-                f"procedure: {name}@{version} is CANARY and approved by {USER_A}; "
-                "a second person's token is required to publish"
-            )
-            return False, True
-        ensure_reviewer(name, version, REVIEWER, USER_B)
+        if REVIEWER:
+            ensure_reviewer(name, version, REVIEWER, USER_B)
     if want(status, f"publish {name}@{version}"):
-        return False, False
+        return False
     st, out = call(
         "POST", f"/api/jobs/{JOB}/procedures/{name}/versions/{version}/status",
         body={"to": "PUBLISHED"},
     )
     must(st, out, "publish the procedure")
     print(f"procedure: {name}@{version} PUBLISHED")
-    return True, False
+    return True
 
 
 def step_ontology() -> None:
@@ -569,17 +564,10 @@ def main() -> int:
     step_settings()
     gates_bound = step_providers()
     step_gates(gates_bound)
-    published_now, publish_blocked = step_procedure()
+    published_now = step_procedure()
     step_ontology()
     step_knowledge()
     secret = read_secret()
-    if publish_blocked:
-        print(
-            "BLOCKED: the procedure is CANARY, pending a second reviewer. "
-            "Set CAREBUS_REVIEWER_TOKEN to another person's token and re-run; "
-            "everything else is provisioned and the channel secret is stored."
-        )
-        return 2
     if published_now:
         print("procedure: waiting 65 s for the orchestrator's per-space plan cache")
         if not DRY:

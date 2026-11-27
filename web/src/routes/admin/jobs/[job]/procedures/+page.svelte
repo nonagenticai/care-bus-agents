@@ -91,9 +91,8 @@
 		void selKey;
 		approvalNote = '';
 	});
-	// plan 05: PUBLISHED needs two distinct reviewers. Approving (POST .../approve, CANARY only) and publishing
-	// (POST .../status) are separate calls; a publish with fewer than two reviewers is refused and changes nothing.
-	const approvalsNeeded = $derived(sel ? Math.max(0, 2 - sel.reviewers.length) : 2);
+	// Approving (POST .../approve, CANARY only) records a reviewer; publishing (POST .../status) is its own call.
+	// A publish has no reviewer minimum (owner ruling 2026-11-27: a solo tenant publishes on its own).
 	let approving = $state(false);
 	function approve(p: ProcedureDetail) {
 		if (approving || moving) return;
@@ -491,13 +490,11 @@
 						No recorded changes. This version was loaded by migration before the audit trail recorded it.
 					</p>
 				{/if}
-				<Callout
-					kind={sel.reviewers.length >= 2 ? 'info' : 'gap'}
-					title="Reviewers: {sel.reviewers.length} of 2"
-				>
+				<Callout kind="info" title="Reviewers: {sel.reviewers.length}">
 					{sel.reviewers.length
 						? `Approved by ${sel.reviewers.join(' and ')}.`
-						: 'Nobody has reviewed this version yet.'} Two approvals are needed before a version can be PUBLISHED.
+						: 'Nobody has reviewed this version yet.'} Reviewers are recorded here; publishing does not wait for
+					them.
 				</Callout>
 				{#if approvalNote}<p class="note" role="status">{approvalNote}</p>{/if}
 				{#if history.length}
@@ -534,16 +531,8 @@
 										{current
 											? `${current.version} (PUBLISHED now) moves to ARCHIVED.`
 											: 'No version of this procedure is PUBLISHED now.'}
-										{approvalsNeeded
-											? `Publishing needs two reviewers; this version has ${sel.reviewers.length}.`
-											: ''}
 									</span>
-									<button
-										class="btn primary"
-										type="button"
-										disabled={moving || approvalsNeeded > 0}
-										onclick={() => move(sel!, to)}
-									>
+									<button class="btn primary" type="button" disabled={moving} onclick={() => move(sel!, to)}>
 										Roll back to {sel.version}
 									</button>
 									<button class="btn" type="button" onclick={() => (confirmRollback = false)}>Cancel</button>
@@ -567,7 +556,7 @@
 								title={!canWrite
 									? 'Needs the tenant_admin role'
 									: approvedByMe
-										? 'You approved this version; a second, distinct reviewer approves next'
+										? 'You approved this version'
 										: 'Adds you as a reviewer of this version; it does not publish'}
 								onclick={() => approve(sel!)}
 							>
@@ -577,19 +566,14 @@
 							<button
 								class="btn primary"
 								type="button"
-								disabled={!canWrite || moving || approving || approvalsNeeded > 0}
+								disabled={!canWrite || moving || approving}
 								title={!canWrite
 									? 'Needs the tenant_admin role'
-									: approvalsNeeded
-										? 'Publishing needs two distinct reviewers'
-										: 'Make this the version the orchestrator runs'}
+									: 'Make this the version the orchestrator runs'}
 								onclick={() => move(sel!, to)}
 							>
 								Publish
 							</button>
-							{#if approvalsNeeded}<span class="muted">
-									Needs {approvalsNeeded} more approval{approvalsNeeded === 1 ? '' : 's'}
-								</span>{/if}
 						{:else}
 							<button
 								class="btn"
