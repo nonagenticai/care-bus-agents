@@ -12,6 +12,7 @@
 //! All of the above exists once per scope (tenant, job): a scoped `Bus` puts every key under
 //! `{CAREBUS_PREFIX}s:{tenant}:{job}:` and stamps the scope on every envelope it publishes.
 
+pub mod answer;
 pub mod bus;
 pub mod case;
 pub mod chat;

@@ -19,7 +19,7 @@ use uuid::Uuid;
 use crate::error::{ApiError, ApiResult};
 
 /// The job settings a base and an override may carry.
-pub const JOB_SETTINGS: [&str; 3] = ["preamble", "actor", "stance"];
+pub const JOB_SETTINGS: [&str; 4] = ["preamble", "actor", "stance", "max_tokens"];
 
 /// The objects a tenant can refine; `as_str` is the `object` of a refinement request and of a release conflict.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]

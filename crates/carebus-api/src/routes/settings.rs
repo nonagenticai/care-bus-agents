@@ -34,7 +34,7 @@ pub fn routes() -> Router<AppState> {
 }
 
 /// Base, override and the effective settings (`value: null` in the override removes the base value).
-async fn view(conn: &mut PgConnection, job_id: Uuid) -> ApiResult<Value> {
+pub(crate) async fn view(conn: &mut PgConnection, job_id: Uuid) -> ApiResult<Value> {
     let (base, over): (Value, Value) =
         sqlx::query_as("SELECT settings, settings_override FROM jobs WHERE id = $1")
             .bind(job_id)

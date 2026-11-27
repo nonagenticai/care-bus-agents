@@ -168,3 +168,25 @@ pub fn validate_plan(plan: &Plan) -> Result<()> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod plan_tests {
+    use super::*;
+
+    #[test]
+    fn the_website_answer_plan_is_runnable() {
+        let plan: Plan = serde_json::from_value(serde_json::json!({
+            "phases": [{
+                "steps": [
+                    {"worker": "faq", "action": "search", "as": "knowledge",
+                     "args": {"question": "$request.question"}},
+                    {"worker": "faq", "action": "answer", "as": "faq",
+                     "args": {"question": "$request.question", "sources": "$knowledge.sources"}}
+                ],
+                "gate": null
+            }]
+        }))
+        .expect("a plan");
+        validate_plan(&plan).expect("faq.search and faq.answer are runnable actions");
+    }
+}
