@@ -12,6 +12,7 @@ use serde_json::Value;
 
 use crate::answer::Answerer;
 use crate::bus::{Bus, ConsumeOptions, Envelope};
+use crate::chat;
 use crate::domain::QualifiedRequest;
 use crate::domain::{
     RequestType, TOOL_CALL, TOOL_RESPONSE, ToolCall, ToolResponse, WORK_FAILED, WORK_REQUESTED,
@@ -27,6 +28,10 @@ pub const FAQ_SCOPE_UNAVAILABLE: &str =
     "faq_scope_unavailable: carebus-api could not say which stores chat may search";
 /// The error of a `faq.ask` step when every store of the tenant is walled for a legal matter (non-retryable).
 pub const FAQ_NO_STORES: &str = "faq_no_stores: every knowledge store is walled for a legal matter";
+/// The error of a `handover.request` step whose case has no conversation link (non-retryable): there is
+/// nothing to hand over to a person.
+pub const HANDOVER_NO_CONVERSATION: &str =
+    "handover_no_conversation: the case is not linked to a conversation";
 
 /// The consumer group of the worker for `tool`; also what `Streams::consumer_group` reports.
 pub fn group_for(tool: &str) -> String {
@@ -151,6 +156,11 @@ impl Worker {
             Ok(w) => w,
             Err(msg) => return self.finish(outcome(&w, Err((msg, false)))).await,
         };
+        // `handover.request` takes the case's own conversation, never one the plan or the model names.
+        let w = match self.handover_scoped(&w).await {
+            Ok(w) => w,
+            Err(msg) => return self.finish(outcome(&w, Err((msg, false)))).await,
+        };
         // `faq.answer` is generation, not a tool call: one slow model call in the scaled per-tool
         // worker, never in the interaction daemon (which must stay a fast composer).
         if w.worker == "faq" && w.action == "answer" {
@@ -245,6 +255,32 @@ impl Worker {
                 Err(FAQ_SCOPE_UNAVAILABLE.into())
             }
         }
+    }
+
+    /// `handover.request` hands over the case's own conversation: its id comes from the case link
+    /// (`chat::case_conv_key`), never from a slot the model fills. A case with no live link fails the
+    /// step non-retryably — there is nothing to hand over.
+    async fn handover_scoped(&self, w: &WorkRequest) -> Result<WorkRequest, String> {
+        if w.worker != "handover" || w.action != "request" {
+            return Ok(w.clone());
+        }
+        let conv: Option<String> = self
+            .bus
+            .conn()
+            .get(chat::case_conv_key(&self.bus, &w.case_id))
+            .await
+            .map_err(|e| format!("handover conversation lookup failed: {e}"))?;
+        let Some(conv) = conv.filter(|c| !c.is_empty()) else {
+            return Err(HANDOVER_NO_CONVERSATION.into());
+        };
+        let mut w = w.clone();
+        if !w.args.is_object() {
+            w.args = Value::Object(serde_json::Map::new());
+        }
+        if let Value::Object(args) = &mut w.args {
+            args.insert("conversation_id".into(), Value::from(conv));
+        }
+        Ok(w)
     }
 
     /// `faq.answer`: the job's settings and provider from carebus-api, then one cited answer over the

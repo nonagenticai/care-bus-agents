@@ -66,6 +66,9 @@ pub struct Config {
     pub metering: crate::metering::MeteringConfig,
     /// Telegram channel (`TELEGRAM_*`, crate::telegram). `None` = off (the default).
     pub telegram: Option<crate::telegram::TelegramConfig>,
+    /// Handover to a person over Telegram (`HANDOVER_*`, crate::handover). `None` = off (the default): the
+    /// handover routes answer 503 `handover_not_configured`.
+    pub handover: Option<crate::handover::HandoverConfig>,
     /// `SERVICE_ACTOR_ID` (carebus::identity): care-bus' Keycloak service-account sub, sent as `X-Actor-Id` on a
     /// strata_rag call no person is behind. `None` = no `X-Actor-Id` then; a malformed value stops startup.
     pub service_actor: Option<Uuid>,
@@ -205,6 +208,7 @@ impl Config {
             licence: crate::licence::LicenceConfig::from_lookup(&get)?,
             metering: crate::metering::MeteringConfig::from_lookup(&get)?,
             telegram: crate::telegram::TelegramConfig::from_lookup(&get)?,
+            handover: crate::handover::HandoverConfig::from_lookup(&get)?,
             service_actor: carebus::identity::parse_service_actor(
                 get(carebus::identity::SERVICE_ACTOR_ENV).as_deref(),
             )?,

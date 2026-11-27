@@ -136,6 +136,96 @@ PROCEDURE = {
     ],
 }
 
+# The action procedures. Early access stays dark (retired on the site 2026-11-17; the restore dossier is
+# docs/runbooks/early-access-restore.md in gitops-production), so website_early_access is not published here.
+ACTION_PROCEDURES = [
+    {
+        "name": "website_ebook",
+        "version": "1.0.0",
+        "context_space": "website:ebook",
+        "description": "File a book request from the website chat and hand the reader the one-time download link.",
+        "plan": {
+            "phases": [
+                {
+                    "steps": [
+                        {
+                            "worker": "ebook",
+                            "action": "request",
+                            "as": "ebook",
+                            "args": {
+                                "email": "$request.email",
+                                "language": "$request.language",
+                            },
+                        }
+                    ],
+                    "gate": None,
+                }
+            ]
+        },
+        "steps": [
+            {
+                "step_number": 1,
+                "phase": 0,
+                "name": "File the book request",
+                "action_type": "request",
+                "worker": "ebook",
+                "mcp_tool": "ebook_request",
+                "performed_by": "ebook worker",
+                "preconditions": [],
+                "postconditions": ["(filed ?email)"],
+                "parameters": {"?email": "email", "?language": "language"},
+                "gate": True,
+            }
+        ],
+    },
+    {
+        "name": "website_handover",
+        "version": "1.0.0",
+        "context_space": "website:handover",
+        "description": "Hand the conversation to a person: open an operator topic and stop the assistant.",
+        "plan": {
+            "phases": [
+                {
+                    "steps": [
+                        {
+                            "worker": "handover",
+                            "action": "request",
+                            "as": "handover",
+                            "args": {"reason": "$request.reason"},
+                        }
+                    ],
+                    "gate": None,
+                }
+            ]
+        },
+        "steps": [
+            {
+                "step_number": 1,
+                "phase": 0,
+                "name": "Hand the conversation to a person",
+                "action_type": "request",
+                "worker": "handover",
+                "mcp_tool": "handover_request",
+                "performed_by": "handover worker",
+                "preconditions": [],
+                "postconditions": ["(handed_over ?reason)"],
+                "parameters": {"?reason": "reason"},
+                "gate": True,
+            }
+        ],
+    },
+]
+
+# Each space must ask for the fields its action procedure reads (a superset is fine).
+SPACES = {
+    "website:faq": ["question"],
+    "website:ebook": ["email", "language"],
+    "website:handover": ["reason"],
+}
+
+# Stores ingested but never searched by the customer chat (the site's legal pages).
+CHAT_EXCLUDED = ["site-legal"]
+
 ENTITIES = [
     {"name": "Application", "scope": "generic", "label": "Application",
      "synonyms": ["app", "product", "tool"]},
@@ -389,19 +479,19 @@ def ensure_reviewer(name: str, version: str, token: str, user: str) -> None:
     must(st, out, f"approve as {user}")
 
 
-def step_procedure() -> bool:
-    """Returns True when it published in this run (the plan cache then needs 60 s)."""
-    name = PROCEDURE["name"]
+def step_procedure(proc: dict) -> bool:
+    """Publish one procedure version. Returns True when it published in this run (the plan cache then needs 60 s)."""
+    name = proc["name"]
     row = procedure_row(name)
     if row and row.get("version_status") == "PUBLISHED":
         print(f"procedure: {name}@{row.get('version')} already PUBLISHED")
         return False
-    version = row.get("version") if row else PROCEDURE["version"]
+    version = row.get("version") if row else proc["version"]
     status = row.get("version_status") if row else None
     if row is None:
-        if want(PROCEDURE, f"create {name}@{version}"):
+        if want(proc, f"create {name}@{version}"):
             return False
-        st, out = call("POST", f"/api/jobs/{JOB}/procedures", body=PROCEDURE)
+        st, out = call("POST", f"/api/jobs/{JOB}/procedures", body=proc)
         must(st, out, f"create {name}@{version}")
         print(f"procedure: created {name}@{version} (DRAFT)")
         version = out.get("version", version)
@@ -427,6 +517,51 @@ def step_procedure() -> bool:
     must(st, out, "publish the procedure")
     print(f"procedure: {name}@{version} PUBLISHED")
     return True
+
+
+def step_spaces() -> None:
+    """The website spaces must ask for the fields their procedures read."""
+    st, page = call("GET", f"/api/jobs/{JOB}/context-spaces")
+    page = must(st, page, "read context spaces")
+    have = {item.get("key"): item for item in page.get("items", [])}
+    problems = []
+    for key, required in SPACES.items():
+        row = have.get(key)
+        if row is None:
+            problems.append(f"{key} is missing")
+            continue
+        got = row.get("required") or []
+        missing = [field for field in required if field not in got]
+        if missing:
+            problems.append(f"{key} does not ask for {missing} (has {got})")
+    if problems:
+        raise Fail("spaces: " + "; ".join(problems), 4)
+    print(f"spaces: {sorted(SPACES)} verified")
+
+
+def step_chat_exclusion() -> None:
+    """Exclude the legal-page store from the customer chat (ingested, never searched).
+
+    The store route treats `strata_store_id` as always written, so the current binding rides along; omitting it
+    would unbind the store.
+    """
+    st, page = call("GET", f"/api/jobs/{JOB}/knowledge-stores")
+    page = must(st, page, "read knowledge stores")
+    have = {item.get("key"): item for item in page.get("items", [])}
+    for key in CHAT_EXCLUDED:
+        row = have.get(key)
+        if row is None:
+            print(f"knowledge: {key} is not bound; nothing to exclude")
+            continue
+        if row.get("chat_excluded"):
+            print(f"knowledge: {key} already excluded from chat")
+            continue
+        body = {"chat_excluded": True, "strata_store_id": row.get("strata_store_id")}
+        if want({"chat_excluded": key}, f"exclude {key} from chat"):
+            continue
+        st, out = call("PUT", f"/api/jobs/{JOB}/knowledge-stores/{key}", body=body)
+        must(st, out, f"exclude {key} from chat")
+        print(f"knowledge: {key} excluded from chat")
 
 
 def step_ontology() -> None:
@@ -564,8 +699,12 @@ def main() -> int:
     step_settings()
     gates_bound = step_providers()
     step_gates(gates_bound)
-    published_now = step_procedure()
+    step_spaces()
+    published_now = step_procedure(PROCEDURE)
+    for action in ACTION_PROCEDURES:
+        published_now = step_procedure(action) or published_now
     step_ontology()
+    step_chat_exclusion()
     step_knowledge()
     secret = read_secret()
     if published_now:

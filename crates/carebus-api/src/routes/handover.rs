@@ -5,7 +5,9 @@
 //! opening note and takes the long human-mode lock so the agent stops answering.
 //! `POST /api/internal/handover/reply` accepts an operator's message for a topic: it writes the
 //! text to the conversation log as a `human` event (the web channel replays it to the visitor)
-//! and supports `/auto` and `/close`.
+//! and supports `/auto` and `/close`. The web channel's own door
+//! (`POST /api/channel/webchat/{key}/handover/reply`, authenticated by the channel secret) is the
+//! same reply, with the caller's scope checked against the topic's.
 //!
 //! The bot is the existing @nonagenticaibot (one bot, one webhook: chat-bridge owns the webhook
 //! and relays an unknown topic's message here), so nothing here registers a second bot.
@@ -22,6 +24,7 @@ use carebus::chat::{self, ChatEvent};
 use crate::{
     auth::{Caller, CallerKind},
     error::{ApiError, ApiJson, ApiResult},
+    handover::{HandoverConfig, ReplyInput, conv_topic_key, topic_key},
     state::AppState,
 };
 
@@ -45,41 +48,6 @@ struct OpenInput {
     reason: String,
 }
 
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ReplyInput {
-    chat_id: i64,
-    thread_id: i64,
-    from_id: i64,
-    text: String,
-}
-
-fn env_any(keys: &[&str]) -> Option<String> {
-    keys.iter()
-        .find_map(|k| std::env::var(k).ok())
-        .map(|v| v.trim().to_string())
-        .filter(|v| !v.is_empty())
-}
-
-fn bot_token() -> ApiResult<String> {
-    env_any(&["HANDOVER_BOT_TOKEN", "TELEGRAM_SIGNUP_BOT_TOKEN"])
-        .ok_or_else(|| ApiError::Internal(anyhow::anyhow!("the handover bot token is unset")))
-}
-
-fn chat_id() -> ApiResult<i64> {
-    env_any(&["HANDOVER_CHAT_ID", "TELEGRAM_SIGNUP_CHAT_ID"])
-        .and_then(|v| v.parse().ok())
-        .ok_or_else(|| ApiError::Internal(anyhow::anyhow!("HANDOVER_CHAT_ID is unset")))
-}
-
-fn operators() -> Vec<i64> {
-    env_any(&["HANDOVER_OPERATOR_IDS"])
-        .unwrap_or_else(|| "7619636015".into())
-        .split(',')
-        .filter_map(|v| v.trim().parse().ok())
-        .collect()
-}
-
 fn service_only(caller: &Caller) -> ApiResult<()> {
     if matches!(caller.kind, CallerKind::Service) {
         Ok(())
@@ -88,10 +56,22 @@ fn service_only(caller: &Caller) -> ApiResult<()> {
     }
 }
 
+/// The handover door's configuration; a deployment without it refuses with a named 503.
+fn cfg(s: &AppState) -> ApiResult<&HandoverConfig> {
+    s.cfg
+        .handover
+        .as_ref()
+        .ok_or(ApiError::NotConfigured("handover_not_configured"))
+}
+
 /// One Bot API call. The token is never logged; a Telegram refusal is a 500 with its description.
-async fn telegram(s: &AppState, method: &str, body: Value) -> ApiResult<Value> {
-    let token = bot_token()?;
-    let url = format!("https://api.telegram.org/bot{token}/{method}");
+async fn telegram(
+    s: &AppState,
+    cfg: &HandoverConfig,
+    method: &str,
+    body: Value,
+) -> ApiResult<Value> {
+    let url = format!("{}/bot{}/{method}", cfg.api_url, cfg.bot_token);
     let resp = s
         .http
         .post(&url)
@@ -113,16 +93,13 @@ async fn telegram(s: &AppState, method: &str, body: Value) -> ApiResult<Value> {
     Ok(payload.get("result").cloned().unwrap_or(Value::Null))
 }
 
-fn topic_key(chat: i64, thread: i64) -> String {
-    format!("handover:topic:{chat}:{thread}")
-}
-
 async fn open(
     caller: Caller,
     State(s): State<AppState>,
     ApiJson(i): ApiJson<OpenInput>,
 ) -> ApiResult<Json<Value>> {
     service_only(&caller)?;
+    let cfg = cfg(&s)?;
     let job = i.job.trim();
     let conv = i.conversation_id.trim();
     if i.tenant_id.is_nil()
@@ -147,12 +124,13 @@ async fn open(
     if !alive {
         return Err(ApiError::NotFound(format!("conversation {conv}")));
     }
-    let chat = chat_id()?;
+    let chat_id = cfg.chat_id;
     let name = format!("chat {}", &conv[..conv.len().min(12)]);
     let topic = telegram(
         &s,
+        cfg,
         "createForumTopic",
-        json!({"chat_id": chat, "name": name}),
+        json!({"chat_id": chat_id, "name": name}),
     )
     .await?;
     let thread = topic
@@ -160,9 +138,23 @@ async fn open(
         .and_then(Value::as_i64)
         .ok_or_else(|| ApiError::Internal(anyhow::anyhow!("createForumTopic: no thread id")))?;
     let mapping = json!({"tenant_id": i.tenant_id, "job": job, "conversation_id": conv});
+    let reverse = json!({"chat_id": chat_id, "thread_id": thread});
     let mut c = bus.conn();
     let _: () = c
-        .set_ex(topic_key(chat, thread), mapping.to_string(), chat::TTL_SECS)
+        .set_ex(
+            topic_key(chat_id, thread),
+            mapping.to_string(),
+            chat::TTL_SECS,
+        )
+        .await
+        .map_err(|e| ApiError::Internal(anyhow::anyhow!(e)))?;
+    // The reverse mapping: a visitor's next message goes into its topic while a person holds the chat.
+    let _: () = c
+        .set_ex(
+            conv_topic_key(&bus, conv),
+            reverse.to_string(),
+            chat::TTL_SECS,
+        )
         .await
         .map_err(|e| ApiError::Internal(anyhow::anyhow!(e)))?;
     // Visitor facts live beside the conversation, never in the transcript.
@@ -179,8 +171,9 @@ async fn open(
     let note: String = note.chars().take(OPENING_MAX).collect();
     telegram(
         &s,
+        cfg,
         "sendMessage",
-        json!({"chat_id": chat, "message_thread_id": thread, "text": note}),
+        json!({"chat_id": chat_id, "message_thread_id": thread, "text": note}),
     )
     .await?;
     // Human mode: the per-turn lock holds a foreign token with a long TTL, so the agent leaves
@@ -194,17 +187,19 @@ async fn open(
         .await
         .map_err(|e| ApiError::Internal(anyhow::anyhow!(e)))?;
     Ok(Json(
-        json!({"status": "handed_over", "chat_id": chat, "thread_id": thread}),
+        json!({"status": "handed_over", "chat_id": chat_id, "thread_id": thread}),
     ))
 }
 
-async fn reply(
-    caller: Caller,
-    State(s): State<AppState>,
-    ApiJson(i): ApiJson<ReplyInput>,
+/// The inbound half: one operator message for a topic. `expected` is the caller's scope when the caller is a
+/// channel (the web door); a topic of another tenant or job is then a 404, exactly as an unknown topic is.
+pub async fn apply_reply(
+    s: &AppState,
+    expected: Option<&Scope>,
+    i: &ReplyInput,
 ) -> ApiResult<Json<Value>> {
-    service_only(&caller)?;
-    if !operators().contains(&i.from_id) {
+    let cfg = cfg(s)?;
+    if !cfg.operator_ids.contains(&i.from_id) {
         return Err(ApiError::Forbidden("the operator"));
     }
     let text = i.text.trim();
@@ -238,6 +233,11 @@ async fn reply(
         .get("conversation_id")
         .and_then(Value::as_str)
         .ok_or_else(|| ApiError::Internal(anyhow::anyhow!("handover mapping: conversation")))?;
+    if let Some(expected) = expected
+        && (expected.tenant != tenant || expected.job != job)
+    {
+        return Err(ApiError::NotFound("handover topic".into()));
+    }
     let scope =
         Scope::parse(&format!("{}/{}", tenant.hyphenated(), job)).map_err(ApiError::Internal)?;
     let bus = s.bus.scoped(&scope);
@@ -260,9 +260,17 @@ async fn reply(
         .expire(topic_key(i.chat_id, i.thread_id), chat::TTL_SECS as i64)
         .await
         .unwrap_or(0);
+    let _: i64 = admin
+        .expire(conv_topic_key(&bus, conv), chat::TTL_SECS as i64)
+        .await
+        .unwrap_or(0);
     if release {
         let _: i64 = admin
             .del(chat::lock_key(&bus, conv))
+            .await
+            .unwrap_or_default();
+        let _: i64 = admin
+            .del(conv_topic_key(&bus, conv))
             .await
             .unwrap_or_default();
     } else {
@@ -271,5 +279,65 @@ async fn reply(
             .await
             .unwrap_or(0);
     }
-    Ok(Json(json!({"ok": true, "conversation_id": conv})))
+    Ok(Json(
+        json!({"ok": true, "conversation_id": conv, "released": release}),
+    ))
+}
+
+async fn reply(
+    caller: Caller,
+    State(s): State<AppState>,
+    ApiJson(i): ApiJson<ReplyInput>,
+) -> ApiResult<Json<Value>> {
+    service_only(&caller)?;
+    apply_reply(&s, None, &i).await
+}
+
+/// Post a visitor's message into the conversation's topic while a person holds it. A missing mapping or a Telegram
+/// refusal is logged, never returned: the visitor's message is already in the conversation log.
+pub async fn forward_to_topic(s: &AppState, bus: &carebus::Bus, conversation_id: &str, text: &str) {
+    let Some(cfg) = s.cfg.handover.as_ref() else {
+        return;
+    };
+    let mut c = bus.conn();
+    let raw: Option<String> = match c.get(conv_topic_key(bus, conversation_id)).await {
+        Ok(v) => v,
+        Err(e) => {
+            tracing::warn!(conversation = %conversation_id, error = %e, "handover topic lookup failed");
+            return;
+        }
+    };
+    let Some(raw) = raw else {
+        return;
+    };
+    let place: Value = match serde_json::from_str(&raw) {
+        Ok(v) => v,
+        Err(e) => {
+            tracing::warn!(conversation = %conversation_id, error = %e, "handover topic mapping unreadable");
+            return;
+        }
+    };
+    let (Some(chat_id), Some(thread_id)) = (
+        place.get("chat_id").and_then(Value::as_i64),
+        place.get("thread_id").and_then(Value::as_i64),
+    ) else {
+        tracing::warn!(conversation = %conversation_id, "handover topic mapping incomplete");
+        return;
+    };
+    let text: String = text.chars().take(OPENING_MAX).collect();
+    if let Err(e) = telegram(
+        s,
+        cfg,
+        "sendMessage",
+        json!({"chat_id": chat_id, "message_thread_id": thread_id, "text": text}),
+    )
+    .await
+    {
+        tracing::warn!(conversation = %conversation_id, error = %e, "forwarding a visitor message to its topic failed");
+        return;
+    }
+    let _: i64 = c
+        .expire(conv_topic_key(bus, conversation_id), chat::TTL_SECS as i64)
+        .await
+        .unwrap_or(0);
 }

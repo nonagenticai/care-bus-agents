@@ -24,8 +24,9 @@ struct KeyPath {
 }
 
 /// `strata_store_id` binds (or, null, unbinds) the store. `label` may change on any store; `kind`, `parent`,
-/// `areas` and `description` belong to the layout, so they are accepted for the tenant's own stores only (and
-/// `label`, `kind` and `areas` are required to add one).
+/// `areas`, `description` and `chat_excluded` belong to the layout, so they are accepted for the tenant's own
+/// stores only (and `label`, `kind` and `areas` are required to add one). `chat_excluded` keeps a store ingested
+/// but out of the customer chat (the website's legal pages).
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct StoreInput {
@@ -38,6 +39,8 @@ struct StoreInput {
     areas: Option<Vec<String>>,
     #[serde(default)]
     description: Option<String>,
+    #[serde(default)]
+    chat_excluded: Option<bool>,
 }
 
 pub fn routes() -> Router<AppState> {
@@ -50,7 +53,7 @@ fn select(layer: Layer) -> String {
     format!(
         "SELECT jsonb_build_object('key', s.key, 'label', s.label, 'parent', s.parent_key, 'kind', s.kind, 'areas', s.areas,
                 'description', s.description, 'strata_store_id', s.strata_store_id, 'origin', s.origin,
-                'overridden', s.overridden, 'hidden', s.hidden)
+                'overridden', s.overridden, 'hidden', s.hidden, 'chat_excluded', s.chat_excluded)
            FROM {} s",
         refine::layer_source(ObjectKind::KnowledgeStore, layer)
     )
@@ -152,8 +155,8 @@ async fn put_store(
             return Err(bad("a new store needs label, kind and areas."));
         };
         sqlx::query(
-            "INSERT INTO knowledge_stores (key, label, parent_key, kind, areas, description, strata_store_id, updated_by)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
+            "INSERT INTO knowledge_stores (key, label, parent_key, kind, areas, description, strata_store_id, chat_excluded, updated_by)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
         )
         .bind(&key)
         .bind(label)
@@ -162,6 +165,7 @@ async fn put_store(
         .bind(areas)
         .bind(&i.description)
         .bind(i.strata_store_id)
+        .bind(i.chat_excluded.unwrap_or(false))
         .bind(&ctx.t.caller.actor)
         .execute(&mut *tx)
         .await?;
@@ -171,10 +175,11 @@ async fn put_store(
             && (i.kind.is_some()
                 || i.parent.is_some()
                 || i.areas.is_some()
-                || i.description.is_some())
+                || i.description.is_some()
+                || i.chat_excluded.is_some())
         {
             return Err(bad(
-                "kind, parent, areas and description of a base store come with the release; only label and strata_store_id can be refined.",
+                "kind, parent, areas, description and chat_excluded of a base store come with the release; only label and strata_store_id can be refined.",
             ));
         }
         refine::ensure_tenant_row(&mut tx, ObjectKind::KnowledgeStore, &nk).await?;
@@ -183,6 +188,7 @@ async fn put_store(
                 SET strata_store_id = $2, label = COALESCE($3, label), kind = COALESCE($4, kind), areas = COALESCE($5, areas),
                     parent_key = CASE WHEN $6::text IS NULL THEN parent_key ELSE $6 END,
                     description = COALESCE($7, description), base_hash = $8, hidden = false,
+                    chat_excluded = COALESCE($10, chat_excluded),
                     updated_at = now(), updated_by = $9
               WHERE origin = 'tenant' AND key = $1",
         )
@@ -195,6 +201,7 @@ async fn put_store(
         .bind(&i.description)
         .bind(&base_hash)
         .bind(&ctx.t.caller.actor)
+        .bind(i.chat_excluded)
         .execute(&mut *tx)
         .await?;
         refine::resolve_conflicts(

@@ -746,10 +746,14 @@ async fn chat_sources_jobs_documents_and_eval_history_respect_the_wall() {
     let scope_body = json!({"tenant_id": crate::common::BOOT_TENANT});
     let faq_scope = "/api/internal/faq/scope";
 
-    // no wall yet: chat keeps strata_rag's default routing
+    // no wall yet: chat searches exactly the job's bound leaf stores (the seven website stores are seven roots, so
+    // the tenant's default routing would be ambiguous)
     let (s, b) = api(&e, "POST", faq_scope, SVC, Some(scope_body.clone())).await;
     assert_eq!(s, StatusCode::OK, "{b}");
-    assert_eq!(b, json!({"restricted": false}));
+    assert_eq!(
+        b,
+        json!({"restricted": true, "leaf_ids": [LEAF, OTHER_LEAF]})
+    );
 
     // two sources, written before the wall goes up
     let mut src = vec![];

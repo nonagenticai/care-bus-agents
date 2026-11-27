@@ -229,6 +229,54 @@ pub fn chat_leaves_of(tree: &Tree, blocked: &[String]) -> Vec<String> {
     leaves
 }
 
+/// The stores the customer chat of one job may search: the job's bound leaf stores (`knowledge_stores`: a leaf,
+/// bound to a strata store, not `chat_excluded`), minus the subtree of every walled store, canonical and sorted.
+/// `None` when the job has no bound leaf store: the caller falls back to [`chat_leaves`], the tenant's routing.
+pub async fn job_chat_leaves(
+    s: &AppState,
+    tenant: Uuid,
+    job: &str,
+) -> ApiResult<Option<Vec<String>>> {
+    let mut tx = crate::tenancy::begin_scoped(&s.db, tenant, None).await?;
+    let bound: Vec<String> = sqlx::query_scalar(
+        "SELECT DISTINCT s.strata_store_id::text
+           FROM eff_knowledge_stores s
+           JOIN jobs j ON j.tenant_id = s.tenant_id AND j.id = s.job_id
+          WHERE j.key = $1 AND s.kind = 'leaf' AND s.strata_store_id IS NOT NULL
+            AND NOT s.chat_excluded",
+    )
+    .bind(job)
+    .fetch_all(&mut *tx)
+    .await?;
+    let ws = walls(&mut tx).await?;
+    drop(tx);
+    if bound.is_empty() {
+        return Ok(None);
+    }
+    if ws.is_empty() {
+        let mut leaves: Vec<String> = bound.iter().map(|id| canonical(id)).collect();
+        leaves.sort();
+        leaves.dedup();
+        return Ok(Some(leaves));
+    }
+    let tree = Tree::load(s, tenant).await?;
+    Ok(Some(scope_minus(&tree, &bound, &ws)))
+}
+
+/// [`job_chat_leaves`]'s pure half: the bound leaves minus the subtree of every walled store.
+pub fn scope_minus(tree: &Tree, bound: &[String], walls: &[Wall]) -> Vec<String> {
+    let blocked: Vec<String> = walls.iter().map(|w| canonical(&w.store_id)).collect();
+    let hidden = tree.closure(&blocked);
+    let mut leaves: Vec<String> = bound
+        .iter()
+        .map(|id| canonical(id))
+        .filter(|id| !hidden.contains(id))
+        .collect();
+    leaves.sort();
+    leaves.dedup();
+    leaves
+}
+
 /// Whether a search scoped to `root` (none: the tenant's roots) reaches a store in `hidden`.
 pub fn reaches(tree: &Tree, hidden: &HashSet<String>, root: Option<&str>) -> bool {
     if hidden.is_empty() {
@@ -361,6 +409,37 @@ mod tests {
         ]}))
         .unwrap();
         assert!(chat_leaves_of(&two_roots, &[A.to_string()]).is_empty());
+    }
+
+    #[test]
+    fn a_job_s_chat_scope_is_its_bound_leaves_outside_every_wall() {
+        let t = tree();
+        let wall = |id: &str| Wall {
+            store_id: id.to_uppercase(),
+            matter_id: Uuid::nil(),
+            visible: false,
+        };
+        // no wall: every bound leaf, canonical and sorted
+        assert_eq!(
+            scope_minus(&t, &[B.to_string(), A.to_uppercase()], &[]),
+            vec![A.to_string(), B.to_string()]
+        );
+        // a wall on the router S removes its leaf L; the bound leaves outside it stay
+        assert_eq!(
+            scope_minus(
+                &t,
+                &[A.to_string(), B.to_string(), L.to_string()],
+                &[wall(S)]
+            ),
+            vec![A.to_string(), B.to_string()]
+        );
+        // every bound leaf walled: an empty scope (the worker then searches nothing)
+        assert!(scope_minus(&t, &[L.to_string()], &[wall(S)]).is_empty());
+        // a store the tree does not know is not below the wall
+        assert_eq!(
+            scope_minus(&t, &["unknown".to_string()], &[wall(S)]),
+            vec!["unknown".to_string()]
+        );
     }
 
     #[test]

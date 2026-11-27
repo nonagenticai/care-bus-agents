@@ -7,6 +7,7 @@ mod executor;
 mod faq_scope;
 mod flow;
 mod gates;
+mod handover_scope;
 mod live_mcp;
 mod live_mcp_tasks;
 mod live_vllm;
