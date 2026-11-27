@@ -11,7 +11,7 @@ async fn main() -> anyhow::Result<()> {
     carebus::init_tracing();
     let tool = std::env::args()
         .nth(1)
-        .context("usage: worker <crm|order|delivery|faq|business-rules|procedures>")?;
+        .context("usage: worker <crm|order|delivery|faq|business-rules|procedures|ebook|early-access|handover>")?;
     let root = carebus::bus_from_env().await?;
     let consumer = carebus::consumer_name(&format!("worker-{tool}"));
     // D5: the faq tool gets TOOL_TIMEOUT_MS_FAQ (strata_rag generation); others TOOL_TIMEOUT_MS.

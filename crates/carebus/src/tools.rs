@@ -48,6 +48,9 @@ pub fn requirements(tool: &str, method: &str) -> Option<&'static [&'static str]>
         ("procedures", "get_procedure") => &["name"],
         ("faq", "ask" | "search") => &["question"],
         ("faq", "answer") => &["question", "sources"],
+        ("ebook", "request") => &["email", "language"],
+        ("early-access", "request") => &["email", "product", "confirm"],
+        ("handover", "request") => &["reason"],
         _ => return None,
     })
 }
@@ -190,6 +193,36 @@ impl FakeTools {
                 }
                 out
             }
+            // The website actions. Each is idempotent per call key, like the order side effects.
+            ("ebook", "request") => {
+                let language = s("language");
+                if language.is_empty() || matches!(language.to_lowercase().as_str(), "en" | "english") {
+                    self.once(key, |n| json!({
+                        "status": "sent",
+                        "edition": "English",
+                        "email": s("email"),
+                        "link": format!("https://nonagentic.ai/book/download/{:x}", 0x7000 + n),
+                    }))
+                } else {
+                    json!({"status": "waitlist", "edition": language, "email": s("email")})
+                }
+            }
+            ("early-access", "request") => {
+                let (product, email) = (s("product"), s("email"));
+                if matches!(s("confirm").to_lowercase().as_str(), "yes" | "true") {
+                    self.once(key, |_| json!({"status": "filed", "product": product, "email": email}))
+                } else {
+                    json!({
+                        "status": "proposed",
+                        "product": product,
+                        "email": email,
+                        "summary": format!("I can ask for early access to {product} for {email}."),
+                    })
+                }
+            }
+            ("handover", "request") => self.once(key, |n| {
+                json!({"status": "handed_over", "topic": format!("visitor-{}", 100 + n)})
+            }),
             _ => return Err(ToolError::fatal(format!("unknown tool {tool}.{method}"))),
         })
     }

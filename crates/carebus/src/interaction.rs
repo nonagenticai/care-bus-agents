@@ -845,6 +845,52 @@ pub fn compose_reply(r: &Resolution) -> String {
                 .filter(|a| !a.is_empty())
                 .unwrap_or(FAQ_FALLBACK)
                 .into(),
+            // The website actions. The step's `as` name is the request type, so the tool's
+            // result is read from `f[<request_type>]`.
+            "ebook" => {
+                let (email, edition) = (s("ebook", "email"), s("ebook", "edition"));
+                match s("ebook", "status").as_str() {
+                    "sent" => {
+                        let link = s("ebook", "link");
+                        if link.is_empty() {
+                            format!("Done — the {edition} ebook is on its way to {email}.")
+                        } else {
+                            format!("Done — the {edition} ebook is on its way to {email}.\n{link}")
+                        }
+                    }
+                    "waitlist" => format!(
+                        "The {edition} edition isn't published yet, so {email} is on its waitlist. \
+                         George will send the link once it is published."
+                    ),
+                    _ => "I couldn't file the ebook request. Please try again, or use \
+                          https://nonagentic.ai/book/request."
+                        .into(),
+                }
+            }
+            "early_access" => {
+                let (product, email) = (s("early_access", "product"), s("early_access", "email"));
+                match s("early_access", "status").as_str() {
+                    "proposed" => {
+                        let summary = s("early_access", "summary");
+                        if summary.is_empty() {
+                            format!(
+                                "I can ask for early access to {product} for {email}. Reply yes to confirm."
+                            )
+                        } else {
+                            format!("{summary} Reply yes to confirm.")
+                        }
+                    }
+                    "filed" => format!(
+                        "Filed — early access to {product} is registered for {email}. \
+                         A confirmation is on its way."
+                    ),
+                    _ => "I couldn't file the early-access request. Please try again in a moment."
+                        .into(),
+                }
+            }
+            "handover" => {
+                "I've brought George into this conversation — he may join shortly.".into()
+            }
             // A request type of a context space added in a release: no template, a plain confirmation.
             other => format!(
                 "Your {} request is done. A confirmation is on its way by email.",
@@ -1093,6 +1139,68 @@ mod tests {
         assert_eq!(
             compose_reply(&r),
             "Your gift card request is done. A confirmation is on its way by email."
+        );
+    }
+
+    fn completed(request_type: &str, facts: serde_json::Value) -> Resolution {
+        Resolution {
+            case_id: "CASE-1".into(),
+            request_type: RequestType::new(request_type).unwrap(),
+            outcome: Outcome::Completed,
+            reason: None,
+            facts: facts.as_object().cloned().unwrap_or_default(),
+        }
+    }
+
+    #[test]
+    fn ebook_reply_reports_the_sent_link_and_the_waitlist() {
+        let r = completed(
+            "ebook",
+            serde_json::json!({"ebook": {"status": "sent", "edition": "English",
+                "email": "a@example.com", "link": "https://nonagentic.ai/book/download/7000"}}),
+        );
+        assert_eq!(
+            compose_reply(&r),
+            "Done — the English ebook is on its way to a@example.com.\n\
+             https://nonagentic.ai/book/download/7000"
+        );
+        let r = completed(
+            "ebook",
+            serde_json::json!({"ebook": {"status": "waitlist", "edition": "Dutch",
+                "email": "a@example.com"}}),
+        );
+        assert!(compose_reply(&r).contains("isn't published yet"));
+    }
+
+    #[test]
+    fn early_access_reply_asks_for_consent_then_confirms() {
+        let r = completed(
+            "early_access",
+            serde_json::json!({"early_access": {"status": "proposed", "product": "Conveyor",
+                "email": "a@example.com",
+                "summary": "I can ask for early access to Conveyor for a@example.com."}}),
+        );
+        assert_eq!(
+            compose_reply(&r),
+            "I can ask for early access to Conveyor for a@example.com. Reply yes to confirm."
+        );
+        let r = completed(
+            "early_access",
+            serde_json::json!({"early_access": {"status": "filed", "product": "Conveyor",
+                "email": "a@example.com"}}),
+        );
+        assert!(compose_reply(&r).starts_with("Filed — early access to Conveyor"));
+    }
+
+    #[test]
+    fn handover_reply_names_george() {
+        let r = completed(
+            "handover",
+            serde_json::json!({"handover": {"status": "handed_over"}}),
+        );
+        assert_eq!(
+            compose_reply(&r),
+            "I've brought George into this conversation — he may join shortly."
         );
     }
 }
