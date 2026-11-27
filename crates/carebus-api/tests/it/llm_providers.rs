@@ -76,7 +76,8 @@ async fn crud_round_trip_never_returns_the_token() {
         json!([{"use": "qualify", "provider_id": null, "model": null},
                {"use": "gates", "provider_id": null, "model": null},
                {"use": "research", "provider_id": null, "model": null},
-               {"use": "research_write", "provider_id": null, "model": null}])
+               {"use": "research_write", "provider_id": null, "model": null},
+               {"use": "answer", "provider_id": null, "model": null}])
     );
     // tests never run the platform LLM: no 0033 row is seeded (nothing sets VLLM_LICENSE_TOKEN)
     assert_eq!(
@@ -404,7 +405,8 @@ async fn each_use_takes_only_its_kind_and_a_bound_provider_cannot_be_deleted() {
         json!([{"use": "qualify", "provider_id": oid, "model": "local-llm"},
                {"use": "gates", "provider_id": lid, "model": "jev-latest"},
                {"use": "research", "provider_id": null, "model": null},
-               {"use": "research_write", "provider_id": null, "model": null}])
+               {"use": "research_write", "provider_id": null, "model": null},
+               {"use": "answer", "provider_id": null, "model": null}])
     );
 
     // bound: no delete, no kind change
