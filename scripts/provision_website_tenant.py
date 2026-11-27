@@ -382,18 +382,18 @@ def ensure_reviewer(name: str, version: str, token: str, user: str) -> None:
     must(st, out, f"approve as {user}")
 
 
-def step_procedure() -> bool:
-    """Returns True when it published in this run (the plan cache then needs 60 s)."""
+def step_procedure() -> tuple[bool, bool]:
+    """Returns (published in this run, blocked on the second reviewer)."""
     name = PROCEDURE["name"]
     row = procedure_row(name)
     if row and row.get("version_status") == "PUBLISHED":
         print(f"procedure: {name}@{row.get('version')} already PUBLISHED")
-        return False
+        return False, False
     version = row.get("version") if row else PROCEDURE["version"]
     status = row.get("version_status") if row else None
     if row is None:
         if want(PROCEDURE, f"create {name}@{version}"):
-            return False
+            return False, False
         st, out = call("POST", f"/api/jobs/{JOB}/procedures", body=PROCEDURE)
         must(st, out, f"create {name}@{version}")
         print(f"procedure: created {name}@{version} (DRAFT)")
@@ -410,21 +410,21 @@ def step_procedure() -> bool:
     if status in ("DRAFT", "CANARY"):
         ensure_reviewer(name, version, TOKEN, USER_A)
         if not REVIEWER:
-            raise Fail(
-                f"procedure {name}@{version} is CANARY but needs a second reviewer: "
-                "set CAREBUS_REVIEWER_TOKEN to another person's token and re-run",
-                2,
+            print(
+                f"procedure: {name}@{version} is CANARY and approved by {USER_A}; "
+                "a second person's token is required to publish"
             )
+            return False, True
         ensure_reviewer(name, version, REVIEWER, USER_B)
     if want(status, f"publish {name}@{version}"):
-        return False
+        return False, False
     st, out = call(
         "POST", f"/api/jobs/{JOB}/procedures/{name}/versions/{version}/status",
         body={"to": "PUBLISHED"},
     )
     must(st, out, "publish the procedure")
     print(f"procedure: {name}@{version} PUBLISHED")
-    return True
+    return True, False
 
 
 def step_ontology() -> None:
@@ -562,10 +562,17 @@ def main() -> int:
     step_settings()
     gates_bound = step_providers()
     step_gates(gates_bound)
-    published_now = step_procedure()
+    published_now, publish_blocked = step_procedure()
     step_ontology()
     step_knowledge()
     secret = read_secret()
+    if publish_blocked:
+        print(
+            "BLOCKED: the procedure is CANARY, pending a second reviewer. "
+            "Set CAREBUS_REVIEWER_TOKEN to another person's token and re-run; "
+            "everything else is provisioned and the channel secret is stored."
+        )
+        return 2
     if published_now:
         print("procedure: waiting 65 s for the orchestrator's per-space plan cache")
         if not DRY:
