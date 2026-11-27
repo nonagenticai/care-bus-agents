@@ -1,7 +1,6 @@
 //! One integration-test binary per crate: a single link, and libtest runs every test in parallel.
 mod agents;
 mod analytics;
-mod answer_context;
 mod audit;
 mod auth;
 mod cases;
@@ -20,6 +19,7 @@ mod handover_web;
 mod harness;
 mod health;
 mod ingest_proxy;
+mod job_settings;
 mod knowledge_eval;
 mod knowledge_writes;
 mod legal_matters;

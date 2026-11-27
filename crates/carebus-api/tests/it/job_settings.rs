@@ -1,11 +1,11 @@
-//! `POST /api/internal/answer-context`: the website answer stage's settings and provider.
-//! Service-token only; the response carries a provider token, so it must be `no-store`.
+//! `POST /api/internal/job-settings`: the effective job settings a `faq.ask` carries to strata_rag.
+//! Service-token only; the values are per-tenant configuration, so the reply must be `no-store`.
 
 use axum::http::StatusCode;
 use serde_json::{Value, json};
 
 fn req(token: &str, body: Value) -> axum::http::Request<axum::body::Body> {
-    crate::common::json("POST", "/api/internal/answer-context", Some(token), body)
+    crate::common::json("POST", "/api/internal/job-settings", Some(token), body)
 }
 
 fn input(job: &str) -> Value {
@@ -16,7 +16,7 @@ fn input(job: &str) -> Value {
 async fn a_service_token_reads_the_effective_settings_and_the_reply_is_no_store() {
     use tower::ServiceExt;
 
-    let e = crate::common::env("answer-context").await;
+    let e = crate::common::env("job-settings").await;
     let (status, _) = crate::common::send(
         &e.app,
         crate::common::json(
@@ -47,13 +47,16 @@ async fn a_service_token_reads_the_effective_settings_and_the_reply_is_no_store(
     assert_eq!(body["settings"]["preamble"], "Be kind.");
     assert_eq!(body["settings"]["max_tokens"], "777");
     assert_eq!(body["settings"]["actor"], "");
-    // The test config seeds no platform row and no `answer` binding.
-    assert!(body["provider"].is_null(), "{body}");
+    assert_eq!(
+        body.as_object().map(|o| o.len()),
+        Some(1),
+        "settings only: the retired answer provider is not part of this reply: {body}"
+    );
 }
 
 #[tokio::test]
 async fn only_a_service_token_and_a_known_job_are_accepted() {
-    let e = crate::common::env("answer-context-auth").await;
+    let e = crate::common::env("job-settings-auth").await;
 
     let (status, error) = crate::common::send(
         &e.app,
