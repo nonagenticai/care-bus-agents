@@ -362,18 +362,63 @@ fn check_space(i: &SpaceInput) -> ApiResult<()> {
 /// The space is inserted as origin `tenant`, so the base release is untouched and a release can
 /// still add its own. `key` and `request_type` must not collide with the effective configuration:
 /// the qualifier routes a message by request type, so that mapping has to stay single-valued.
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 struct SpaceCreateInput {
     key: String,
     area: String,
     label: String,
     request_type: String,
-    #[serde(default)]
     required: Vec<String>,
-    #[serde(default)]
     entities: Vec<String>,
     procedure: String,
+}
+
+/// Parses the create body field by field. Every field has one fixed shape, so this is both the
+/// schema and the validation: unknown keys, a non-string, or a non-string list are the same 400.
+fn space_body(raw: Value) -> ApiResult<SpaceCreateInput> {
+    fn invalid() -> ApiError {
+        ApiError::BadRequest(
+            "invalid_body",
+            "The request body does not match the context space schema.".into(),
+        )
+    }
+    let obj = raw.as_object().ok_or_else(invalid)?;
+    const FIELDS: [&str; 7] = [
+        "key",
+        "area",
+        "label",
+        "request_type",
+        "required",
+        "entities",
+        "procedure",
+    ];
+    if obj.keys().any(|k| !FIELDS.contains(&k.as_str())) {
+        return Err(invalid());
+    }
+    let text = |name: &str| -> ApiResult<String> {
+        obj.get(name)
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+            .ok_or_else(invalid)
+    };
+    let list = |name: &str| -> ApiResult<Vec<String>> {
+        match obj.get(name) {
+            None | Some(Value::Null) => Ok(Vec::new()),
+            Some(Value::Array(items)) => items
+                .iter()
+                .map(|item| item.as_str().map(str::to_owned).ok_or_else(invalid))
+                .collect(),
+            _ => Err(invalid()),
+        }
+    };
+    Ok(SpaceCreateInput {
+        key: text("key")?,
+        area: text("area")?,
+        label: text("label")?,
+        request_type: text("request_type")?,
+        required: list("required")?,
+        entities: list("entities")?,
+        procedure: text("procedure")?,
+    })
 }
 
 fn check_new_space(i: &SpaceCreateInput) -> ApiResult<()> {
@@ -427,7 +472,7 @@ async fn create_space(
     ApiJson(raw): ApiJson<Value>,
 ) -> ApiResult<(StatusCode, Json<Value>)> {
     secrets::reject_secret_fields(&raw, &[])?;
-    let i: SpaceCreateInput = secrets::parse_body(raw, "context space")?;
+    let i = space_body(raw)?;
     check_new_space(&i)?;
     let mut tx = ctx.begin(&s.db).await?;
     refine::lock_job_shared(&mut tx, ctx.job_id).await?;
