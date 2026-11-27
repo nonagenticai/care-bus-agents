@@ -905,12 +905,27 @@ pub fn compose_reply(r: &Resolution) -> String {
                 let cited = faq
                     .and_then(|x| x["citations"].as_array())
                     .map_or(0, Vec::len);
+                // The sources' own numbering bounds what can be a citation. `cited` is a DEDUPED
+                // count, not that bound: an answer citing [1] and [5] over five sources has two
+                // citations, and bounding by the count left `[5]` in the visitor's text (measured
+                // live 2026-11-27). Per-document sources carry their prompt `number`; chunk
+                // sources are numbered 1..n by position.
+                let bound = faq
+                    .and_then(|x| x["sources"].as_array())
+                    .and_then(|s| {
+                        s.iter()
+                            .filter_map(|v| v.get("number").and_then(serde_json::Value::as_u64))
+                            .max()
+                            .map(|n| n as usize)
+                            .or((!s.is_empty()).then_some(s.len()))
+                    })
+                    .unwrap_or(cited);
                 let answer = faq
                     .and_then(|x| x["answer"].as_str())
                     .map(str::trim)
                     .filter(|a| !a.is_empty());
                 match answer {
-                    Some(a) if cited > 0 => without_citation_markers(&unescaped_newlines(a), cited),
+                    Some(a) if cited > 0 => without_citation_markers(&unescaped_newlines(a), bound),
                     _ => FAQ_FALLBACK.into(),
                 }
             }
@@ -1086,6 +1101,33 @@ mod tests {
             "Care Bus runs in your own channels. Prices are per seat. The 2026 [5] review covers the rest.",
             "a run of markers collapses, and an out-of-range bracket is prose, not a citation"
         );
+    }
+
+    #[test]
+    fn faq_reply_strips_a_marker_above_the_deduped_citation_count() {
+        // Measured live 2026-11-27: the answer cited [1] and [5], so `citations` held two ids and
+        // the old bound (its length) left `[5]` in the visitor's text over five chunk sources.
+        let mut r: Resolution = serde_json::from_str(LIVE_FAQ_RESOLVED).unwrap();
+        r.facts["faq"] = serde_json::json!({
+            "answer": "His work includes Conveyor [1] and the open-source tools [5].",
+            "citations": ["a", "e"],
+            "sources": [{"chunk_id": "a"}, {"chunk_id": "b"}, {"chunk_id": "c"},
+                        {"chunk_id": "d"}, {"chunk_id": "e"}],
+            "timings_ms": {}
+        });
+        assert_eq!(
+            compose_reply(&r),
+            "His work includes Conveyor and the open-source tools.",
+            "the count of cited ids is not the highest marker the sources can carry"
+        );
+        // Per-document sources carry their prompt number even when only some documents are cited.
+        r.facts["faq"] = serde_json::json!({
+            "answer": "Conveyor [1] and the tools [5].",
+            "citations": ["a"],
+            "sources": [{"chunk_id": "a", "number": 1}, {"chunk_id": "e", "number": 5}],
+            "timings_ms": {}
+        });
+        assert_eq!(compose_reply(&r), "Conveyor and the tools.");
     }
 
     #[test]
