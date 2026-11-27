@@ -42,6 +42,67 @@ export function traceRows(trace: BusEvent[]): { lane: Lane; t_ms: number; ev: Bu
 	return sorted.map((ev) => ({ lane: laneOf(ev.stream), t_ms: ms(ev) - t0, ev }));
 }
 
+/**
+ * The answer without the citation markers the visitor never sees (`[1]`, `[1][2]`, `[1, 2]`).
+ *
+ * The stored answer keeps them — that is the audit trail — and the number of sources it stood on is shown beside
+ * the text instead. Mirrors `without_citation_markers` in carebus's compose_reply: only numbers this answer actually
+ * cites are removed, so `[2026]` or a `[5]` on a four-source answer stays as the prose wrote it.
+ */
+export function withoutCitationMarkers(text: string, max: number): string {
+	if (max < 1) return text;
+	const cited = (inner: string) => {
+		const parts = inner.split(',').map((p) => p.trim());
+		return parts.length > 0 && parts.every((p) => /^\d+$/.test(p) && +p >= 1 && +p <= max);
+	};
+	return text
+		.replace(/( ?)\[([^\]]*)\]( ?)/g, (m, pre: string, inner: string, post: string) =>
+			// Same rule as the Rust half: the marker goes with the space BEFORE it and keeps the space after,
+			// so "source [1, 2] and" reads "source and" and "channels [1]." never becomes "channels .".
+			cited(inner) ? post : m,
+		)
+		.replace(/ {2,}/g, ' ')
+		.trim();
+}
+
+/**
+ * What the agent actually said, from the case hash.
+ *
+ * `CaseDetail.hash` is the raw Redis hash: every value is a JSON string. The reply is in `resolution`
+ * (`carebus::domain::Resolution`, written once by the orchestrator), and the request type names the step whose
+ * facts carry it — `faq` for the website FAQ (strata's cited answer), `assistant` for the generic answer step.
+ * Nothing else in the drawer used to show it, which is why the one thing a human opened the case for was only
+ * findable by scrolling a 54k-character blob.
+ *
+ * `cited` counts the citations the answer was grounded on; the prose itself is shown without the markers (the
+ * stored facts are not rewritten — this is a rendering of them).
+ */
+export function caseAnswer(hash: Record<string, unknown>): { text: string; cited: number } | null {
+	const raw = hash.resolution;
+	let res: unknown = raw;
+	if (typeof raw === 'string') {
+		try {
+			res = JSON.parse(raw);
+		} catch {
+			return null;
+		}
+	}
+	if (!res || typeof res !== 'object') return null;
+	const facts = (res as { facts?: unknown }).facts;
+	if (!facts || typeof facts !== 'object') return null;
+	const f = facts as Record<string, { answer?: unknown; citations?: unknown; sources?: unknown } | undefined>;
+	const text =
+		typeof f.faq?.answer === 'string'
+			? f.faq.answer
+			: typeof f.assistant?.answer === 'string'
+				? f.assistant.answer
+				: '';
+	if (!text.trim()) return null;
+	const list = f.faq?.citations ?? f.assistant?.sources;
+	const cited = Array.isArray(list) ? list.length : 0;
+	return { text: withoutCitationMarkers(text, cited), cited };
+}
+
 export { areaLabel, areasOf } from '$lib/areas';
 export const outcomeLabel = (o: Outcome | null) =>
 	o === null ? 'Open' : o === 'not_eligible' ? 'Not eligible' : o === 'completed' ? 'Completed' : 'Failed';

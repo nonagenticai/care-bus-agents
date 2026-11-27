@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+	caseAnswer,
 	caseProcedure,
 	deadLetter,
 	groupHealth,
 	streamHealth,
 	traceRows,
+	withoutCitationMarkers,
 } from '../../src/routes/admin/jobs/[job]/cases/lanes';
 import type { Entry, GroupInfo, StreamInfo } from '../../src/lib/api/types';
 
@@ -113,5 +115,56 @@ describe('caseProcedure', () => {
 	});
 	it('is null when neither is known', () => {
 		expect(caseProcedure({ procedure: null, context_space: 'x' }, derive)).toBeNull();
+	});
+});
+
+describe('caseAnswer', () => {
+	// The case hash stores every value as a JSON string (carebus-api `HGETALL`), and `resolution` is the
+	// orchestrator's own JSON — so this reads one string inside another.
+	const hash = (resolution: unknown) => ({ case: '"CASE-1"', resolution: JSON.stringify(resolution) });
+
+	it('reads the cited FAQ answer and how many sources it stands on', () => {
+		const h = hash({
+			case_id: 'CASE-1',
+			request_type: 'faq',
+			outcome: 'completed',
+			facts: { faq: { answer: '  Refunds take 5 business days. [1]  ', citations: ['a', 'b'] } },
+		});
+		// Shown without the marker: the count beside it is what the marker meant.
+		expect(caseAnswer(h)).toEqual({ text: 'Refunds take 5 business days.', cited: 2 });
+	});
+
+	it('reads the assistant answer and counts its sources', () => {
+		const h = hash({
+			outcome: 'completed',
+			facts: { assistant: { answer: 'Hi.', sources: [{ chunk_id: 'c1' }] } },
+		});
+		expect(caseAnswer(h)).toEqual({ text: 'Hi.', cited: 1 });
+	});
+
+	it('is null for a case that recorded no answer at all', () => {
+		expect(caseAnswer(hash({ request_type: 'order', facts: {} }))).toBeNull();
+		expect(caseAnswer(hash({ facts: { faq: { answer: '   ' } } }))).toBeNull();
+	});
+
+	it('is null rather than throwing on a hash it does not recognise', () => {
+		expect(caseAnswer({})).toBeNull();
+		expect(caseAnswer({ resolution: 'not json' })).toBeNull();
+		expect(caseAnswer({ resolution: 'null' })).toBeNull();
+	});
+});
+
+describe('withoutCitationMarkers', () => {
+	it('strips a run and the comma form, keeping the sentence intact', () => {
+		expect(withoutCitationMarkers('Agents run in your channels [1][2]. Open source [2].', 2)).toBe(
+			'Agents run in your channels. Open source.',
+		);
+		expect(withoutCitationMarkers('Open source [1, 2] and public [1].', 2)).toBe('Open source and public.');
+	});
+
+	it('leaves a bracket whose numbers are not citations of this answer', () => {
+		expect(withoutCitationMarkers('The 2026 [5] review said so.', 4)).toBe('The 2026 [5] review said so.');
+		expect(withoutCitationMarkers('a claim [1, 9]', 2)).toBe('a claim [1, 9]');
+		expect(withoutCitationMarkers('a [note] here', 3)).toBe('a [note] here');
 	});
 });
