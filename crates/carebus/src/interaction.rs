@@ -800,21 +800,27 @@ fn unescaped_newlines(text: &str) -> String {
 
 /// The answer without the citation markers `[1]`..`[max]`.
 ///
-/// strata's ask prompt numbers its sources and asks the model to cite them; the ids the answer stands on are kept
-/// in the case facts. The visitor has no source list to follow a marker to, so a marker left in the reply is a
-/// promise the UI cannot keep. ONLY numbers this answer actually cites are removed: a `[5]` on a four-source
-/// answer, or `[2026]`, is the prose's own bracket and stays. The space that separated a marker from its
-/// neighbours goes with it, so the sentence does not end up with a double space or two words fused.
+/// The answer stage's rules ask the model to cite the source of every statement, and the ids the answer stands on
+/// are kept in the case facts. The visitor has no source list to follow a marker to, so a marker left in the reply
+/// is a promise the UI cannot keep. ONLY numbers this answer actually cites are removed: a `[5]` on a four-source
+/// answer, or `[2026]`, is the prose's own bracket and stays. Both shapes the models actually produce count — a run
+/// (`[1][2][3][4]`) and the comma list (`[1, 2]`, measured from Gemma 4 on the answer prompt 2026-11-27). The space
+/// that separated a marker from its neighbours goes with it, so no sentence ends up with a double space or two
+/// words fused.
 fn without_citation_markers(text: &str, max: usize) -> String {
+    let cited = |inner: &str| {
+        let parts: Vec<&str> = inner.split(',').map(str::trim).collect();
+        !parts.is_empty()
+            && parts
+                .iter()
+                .all(|p| p.parse::<usize>().is_ok_and(|n| (1..=max).contains(&n)))
+    };
     let mut out = String::with_capacity(text.len());
     let mut rest = text;
     while let Some(open) = rest.find('[') {
         out.push_str(&rest[..open]);
         let after = &rest[open + 1..];
-        let marker = after.find(']').and_then(|close| {
-            let n: usize = after[..close].trim().parse().ok()?;
-            (1..=max).contains(&n).then_some(close)
-        });
+        let marker = after.find(']').filter(|close| cited(&after[..*close]));
         match marker {
             Some(close) => {
                 let had_space = out.ends_with(' ');
@@ -1110,6 +1116,20 @@ mod tests {
         assert_eq!(
             without_citation_markers("a [x] and [[2]] b [9]", 3),
             "a [x] and [] b [9]"
+        );
+    }
+
+    #[test]
+    fn citation_markers_in_the_comma_form_the_models_actually_write_are_stripped() {
+        // Measured from Gemma 4 on the answer-stage prompt (2026-11-27): "… platform [1, 2]. It can … [1]."
+        assert_eq!(
+            without_citation_markers("Care Bus is open source [1, 2]. It looks orders up [1].", 2),
+            "Care Bus is open source. It looks orders up."
+        );
+        // One out-of-range number in the list makes the whole bracket prose.
+        assert_eq!(
+            without_citation_markers("a claim [1, 9]", 2),
+            "a claim [1, 9]"
         );
     }
 
