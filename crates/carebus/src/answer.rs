@@ -253,16 +253,16 @@ pub fn citations(answer: &str, sources: &[Value]) -> Vec<String> {
     let bytes = answer.as_bytes();
     let mut i = 0;
     while i < bytes.len() {
-        if bytes[i] == b'[' {
-            if let Some(close) = answer[i + 1..].find(']') {
-                if let Ok(n) = answer[i + 1..i + 1 + close].parse::<usize>() {
-                    if (1..=sources.len()).contains(&n) {
-                        cited.insert(n);
-                    }
-                }
-                i += close + 2;
-                continue;
+        if bytes[i] == b'['
+            && let Some(close) = answer[i + 1..].find(']')
+        {
+            if let Ok(n) = answer[i + 1..i + 1 + close].parse::<usize>()
+                && (1..=sources.len()).contains(&n)
+            {
+                cited.insert(n);
             }
+            i += close + 2;
+            continue;
         }
         i += 1;
     }
@@ -360,7 +360,7 @@ mod tests {
     #[test]
     fn the_provider_debug_never_prints_the_token() {
         let p = Provider {
-            base_url: "http://llm.internal/v1".into(),
+            base_url: "http://llm.example.test/v1".into(),
             model: "m".into(),
             token: "secret-token".into(),
         };
@@ -432,7 +432,7 @@ mod tests {
         use std::sync::{Arc, Mutex};
 
         #[derive(Clone)]
-        struct Seen(Arc<Mutex<Vec<(Option<String>, Value)>>>);
+        struct Seen(Arc<Mutex<Vec<String>>>);
         async fn context(
             State(seen): State<Seen>,
             headers: axum::http::HeaderMap,
@@ -441,8 +441,8 @@ mod tests {
             let auth = headers
                 .get("authorization")
                 .and_then(|v| v.to_str().ok())
-                .map(str::to_string);
-            seen.0.lock().unwrap().push((auth, body));
+                .unwrap_or_default();
+            seen.0.lock().unwrap().push(format!("{auth}|{body}"));
             Json(json!({
                 "settings": {"preamble": "p", "actor": "a", "stance": "s", "max_tokens": "123"},
                 "provider": {"base_url": "http://llm/v1", "model": "m", "token": "t"}
@@ -473,8 +473,8 @@ mod tests {
         assert_eq!(ctx.settings.max_tokens(), 123);
         assert_eq!(ctx.provider.as_ref().unwrap().model, "m");
 
-        let (auth, body) = seen.0.lock().unwrap()[0].clone();
-        assert_eq!(auth.as_deref(), Some("Bearer svc-token"));
-        assert_eq!(body["job"], "website_chat");
+        let recorded = seen.0.lock().unwrap()[0].clone();
+        assert!(recorded.starts_with("Bearer svc-token|"), "{recorded}");
+        assert!(recorded.contains("\"job\":\"website_chat\""), "{recorded}");
     }
 }

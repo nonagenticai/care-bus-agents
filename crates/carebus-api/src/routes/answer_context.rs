@@ -73,19 +73,34 @@ async fn answer_context(
     Ok(resp)
 }
 
+#[derive(sqlx::FromRow)]
+struct BoundProvider {
+    id: Uuid,
+    base_url: String,
+    secret_enc: Option<String>,
+    secret_sealed: Option<String>,
+    model: Option<String>,
+}
+
 async fn answer_provider(s: &AppState, tenant: Uuid) -> ApiResult<Option<Value>> {
     let mut tx = begin_scoped(&s.db, tenant, None).await?;
-    let bound: Option<(Uuid, String, Option<String>, Option<String>, Option<String>)> =
-        sqlx::query_as(
-            "SELECT p.id, p.base_url, p.secret_enc, p.secret_sealed, u.model
-               FROM llm_provider_uses u
-               JOIN llm_providers p ON p.tenant_id = u.tenant_id AND p.id = u.provider_id
-              WHERE u.\"use\" = 'answer' AND p.kind = 'openai' AND p.deleted_at IS NULL",
-        )
-        .fetch_optional(&mut *tx)
-        .await?;
+    let bound: Option<BoundProvider> = sqlx::query_as(
+        "SELECT p.id, p.base_url, p.secret_enc, p.secret_sealed, u.model
+           FROM llm_provider_uses u
+           JOIN llm_providers p ON p.tenant_id = u.tenant_id AND p.id = u.provider_id
+          WHERE u.\"use\" = 'answer' AND p.kind = 'openai' AND p.deleted_at IS NULL",
+    )
+    .fetch_optional(&mut *tx)
+    .await?;
     drop(tx);
-    if let Some((id, base_url, secret_enc, secret_sealed, model)) = bound {
+    if let Some(BoundProvider {
+        id,
+        base_url,
+        secret_enc,
+        secret_sealed,
+        model,
+    }) = bound
+    {
         let token = provider_secret::open(
             s.cfg.secrets(),
             tenant,
