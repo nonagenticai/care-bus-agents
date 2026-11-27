@@ -34,6 +34,7 @@ pub mod telegram;
 pub mod tenancy;
 pub mod tools;
 pub mod usage;
+pub mod webchat;
 
 /// Job-scoped routes live under `/api/jobs/{job}`; the files below declare their paths RELATIVE to that prefix
 /// (`/connectors/{id}`), and their guards (`JobMember`, `JobAdmin`, `ProcedureReader`) read the `{job}` segment.
@@ -54,6 +55,7 @@ pub fn all() -> Router<AppState> {
         .merge(tenancy::routes())
         .merge(telegram::routes())
         .merge(signups::routes())
+        .merge(webchat::public_routes())
 }
 
 fn job_routes() -> Router<AppState> {
@@ -80,4 +82,5 @@ fn job_routes() -> Router<AppState> {
         .merge(streams::routes())
         .merge(tools::routes())
         .merge(usage::routes())
+        .merge(webchat::job_routes())
 }

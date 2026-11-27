@@ -174,7 +174,7 @@ fn entity_select(layer: Layer, include_hidden: bool) -> String {
 
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/context-spaces", get(spaces))
+        .route("/context-spaces", get(spaces).post(create_space))
         .route("/context-spaces/{key}", axum::routing::put(put_space))
         .route("/ontology/entities", get(entities).post(create))
         .route("/ontology/entities/{name}", get(one).put(update))
@@ -355,6 +355,205 @@ fn check_space(i: &SpaceInput) -> ApiResult<()> {
         }
     }
     Ok(())
+}
+
+/// A job's own context space. The release carries the base spaces; a job that serves request types
+/// the release does not have (the website's ebook, early access, handover) needs to define them.
+/// The space is inserted as origin `tenant`, so the base release is untouched and a release can
+/// still add its own. `key` and `request_type` must not collide with the effective configuration:
+/// the qualifier routes a message by request type, so that mapping has to stay single-valued.
+struct SpaceCreateInput {
+    key: String,
+    area: String,
+    label: String,
+    request_type: String,
+    required: Vec<String>,
+    entities: Vec<String>,
+    procedure: String,
+}
+
+/// Parses the create body field by field. Every field has one fixed shape, so this is both the
+/// schema and the validation: unknown keys, a non-string, or a non-string list are the same 400.
+fn space_body(raw: Value) -> ApiResult<SpaceCreateInput> {
+    fn invalid() -> ApiError {
+        ApiError::BadRequest(
+            "invalid_body",
+            "The request body does not match the context space schema.".into(),
+        )
+    }
+    let obj = raw.as_object().ok_or_else(invalid)?;
+    const FIELDS: [&str; 7] = [
+        "key",
+        "area",
+        "label",
+        "request_type",
+        "required",
+        "entities",
+        "procedure",
+    ];
+    if obj.keys().any(|k| !FIELDS.contains(&k.as_str())) {
+        return Err(invalid());
+    }
+    let text = |name: &str| -> ApiResult<String> {
+        obj.get(name)
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+            .ok_or_else(invalid)
+    };
+    let list = |name: &str| -> ApiResult<Vec<String>> {
+        match obj.get(name) {
+            None | Some(Value::Null) => Ok(Vec::new()),
+            Some(Value::Array(items)) => items
+                .iter()
+                .map(|item| item.as_str().map(str::to_owned).ok_or_else(invalid))
+                .collect(),
+            _ => Err(invalid()),
+        }
+    };
+    Ok(SpaceCreateInput {
+        key: text("key")?,
+        area: text("area")?,
+        label: text("label")?,
+        request_type: text("request_type")?,
+        required: list("required")?,
+        entities: list("entities")?,
+        procedure: text("procedure")?,
+    })
+}
+
+fn check_new_space(i: &SpaceCreateInput) -> ApiResult<()> {
+    if !space_key_ok(&i.key) {
+        return Err(ApiError::BadRequest(
+            "invalid_key",
+            "A context space key must match ^[a-z0-9-]+(:[a-z0-9-]+){1,3}$.".into(),
+        ));
+    }
+    if !carebus::domain::AREAS.contains(&i.area.as_str()) {
+        return Err(bad_space(format!(
+            "area must be one of {}.",
+            carebus::domain::AREAS.join(", ")
+        )));
+    }
+    let label = i.label.trim();
+    if label.is_empty() || label.chars().count() > SPACE_LABEL_MAX {
+        return Err(bad_space(format!(
+            "label must be 1 to {SPACE_LABEL_MAX} characters."
+        )));
+    }
+    if !slot_ok(&i.request_type) {
+        return Err(bad_space("request_type must match ^[a-z][a-z0-9_]{0,63}$."));
+    }
+    if i.required.len() > SPACE_LIST_MAX || i.required.iter().any(|f| !slot_ok(f)) {
+        return Err(bad_space(format!(
+            "required lists up to {SPACE_LIST_MAX} fields, each matching ^[a-z][a-z0-9_]{{0,63}}$."
+        )));
+    }
+    if let Some(d) = has_duplicate(&i.required) {
+        return Err(bad_space(format!("required lists {d} twice.")));
+    }
+    if i.entities.len() > SPACE_LIST_MAX {
+        return Err(bad_space(format!(
+            "entities lists up to {SPACE_LIST_MAX} entities."
+        )));
+    }
+    if let Some(d) = has_duplicate(&i.entities) {
+        return Err(bad_space(format!("entities lists {d} twice.")));
+    }
+    if !slot_ok(&i.procedure) {
+        return Err(bad_space("procedure must match ^[a-z][a-z0-9_]{0,63}$."));
+    }
+    Ok(())
+}
+
+/// `POST /api/jobs/{job}/context-spaces`: creates a tenant space (201, the effective row).
+async fn create_space(
+    JobAdmin(ctx): JobAdmin,
+    State(s): State<AppState>,
+    ApiJson(raw): ApiJson<Value>,
+) -> ApiResult<(StatusCode, Json<Value>)> {
+    secrets::reject_secret_fields(&raw, &[])?;
+    let i = space_body(raw)?;
+    check_new_space(&i)?;
+    let mut tx = ctx.begin(&s.db).await?;
+    refine::lock_job_shared(&mut tx, ctx.job_id).await?;
+    if let Some(existing) =
+        sqlx::query_scalar::<_, String>("SELECT key FROM eff_context_spaces WHERE key = $1")
+            .bind(&i.key)
+            .fetch_optional(&mut *tx)
+            .await?
+    {
+        return Err(ApiError::Conflict(
+            "space_exists",
+            format!("context space {existing} already exists; refine it with PUT."),
+        ));
+    }
+    if let Some(owner) = sqlx::query_scalar::<_, String>(
+        "SELECT key FROM eff_context_spaces WHERE request_type = $1",
+    )
+    .bind(&i.request_type)
+    .fetch_optional(&mut *tx)
+    .await?
+    {
+        return Err(ApiError::Conflict(
+            "request_type_taken",
+            format!(
+                "request type {} is already served by {owner}.",
+                i.request_type
+            ),
+        ));
+    }
+    if let Some(e) = sqlx::query_scalar::<_, String>(
+        "SELECT e FROM unnest($1::text[]) WITH ORDINALITY AS u(e, n)
+          WHERE NOT EXISTS (SELECT 1 FROM eff_ontology_entities o WHERE o.name = u.e)
+          ORDER BY u.n LIMIT 1",
+    )
+    .bind(&i.entities)
+    .fetch_optional(&mut *tx)
+    .await?
+    {
+        return Err(ApiError::BadRequest(
+            "unknown_entity",
+            format!("entity {e} is not an existing entity of this job."),
+        ));
+    }
+    sqlx::query(
+        "INSERT INTO context_spaces (origin, key, area, label, request_type, required, entities, procedure, hidden)
+         VALUES ('tenant', $1, $2, $3, $4, $5, $6, $7, false)",
+    )
+    .bind(&i.key)
+    .bind(&i.area)
+    .bind(i.label.trim())
+    .bind(&i.request_type)
+    .bind(&i.required)
+    .bind(&i.entities)
+    .bind(&i.procedure)
+    .execute(&mut *tx)
+    .await?;
+    audit::record(
+        &mut tx,
+        &ctx.t.caller.actor,
+        ctx.t.caller.actor_type(),
+        "create",
+        "context_space",
+        &i.key,
+        true,
+        json!({"request_type": i.request_type, "area": i.area}),
+    )
+    .await?;
+    let rows: Vec<SpaceRow> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
+        "{} WHERE key = $1",
+        space_select(Layer::Effective)
+    )))
+    .bind(&i.key)
+    .fetch_all(&mut *tx)
+    .await?;
+    let row = space_items(&mut tx, rows)
+        .await?
+        .into_iter()
+        .next()
+        .ok_or_else(|| ApiError::NotFound(format!("context space {}", i.key)))?;
+    tx.commit().await?;
+    Ok((StatusCode::CREATED, Json(row)))
 }
 
 /// Overrides a context space: copy-on-write of the base row (or the tenant's own row), then the given fields. The
