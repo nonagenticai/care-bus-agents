@@ -175,7 +175,7 @@ fn tool_timeout_defaults_and_overrides() {
     assert_eq!(tool_timeout("ebook", set), Duration::from_millis(12_000));
     assert_eq!(
         tool_timeout("faq", |_: &str| Some("not-a-number".to_string())),
-        Duration::from_millis(20_000)
+        Duration::from_millis(300_000)
     );
 }
 
