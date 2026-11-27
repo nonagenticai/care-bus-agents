@@ -838,7 +838,9 @@ fn without_citation_markers(text: &str, max: usize) -> String {
         }
     }
     out.push_str(rest);
-    out.trim_end().to_string()
+    // `trim`, not `trim_end`: a marker at the very start takes the space after it with it
+    // ("[1] Leads" → "Leads"), which is the same rule as everywhere else — no sentence begins with a space.
+    out.trim().to_string()
 }
 
 /// Template replies. A rig agent can phrase these instead; the facts stay the same.
