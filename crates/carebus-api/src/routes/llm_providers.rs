@@ -100,16 +100,26 @@ pub enum Use {
     Research,
     /// The researcher's final memo writer (plan 18). Citation verification is code, not a use.
     ResearchWrite,
+    /// The website job's answer stage (`faq.answer`): the model that composes from the job prompt
+    /// and the retrieved passages.
+    Answer,
 }
 
 impl Use {
-    pub const ALL: [Use; 4] = [Use::Qualify, Use::Gates, Use::Research, Use::ResearchWrite];
+    pub const ALL: [Use; 5] = [
+        Use::Qualify,
+        Use::Gates,
+        Use::Research,
+        Use::ResearchWrite,
+        Use::Answer,
+    ];
     pub fn as_str(self) -> &'static str {
         match self {
             Use::Qualify => "qualify",
             Use::Gates => "gates",
             Use::Research => "research",
             Use::ResearchWrite => "research_write",
+            Use::Answer => "answer",
         }
     }
     pub fn parse(s: &str) -> Option<Self> {
@@ -118,13 +128,14 @@ impl Use {
             "gates" => Some(Use::Gates),
             "research" => Some(Use::Research),
             "research_write" => Some(Use::ResearchWrite),
+            "answer" => Some(Use::Answer),
             _ => None,
         }
     }
     /// The only provider kind this use may be bound to.
     pub fn kind(self) -> Kind {
         match self {
-            Use::Qualify | Use::Research | Use::ResearchWrite => Kind::Openai,
+            Use::Qualify | Use::Research | Use::ResearchWrite | Use::Answer => Kind::Openai,
             Use::Gates => Kind::Laya,
         }
     }

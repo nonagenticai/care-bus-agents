@@ -1,6 +1,7 @@
 //! One integration-test binary per crate: a single link, and libtest runs every test in parallel.
 mod agents;
 mod analytics;
+mod answer_context;
 mod audit;
 mod auth;
 mod cases;

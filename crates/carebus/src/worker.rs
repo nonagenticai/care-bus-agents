@@ -10,6 +10,7 @@ use anyhow::{Context, Result};
 use redis::AsyncCommands;
 use serde_json::Value;
 
+use crate::answer::Answerer;
 use crate::bus::{Bus, ConsumeOptions, Envelope};
 use crate::domain::QualifiedRequest;
 use crate::domain::{
@@ -43,6 +44,8 @@ pub struct Worker {
     spaces: SpaceCatalog,
     /// Tool gates through carebus-api (spec 2026-10-18 §3); `None`: no gate is asked.
     pub gates: Option<GateClient>,
+    /// The `faq.answer` stage's model call; `None`: that action fails with a named error.
+    pub answerer: Option<Answerer>,
 }
 
 impl Worker {
@@ -54,6 +57,7 @@ impl Worker {
             consume: ConsumeOptions::default(),
             spaces: SpaceCatalog::bootstrap(),
             gates: None,
+            answerer: None,
         }
     }
 
@@ -147,6 +151,12 @@ impl Worker {
             Ok(w) => w,
             Err(msg) => return self.finish(outcome(&w, Err((msg, false)))).await,
         };
+        // `faq.answer` is generation, not a tool call: one slow model call in the scaled per-tool
+        // worker, never in the interaction daemon (which must stay a fast composer).
+        if w.worker == "faq" && w.action == "answer" {
+            let res = self.answer(&w).await;
+            return self.finish(outcome(&w, res)).await;
+        }
         let call = ToolCall {
             call_id: w.work_id.clone(),
             mcp_tool: mcp_tool_name(&w.worker, &w.action),
@@ -202,13 +212,14 @@ impl Worker {
         v.stops().then_some(v)
     }
 
-    /// `faq.ask` searches only what the customer chat may see (legal-matter walls, carebus-api crate::walls): store
-    /// arguments a plan step set are dropped ([`FAQ_STORE_ARGS`]), and for a tenant with walled stores the call
-    /// carries carebus-api's `leaf_ids`, which the executor requires the MCP server to confirm. `Err` (the step fails,
-    /// non-retryable, so no store is searched) when carebus-api cannot say or chat may search nothing. Without a gate
-    /// client (`CAREBUS_GATES=off`: no carebus-api) or a scope there is nothing to ask, and nothing is restricted.
+    /// `faq.ask` and `faq.search` search only what the customer chat may see (legal-matter walls, carebus-api
+    /// crate::walls): store arguments a plan step set are dropped ([`FAQ_STORE_ARGS`]), and for a tenant with
+    /// walled stores the call carries carebus-api's `leaf_ids`, which the executor requires the MCP server to
+    /// confirm. `Err` (the step fails, non-retryable, so no store is searched) when carebus-api cannot say or chat
+    /// may search nothing. Without a gate client (`CAREBUS_GATES=off`: no carebus-api) or a scope there is nothing
+    /// to ask, and nothing is restricted.
     async fn faq_scoped(&self, w: &WorkRequest) -> Result<WorkRequest, String> {
-        if w.worker != "faq" || w.action != "ask" {
+        if w.worker != "faq" || !matches!(w.action.as_str(), "ask" | "search") {
             return Ok(w.clone());
         }
         let mut w = w.clone();
@@ -234,6 +245,40 @@ impl Worker {
                 Err(FAQ_SCOPE_UNAVAILABLE.into())
             }
         }
+    }
+
+    /// `faq.answer`: the job's settings and provider from carebus-api, then one cited answer over the
+    /// previous step's numbered sources. Retryable: a model or API hiccup is worth another attempt.
+    async fn answer(&self, w: &WorkRequest) -> Result<Value, (String, bool)> {
+        let Some(answerer) = &self.answerer else {
+            return Err((
+                "faq answerer is not configured (CAREBUS_API_URL/TOKEN)".into(),
+                false,
+            ));
+        };
+        let Some(scope) = self.bus.scope() else {
+            return Err(("faq answer has no scope".into(), false));
+        };
+        let question = w
+            .args
+            .get("question")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .trim();
+        if question.is_empty() {
+            return Err(("faq answer needs a question".into(), false));
+        }
+        let sources = w
+            .args
+            .get("sources")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        let ctx = answerer.context(scope).await.map_err(|e| (e, true))?;
+        answerer
+            .answer(&ctx, question, &sources)
+            .await
+            .map_err(|e| (e, true))
     }
 
     /// The customer's request text of `case` from the orchestrator's case hash (`case:{id}` field `request`);

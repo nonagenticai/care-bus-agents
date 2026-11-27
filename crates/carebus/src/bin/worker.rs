@@ -23,10 +23,18 @@ async fn main() -> anyhow::Result<()> {
     // Tool gates (spec 2026-10-18 §3) through carebus-api: CAREBUS_API_URL + CAREBUS_API_TOKEN required unless
     // CAREBUS_GATES=off.
     let gates = carebus::gates::GateClient::from_env()?;
+    // The answer stage (faq.answer) composes from carebus-api's settings and provider; it is
+    // unavailable when carebus-api is not configured, and only that action fails.
+    let answerer = if tool == "faq" {
+        carebus::answer::Answerer::from_env()?
+    } else {
+        None
+    };
     run_per_scope(root, &role, move |bus, s| {
         let mut w = Worker::new(bus, tool.clone());
         w.timeout = timeout;
         w.gates = gates.clone();
+        w.answerer = answerer.clone();
         let src = spaces.for_scope(&s);
         let consumer = consumer.clone();
         async move {

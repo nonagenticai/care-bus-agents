@@ -4,6 +4,7 @@ use crate::state::AppState;
 
 pub mod agents;
 pub mod analytics;
+pub mod answer_context;
 pub mod cases;
 pub mod connectors;
 pub mod conversations;
@@ -42,6 +43,7 @@ pub mod webchat;
 pub fn all() -> Router<AppState> {
     Router::new()
         .nest("/api/jobs/{job}", job_routes())
+        .merge(answer_context::internal_routes())
         .merge(gates::internal_routes())
         .merge(knowledge::internal_routes())
         .merge(mcp_credentials::internal_routes())
