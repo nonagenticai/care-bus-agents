@@ -19,7 +19,7 @@ use crate::domain::{
     WORK_SUCCEEDED, WorkOutcome, WorkRequest,
 };
 use crate::gates::{GateClient, Verdict, tool_state};
-use crate::mcp::{FAQ_STORE_ARGS, is_side_effect, mcp_arguments, mcp_tool_name};
+use crate::mcp::{FAQ_WORKER_ARGS, is_side_effect, mcp_arguments, mcp_tool_name};
 use crate::spaces::{ContextSpace, SpaceCatalog};
 use crate::tools::requirements;
 
@@ -156,6 +156,11 @@ impl Worker {
             Ok(w) => w,
             Err(msg) => return self.finish(outcome(&w, Err((msg, false)))).await,
         };
+        // `faq.ask`: the job's persona and answer budget, so strata_rag generates in the job's voice.
+        let w = match self.faq_instructed(&w).await {
+            Ok(w) => w,
+            Err((msg, retryable)) => return self.finish(outcome(&w, Err((msg, retryable)))).await,
+        };
         // `handover.request` takes the case's own conversation, never one the plan or the model names.
         let w = match self.handover_scoped(&w).await {
             Ok(w) => w,
@@ -223,7 +228,7 @@ impl Worker {
     }
 
     /// `faq.ask` and `faq.search` search only what the customer chat may see (legal-matter walls, carebus-api
-    /// crate::walls): store arguments a plan step set are dropped ([`FAQ_STORE_ARGS`]), and for a tenant with
+    /// crate::walls): worker-only arguments a plan step set are dropped ([`FAQ_WORKER_ARGS`]), and for a tenant with
     /// walled stores the call carries carebus-api's `leaf_ids`, which the executor requires the MCP server to
     /// confirm. `Err` (the step fails, non-retryable, so no store is searched) when carebus-api cannot say or chat
     /// may search nothing. Without a gate client (`CAREBUS_GATES=off`: no carebus-api) or a scope there is nothing
@@ -234,7 +239,7 @@ impl Worker {
         }
         let mut w = w.clone();
         if let Value::Object(args) = &mut w.args {
-            for k in FAQ_STORE_ARGS {
+            for k in FAQ_WORKER_ARGS {
                 args.remove(k);
             }
         }
@@ -255,6 +260,43 @@ impl Worker {
                 Err(FAQ_SCOPE_UNAVAILABLE.into())
             }
         }
+    }
+
+    /// `faq.ask`: the job's persona and answer budget from carebus-api, so strata_rag generates the
+    /// answer in the job's voice. An older carebus-api (no settings route) or a job with no persona
+    /// answers without `instructions`; any other failure is retryable — a transient settings read
+    /// must not silently drop the voice.
+    async fn faq_instructed(&self, w: &WorkRequest) -> Result<WorkRequest, (String, bool)> {
+        if w.worker != "faq" || w.action != "ask" {
+            return Ok(w.clone());
+        }
+        let (Some(answerer), Some(scope)) = (self.answerer.as_ref(), self.bus.scope()) else {
+            return Ok(w.clone());
+        };
+        let Some(instructions) = answerer
+            .instructions(scope)
+            .await
+            .map_err(|e| (format!("faq_instructions_unavailable: {e}"), true))?
+        else {
+            tracing::warn!(
+                case = %w.case_id,
+                "carebus-api does not serve the job settings; answering without a persona"
+            );
+            return Ok(w.clone());
+        };
+        let mut w = w.clone();
+        if !w.args.is_object() {
+            return Ok(w);
+        }
+        if instructions.text.is_empty() {
+            if let Some(args) = w.args.as_object_mut() {
+                args.remove("instructions");
+            }
+        } else {
+            w.args["instructions"] = Value::from(instructions.text);
+        }
+        w.args["max_tokens"] = Value::from(instructions.max_tokens);
+        Ok(w)
     }
 
     /// `handover.request` hands over the case's own conversation: its id comes from the case link

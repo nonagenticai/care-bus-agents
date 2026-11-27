@@ -33,8 +33,7 @@ Environment:
                           licence — pass one only for a tenant's own BYO laya.
   LAYA_BASE_URL / LAYA_MODEL   default https://api.nonagentic.ai/laya / jev-latest
 
-Exit codes: 0 done; 2 needs the second reviewer token; 3 the #52 image is not
-live yet; 4 a required assertion failed.
+Exit codes: 0 done; 2 needs the second reviewer token; 4 a required assertion failed.
 """
 
 from __future__ import annotations
@@ -84,9 +83,10 @@ BROWSER_UA = (
 
 PROCEDURE = {
     "name": "website_faq",
-    # 1.0.1: the answer stage is bound as `faq` — compose_reply reads `facts.faq`, so a step bound
-    # as `answer` completed and still fell back to FAQ_FALLBACK (measured 2026-11-27).
-    "version": "1.0.1",
+    # 1.0.2: ONE step. strata_rag `/api/ask` retrieves and generates; the `faq` worker adds the
+    # job's persona and answer budget (faq_instructed) and passes carebus-api's leaf filter. The
+    # step is bound as `faq` because compose_reply reads `facts.faq`.
+    "version": "1.0.2",
     "context_space": "website:faq",
     "description": "Answer a website visitor from the site's knowledge stores, in the site's voice, with citations.",
     "plan": {
@@ -95,23 +95,9 @@ PROCEDURE = {
                 "steps": [
                     {
                         "worker": "faq",
-                        "action": "search",
-                        "as": "knowledge",
-                        "args": {"question": "$request.question"},
-                    }
-                ],
-                "gate": None,
-            },
-            {
-                "steps": [
-                    {
-                        "worker": "faq",
-                        "action": "answer",
+                        "action": "ask",
                         "as": "faq",
-                        "args": {
-                            "question": "$request.question",
-                            "sources": "$knowledge.sources",
-                        },
+                        "args": {"question": "$request.question"},
                     }
                 ],
                 "gate": None,
@@ -122,25 +108,12 @@ PROCEDURE = {
         {
             "step_number": 1,
             "phase": 0,
-            "name": "Search the site knowledge",
-            "action_type": "search",
+            "name": "Answer from the site knowledge",
+            "action_type": "ask",
             "worker": "faq",
-            "mcp_tool": "faq_search",
+            "mcp_tool": "faq_ask",
             "performed_by": "faq worker",
             "preconditions": [],
-            "postconditions": ["(sources-found ?q)"],
-            "parameters": {"?question": "question"},
-            "gate": False,
-        },
-        {
-            "step_number": 2,
-            "phase": 1,
-            "name": "Compose the answer",
-            "action_type": "answer",
-            "worker": "faq",
-            "mcp_tool": "faq_answer",
-            "performed_by": "faq worker",
-            "preconditions": ["(sources-found ?q)"],
             "postconditions": ["(answered ?q)"],
             "parameters": {"?question": "question"},
             "gate": False,
@@ -412,7 +385,7 @@ def step_providers() -> bool:
     default = view.get("platform_default") or {}
     print(f"providers: platform default = {default.get('model') or '(unset)'} @ {default.get('base_url') or '(unset)'}")
     if not default.get("model"):
-        raise Fail("providers: the platform default model is unset; qualify/answer have no model", 4)
+        raise Fail("providers: the platform default model is unset; qualify has no model", 4)
     bound = {u.get("use"): u.get("provider_id") for u in view.get("uses", [])}
     if SKIP_GATES:
         print("gates: provider not bound (CAREBUS_SKIP_GATES); gates will be skipped")
@@ -735,12 +708,13 @@ def step_turn(secret: str) -> None:
         return
     # "Question: …" is what the model qualifier extracts the `question` slot from; a bare question mark
     # alone left the slot empty and the agent asked "What's your question?" instead of answering.
+    # The reply is prose: compose_reply renders the markers out, so match the answer's content.
     webchat_turn(
         secret,
         "Question: what is nonagentic.ai and what does George work on?",
         "provision-check",
         "turn",
-        re.compile(r"\[\d+\]"),
+        re.compile(r"(?i)nonagentic|george"),
     )
 
 
