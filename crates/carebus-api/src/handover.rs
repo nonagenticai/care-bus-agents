@@ -39,25 +39,25 @@ impl std::fmt::Debug for HandoverConfig {
 }
 
 impl HandoverConfig {
-    /// `None` when neither the bot token nor the chat id is configured (handover is off). One without the other, or
-    /// a malformed id, is an error naming the variable, never its value, so startup fails.
+    /// `None` unless a bot token is configured (handover is off). The CHAT ID alone — care-bus sets
+    /// `TELEGRAM_SIGNUP_CHAT_ID` for its signup notice, whose token secret is optional — never enables it. A
+    /// token without any chat id is a misconfiguration and is an error naming the variable, never its value.
     pub fn from_lookup(get: &dyn Fn(&str) -> Option<String>) -> Result<Option<Self>> {
         let raw = |k: &str| {
             get(k)
                 .map(|v| v.trim().to_string())
                 .filter(|v| !v.is_empty())
         };
-        let bot_token = raw("HANDOVER_BOT_TOKEN").or_else(|| raw("TELEGRAM_SIGNUP_BOT_TOKEN"));
-        let chat_id = raw("HANDOVER_CHAT_ID").or_else(|| raw("TELEGRAM_SIGNUP_CHAT_ID"));
-        if bot_token.is_none() && chat_id.is_none() {
+        let Some(bot_token) =
+            raw("HANDOVER_BOT_TOKEN").or_else(|| raw("TELEGRAM_SIGNUP_BOT_TOKEN"))
+        else {
             return Ok(None);
-        }
-        let bot_token = bot_token.context(
-            "handover needs HANDOVER_BOT_TOKEN (or TELEGRAM_SIGNUP_BOT_TOKEN) when HANDOVER_CHAT_ID is set",
-        )?;
-        let chat_id = chat_id.context(
-            "handover needs HANDOVER_CHAT_ID (or TELEGRAM_SIGNUP_CHAT_ID) when HANDOVER_BOT_TOKEN is set",
-        )?;
+        };
+        let chat_id = raw("HANDOVER_CHAT_ID")
+            .or_else(|| raw("TELEGRAM_SIGNUP_CHAT_ID"))
+            .context(
+                "handover needs HANDOVER_CHAT_ID (or TELEGRAM_SIGNUP_CHAT_ID) with its bot token",
+            )?;
         let chat_id = chat_id
             .parse::<i64>()
             .context("HANDOVER_CHAT_ID must be a Telegram chat id")?;
@@ -149,14 +149,17 @@ mod tests {
 
     #[test]
     fn one_half_configured_fails_naming_the_variable() {
+        // a token without a chat id is a misconfiguration
         let err = HandoverConfig::from_lookup(&lookup(&[("HANDOVER_BOT_TOKEN", "123:abc")]))
             .unwrap_err()
             .to_string();
         assert!(err.contains("HANDOVER_CHAT_ID"), "{err}");
-        let err = HandoverConfig::from_lookup(&lookup(&[("HANDOVER_CHAT_ID", "-1")]))
-            .unwrap_err()
-            .to_string();
-        assert!(err.contains("HANDOVER_BOT_TOKEN"), "{err}");
+        // a chat id alone is the signup notice's setting, not a handover
+        assert!(
+            HandoverConfig::from_lookup(&lookup(&[("TELEGRAM_SIGNUP_CHAT_ID", "-1")]))
+                .unwrap()
+                .is_none()
+        );
         assert!(
             HandoverConfig::from_lookup(&lookup(&[
                 ("HANDOVER_BOT_TOKEN", "1:x"),

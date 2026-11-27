@@ -6,10 +6,11 @@ ALTER TABLE knowledge_stores
     ADD CONSTRAINT knowledge_stores_chat_excluded_base_check
         CHECK (origin = 'tenant' OR NOT chat_excluded);
 
--- 0010's view expanded `w.*` at creation, so a column added to the table afterwards is invisible through it.
--- Re-create it (the new column lands last, the order CREATE OR REPLACE VIEW accepts) so `SELECT *` and the
--- knowledge routes see `chat_excluded`; the SELECT grant on the view survives the replace.
-CREATE OR REPLACE VIEW eff_knowledge_stores WITH (security_invoker = true) AS
+-- 0010's view expanded `w.*` at creation, and its computed `overridden` column comes after the table's own
+-- columns: a column appended to the table would land BEFORE `overridden`, which CREATE OR REPLACE VIEW cannot
+-- accept (it may only append). No other view reads this one, so recreate it and restore 0010's grant.
+DROP VIEW eff_knowledge_stores;
+CREATE VIEW eff_knowledge_stores WITH (security_invoker = true) AS
 SELECT w.* FROM (
     SELECT DISTINCT ON (t.tenant_id, t.job_id, t.key) t.*,
            (t.origin = 'tenant' AND count(*) OVER (PARTITION BY t.tenant_id, t.job_id, t.key) > 1) AS overridden
@@ -20,3 +21,7 @@ SELECT w.* FROM (
      ORDER BY t.tenant_id, t.job_id, t.key, (t.origin = 'tenant') DESC
 ) w
 WHERE NOT w.hidden;
+-- 0010's loop did exactly this pair: the migration role's default privileges hand carebus_app ALL on new
+-- objects, so REVOKE first (a plain GRANT SELECT would leave INSERT behind); the view is read-only.
+REVOKE ALL ON eff_knowledge_stores FROM carebus_app;
+GRANT SELECT ON eff_knowledge_stores TO carebus_app;
