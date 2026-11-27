@@ -54,6 +54,11 @@ pub fn field_hint(field: &str) -> &str {
         "defect" => "What is wrong with the item.",
         "error_type" => "duplicate_charge or payment_declined.",
         "question" => "The customer's general question.",
+        // The website action spaces (care-bus #53). Without a hint the model echoes the visitor's
+        // own words, which is how a live ebook request went out as language "English" and
+        // book-fulfillment refused it (invalid_language; it takes edition codes).
+        "email" => "The customer's own email address, exactly as given.",
+        "language" => "The edition's language code: en, nl, de, fr or es.",
         other => other,
     }
 }
