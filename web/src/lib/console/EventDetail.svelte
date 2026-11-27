@@ -33,12 +33,9 @@
 		</header>
 		<div class="vtabs" role="tablist" aria-label="Event detail view">
 			{#each VIEWS as v (v.id)}
-				<button
-					type="button"
-					role="tab"
-					aria-selected={view === v.id}
-					onclick={() => (view = v.id)}>{v.label}</button
-				>
+				<button type="button" role="tab" aria-selected={view === v.id} onclick={() => (view = v.id)}>
+					{v.label}
+				</button>
 			{/each}
 		</div>
 		<div class="body">
@@ -64,7 +61,14 @@
 				<JsonView value={event.envelope.payload} />
 			{:else}
 				<h4>XADD {event.stream}</h4>
-				<JsonView value={{ stream: event.stream, entry_id: event.entry_id, consumer_group: event.consumer_group, acked: event.acked }} />
+				<JsonView
+					value={{
+						stream: event.stream,
+						entry_id: event.entry_id,
+						consumer_group: event.consumer_group,
+						acked: event.acked,
+					}}
+				/>
 				<h4>field “envelope”</h4>
 				<JsonView value={event.envelope} />
 			{/if}

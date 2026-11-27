@@ -133,7 +133,10 @@ describe('caseAnswer', () => {
 	});
 
 	it('reads the assistant answer and counts its sources', () => {
-		const h = hash({ outcome: 'completed', facts: { assistant: { answer: 'Hi.', sources: [{ chunk_id: 'c1' }] } } });
+		const h = hash({
+			outcome: 'completed',
+			facts: { assistant: { answer: 'Hi.', sources: [{ chunk_id: 'c1' }] } },
+		});
 		expect(caseAnswer(h)).toEqual({ text: 'Hi.', cited: 1 });
 	});
 

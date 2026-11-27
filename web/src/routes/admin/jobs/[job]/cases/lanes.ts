@@ -68,7 +68,12 @@ export function caseAnswer(hash: Record<string, unknown>): { text: string; cited
 	const facts = (res as { facts?: unknown }).facts;
 	if (!facts || typeof facts !== 'object') return null;
 	const f = facts as Record<string, { answer?: unknown; citations?: unknown; sources?: unknown } | undefined>;
-	const text = typeof f.faq?.answer === 'string' ? f.faq.answer : typeof f.assistant?.answer === 'string' ? f.assistant.answer : '';
+	const text =
+		typeof f.faq?.answer === 'string'
+			? f.faq.answer
+			: typeof f.assistant?.answer === 'string'
+				? f.assistant.answer
+				: '';
 	if (!text.trim()) return null;
 	const list = f.faq?.citations ?? f.assistant?.sources;
 	return { text: text.trim(), cited: Array.isArray(list) ? list.length : 0 };

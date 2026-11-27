@@ -29,7 +29,10 @@
 	const back = $derived(jobPath(job, '/cases'));
 
 	const detail = new Resource<CaseDetail>(() => api().case(id));
-	const spaces = new Resource<Paged<ContextSpace>>(() => api().contextSpaces(), (p) => p.items.length === 0);
+	const spaces = new Resource<Paged<ContextSpace>>(
+		() => api().contextSpaces(),
+		(p) => p.items.length === 0,
+	);
 	$effect(() => {
 		void id;
 		void job;
@@ -66,7 +69,9 @@
 				<h1 class="mono">{c.case_id}</h1>
 				<div class="tags">
 					<Status word={c.outcome ?? 'open'} label={outcomeLabel(c.outcome)} />
-					{#if proc}<span class="chip accent mono">{proc.text}{proc.recorded ? '' : ' (from context space)'}</span>{/if}
+					{#if proc}<span class="chip accent mono">
+							{proc.text}{proc.recorded ? '' : ' (from context space)'}
+						</span>{/if}
 					<span class="chip mono">{fmt.ms(c.duration_ms)}</span>
 					<span class="chip">{labels.type(c.request_type)}</span>
 				</div>
@@ -95,7 +100,11 @@
 							['Context space', c.context_space],
 							[
 								'Procedure',
-								proc?.recorded ? proc.text : proc ? `${proc.text} (from context space; version not recorded)` : '—',
+								proc?.recorded
+									? proc.text
+									: proc
+										? `${proc.text} (from context space; version not recorded)`
+										: '—',
 							],
 							['Area', c.area],
 							['Outcome', outcomeLabel(c.outcome)],
@@ -111,7 +120,11 @@
 				<details class="band" open={!!answer}>
 					<summary>
 						Answer
-						{#if answer}<span class="hint">{answer.cited ? `cited ${answer.cited} source${answer.cited === 1 ? '' : 's'}` : 'no grounding'}</span>{:else}<span class="hint">not recorded for this request type</span>{/if}
+						{#if answer}<span class="hint">
+								{answer.cited
+									? `cited ${answer.cited} source${answer.cited === 1 ? '' : 's'}`
+									: 'no grounding'}
+							</span>{:else}<span class="hint">not recorded for this request type</span>{/if}
 					</summary>
 					{#if answer}
 						<p class="answer">{answer.text}</p>
@@ -155,7 +168,11 @@
 										{#if r.lane === lane}
 											<span
 												class="ev"
-												style="--c:var(--{lane === 'customer' ? 'cust' : lane === 'worker' ? 'work' : 'tool'})"
+												style="--c:var(--{lane === 'customer'
+													? 'cust'
+													: lane === 'worker'
+														? 'work'
+														: 'tool'})"
 											>
 												<b>{r.ev.envelope.topic.split('.').slice(-2).join('.')}</b>
 												<span class="from">{agentName(r.ev.envelope.from)}</span>
@@ -167,8 +184,8 @@
 							</button>
 						{:else}
 							<p class="muted empty">
-								No bus events recorded for this case. The trace is rebuilt from the bus streams, so an entry that
-								has aged out of them cannot be shown here.
+								No bus events recorded for this case. The trace is rebuilt from the bus streams, so an entry
+								that has aged out of them cannot be shown here.
 							</p>
 						{/each}
 					</div>
