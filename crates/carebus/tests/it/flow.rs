@@ -222,10 +222,9 @@ async fn faq_answer_reaches_the_customer() {
         .expect("channel open");
     task.abort();
     assert_eq!(got_case, case);
-    assert_eq!(
-        text,
-        "Every product has a 2-year warranty from delivery. [1]"
-    );
+    // The marker the faq_ask answer cites is not part of what the customer reads: the reply channel has no
+    // source list to follow `[1]` to (see compose_reply's without_citation_markers).
+    assert_eq!(text, "Every product has a 2-year warranty from delivery.");
     let resolved = resolutions(&h.bus, &case).await;
     assert_eq!(resolved[0].topic, "faq.general.request.resolved");
 }

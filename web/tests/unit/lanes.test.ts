@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+	caseAnswer,
 	caseProcedure,
 	deadLetter,
 	groupHealth,
@@ -113,5 +114,37 @@ describe('caseProcedure', () => {
 	});
 	it('is null when neither is known', () => {
 		expect(caseProcedure({ procedure: null, context_space: 'x' }, derive)).toBeNull();
+	});
+});
+
+describe('caseAnswer', () => {
+	// The case hash stores every value as a JSON string (carebus-api `HGETALL`), and `resolution` is the
+	// orchestrator's own JSON — so this reads one string inside another.
+	const hash = (resolution: unknown) => ({ case: '"CASE-1"', resolution: JSON.stringify(resolution) });
+
+	it('reads the cited FAQ answer and how many sources it stands on', () => {
+		const h = hash({
+			case_id: 'CASE-1',
+			request_type: 'faq',
+			outcome: 'completed',
+			facts: { faq: { answer: '  Refunds take 5 business days. [1]  ', citations: ['a', 'b'] } },
+		});
+		expect(caseAnswer(h)).toEqual({ text: 'Refunds take 5 business days. [1]', cited: 2 });
+	});
+
+	it('reads the assistant answer and counts its sources', () => {
+		const h = hash({ outcome: 'completed', facts: { assistant: { answer: 'Hi.', sources: [{ chunk_id: 'c1' }] } } });
+		expect(caseAnswer(h)).toEqual({ text: 'Hi.', cited: 1 });
+	});
+
+	it('is null for a case that recorded no answer at all', () => {
+		expect(caseAnswer(hash({ request_type: 'order', facts: {} }))).toBeNull();
+		expect(caseAnswer(hash({ facts: { faq: { answer: '   ' } } }))).toBeNull();
+	});
+
+	it('is null rather than throwing on a hash it does not recognise', () => {
+		expect(caseAnswer({})).toBeNull();
+		expect(caseAnswer({ resolution: 'not json' })).toBeNull();
+		expect(caseAnswer({ resolution: 'null' })).toBeNull();
 	});
 });

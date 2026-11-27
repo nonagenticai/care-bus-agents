@@ -786,6 +786,57 @@ impl<Q: Qualifier> Interaction<Q> {
 /// What the customer reads when the faq tool produced no grounded answer.
 pub const FAQ_FALLBACK: &str = "I couldn't find an answer. A colleague will reply by email.";
 
+/// A model answer's own newline escapes, as real newlines.
+///
+/// The reply channel is plain text: the web widget writes it with `textContent` and escapes real line endings for
+/// SSE. An answer that arrives with the two characters `\` `n` in it therefore reaches the visitor as those two
+/// characters — measured on the website FAQ (2026-11-27), where the URL under an otherwise clean paragraph showed
+/// as `\n\nhttps://…`. Only model answers pass through here; a stored fact is never rewritten.
+fn unescaped_newlines(text: &str) -> String {
+    text.replace("\\r\\n", "\n")
+        .replace("\\n", "\n")
+        .replace("\\r", "\n")
+}
+
+/// The answer without the citation markers `[1]`..`[max]`.
+///
+/// strata's ask prompt numbers its sources and asks the model to cite them; the ids the answer stands on are kept
+/// in the case facts. The visitor has no source list to follow a marker to, so a marker left in the reply is a
+/// promise the UI cannot keep. ONLY numbers this answer actually cites are removed: a `[5]` on a four-source
+/// answer, or `[2026]`, is the prose's own bracket and stays. The space that separated a marker from its
+/// neighbours goes with it, so the sentence does not end up with a double space or two words fused.
+fn without_citation_markers(text: &str, max: usize) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(open) = rest.find('[') {
+        out.push_str(&rest[..open]);
+        let after = &rest[open + 1..];
+        let marker = after.find(']').and_then(|close| {
+            let n: usize = after[..close].trim().parse().ok()?;
+            (1..=max).contains(&n).then_some(close)
+        });
+        match marker {
+            Some(close) => {
+                let had_space = out.ends_with(' ');
+                if had_space {
+                    out.pop();
+                }
+                // `[1][2]` strips both; `word[1] next` must not lose the space between the words.
+                rest = &after[close + 1..];
+                if had_space {
+                    rest = rest.strip_prefix(' ').unwrap_or(rest);
+                }
+            }
+            None => {
+                out.push('[');
+                rest = after;
+            }
+        }
+    }
+    out.push_str(rest);
+    out.trim_end().to_string()
+}
+
 /// Template replies. A rig agent can phrase these instead; the facts stay the same.
 pub fn compose_reply(r: &Resolution) -> String {
     let f = &r.facts;
@@ -841,15 +892,22 @@ pub fn compose_reply(r: &Resolution) -> String {
                 s("refund", "eta")
             ),
             // faq_ask returns `{answer, citations, sources, timings_ms}`. Only an answer
-            // that cites at least one source is grounded; anything else escalates.
-            "faq" => f
-                .get("faq")
-                .filter(|x| x["citations"].as_array().is_some_and(|c| !c.is_empty()))
-                .and_then(|x| x["answer"].as_str())
-                .map(str::trim)
-                .filter(|a| !a.is_empty())
-                .unwrap_or(FAQ_FALLBACK)
-                .into(),
+            // that cites at least one source is grounded; anything else escalates. The stored
+            // answer keeps its markers and ids (the audit trail); what the visitor reads does not.
+            "faq" => {
+                let faq = f.get("faq");
+                let cited = faq
+                    .and_then(|x| x["citations"].as_array())
+                    .map_or(0, Vec::len);
+                let answer = faq
+                    .and_then(|x| x["answer"].as_str())
+                    .map(str::trim)
+                    .filter(|a| !a.is_empty());
+                match answer {
+                    Some(a) if cited > 0 => without_citation_markers(&unescaped_newlines(a), cited),
+                    _ => FAQ_FALLBACK.into(),
+                }
+            }
             // The website actions. The step's `as` name is the request type, so the tool's
             // result is read from `f[<request_type>]`.
             "ebook" => {
@@ -999,7 +1057,59 @@ mod tests {
         let r: Resolution = serde_json::from_str(LIVE_FAQ_RESOLVED).unwrap();
         assert_eq!(
             compose_reply(&r),
+            "The email address of Leanne Graham is Sincere@april.biz.",
+            "the marker the visitor cannot follow is gone; the sentence it sat in is not"
+        );
+        // The stored facts are untouched: the case record keeps the answer and its citation ids verbatim.
+        assert_eq!(
+            r.facts["faq"]["answer"],
             "The email address of Leanne Graham is Sincere@april.biz [1]."
+        );
+    }
+
+    #[test]
+    fn faq_reply_drops_only_the_markers_the_answer_actually_cites() {
+        let mut r: Resolution = serde_json::from_str(LIVE_FAQ_RESOLVED).unwrap();
+        r.facts["faq"] = serde_json::json!({
+            "answer": "Care Bus runs in your own channels [1][2][3][4]. Prices are per seat [2]. \
+                       The 2026 [5] review covers the rest.",
+            "citations": ["a", "b", "c", "d"], "sources": [], "timings_ms": {}
+        });
+        assert_eq!(
+            compose_reply(&r),
+            "Care Bus runs in your own channels. Prices are per seat. The 2026 [5] review covers the rest.",
+            "a run of markers collapses, and an out-of-range bracket is prose, not a citation"
+        );
+    }
+
+    #[test]
+    fn faq_reply_turns_the_model_newline_escapes_into_real_lines() {
+        let mut r: Resolution = serde_json::from_str(LIVE_FAQ_RESOLVED).unwrap();
+        r.facts["faq"] = serde_json::json!({
+            "answer": "Care Bus is open source.\\n\\nhttps://github.com/nonagenticai/care-bus-agents [1]",
+            "citations": ["a"], "sources": [], "timings_ms": {}
+        });
+        assert_eq!(
+            compose_reply(&r),
+            "Care Bus is open source.\n\nhttps://github.com/nonagenticai/care-bus-agents"
+        );
+    }
+
+    #[test]
+    fn citation_marker_stripping_keeps_the_words_it_sat_between() {
+        assert_eq!(without_citation_markers("word[1] next", 1), "word next");
+        assert_eq!(without_citation_markers("word [1] next", 1), "word next");
+        assert_eq!(
+            without_citation_markers("[1] Leads the sentence", 1),
+            "Leads the sentence"
+        );
+        assert_eq!(
+            without_citation_markers("no markers here", 3),
+            "no markers here"
+        );
+        assert_eq!(
+            without_citation_markers("a [x] and [[2]] b [9]", 3),
+            "a [x] and [] b [9]"
         );
     }
 
