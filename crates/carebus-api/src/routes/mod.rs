@@ -11,6 +11,7 @@ pub mod conversations;
 pub mod demo;
 pub mod events;
 pub mod gates;
+pub mod handover;
 pub mod health;
 pub mod ingest;
 pub mod knowledge;
@@ -45,6 +46,7 @@ pub fn all() -> Router<AppState> {
         .nest("/api/jobs/{job}", job_routes())
         .merge(answer_context::internal_routes())
         .merge(gates::internal_routes())
+        .merge(handover::internal_routes())
         .merge(knowledge::internal_routes())
         .merge(mcp_credentials::internal_routes())
         .merge(health::routes())
