@@ -80,7 +80,6 @@
 				<button class="btn sm" type="button" onclick={() => (focus = !focus)}>
 					{focus ? 'Show summary' : 'Focus trace'}
 				</button>
-				<button class="btn sm" type="button" onclick={() => detail.refresh()}>Refresh</button>
 				<Freshness resource={detail} />
 			</div>
 		</header>
@@ -164,8 +163,9 @@
 							>
 								<span class="t">+{fmt.ms(r.t_ms)}</span>
 								{#each ['customer', 'worker', 'tool'] as lane}
-									<span class="lane">
+									<span class="lane" class:has-ev={r.lane === lane}>
 										{#if r.lane === lane}
+											<span class="lane-tag">{lane}-bus</span>
 											<span
 												class="ev"
 												style="--c:var(--{lane === 'customer'
@@ -413,6 +413,10 @@
 	.ev .note {
 		font-size: 11px;
 	}
+	/* Only the stacked phone layout needs the lane named per row; the desktop header already says it. */
+	.lane-tag {
+		display: none;
+	}
 	.empty {
 		padding: 14px 8px;
 		max-width: 70ch;
@@ -430,6 +434,35 @@
 		}
 		.bus {
 			min-height: 60dvh;
+		}
+		/* A four-column lane grid cannot fit a phone; sideways scrolling inside the trace was the same
+		   clipped-text problem the drawer had. Stack it: time, then the one lane the event belongs to. */
+		.seq {
+			min-width: 0;
+		}
+		.seq-h {
+			display: none;
+		}
+		.seq-row {
+			grid-template-columns: 52px minmax(0, 1fr);
+			gap: 6px;
+			padding: 3px 2px;
+		}
+		.seq-row .lane {
+			margin-left: 0;
+			border-left: 0;
+		}
+		.seq-row .lane:not(.has-ev) {
+			display: none;
+		}
+		/* The header that names the lanes is gone on a phone, so each row says which bus it is on. */
+		.lane-tag {
+			display: block;
+			font: 600 10.5px/1.2 var(--cond);
+			letter-spacing: 0.06em;
+			text-transform: uppercase;
+			color: var(--faint);
+			margin-bottom: 2px;
 		}
 	}
 </style>

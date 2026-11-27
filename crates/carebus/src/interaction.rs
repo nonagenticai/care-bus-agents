@@ -823,15 +823,13 @@ fn without_citation_markers(text: &str, max: usize) -> String {
         let marker = after.find(']').filter(|close| cited(&after[..*close]));
         match marker {
             Some(close) => {
-                let had_space = out.ends_with(' ');
-                if had_space {
+                // The marker goes with the space BEFORE it and keeps the space after: "source [1, 2] and"
+                // reads "source and", "channels [1]." never becomes "channels .", and `[1][2]` collapses to
+                // nothing. Dropping BOTH spaces (or neither) fuses words or leaves one before punctuation.
+                if out.ends_with(' ') {
                     out.pop();
                 }
-                // `[1][2]` strips both; `word[1] next` must not lose the space between the words.
                 rest = &after[close + 1..];
-                if had_space {
-                    rest = rest.strip_prefix(' ').unwrap_or(rest);
-                }
             }
             None => {
                 out.push('[');
@@ -1125,6 +1123,11 @@ mod tests {
         assert_eq!(
             without_citation_markers("Care Bus is open source [1, 2]. It looks orders up [1].", 2),
             "Care Bus is open source. It looks orders up."
+        );
+        // The space the marker sat between is kept once, not lost: "source [1] and" → "source and".
+        assert_eq!(
+            without_citation_markers("Open source [1, 2] and public [1].", 2),
+            "Open source and public."
         );
         // One out-of-range number in the list makes the whole bracket prose.
         assert_eq!(

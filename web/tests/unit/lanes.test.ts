@@ -6,6 +6,7 @@ import {
 	groupHealth,
 	streamHealth,
 	traceRows,
+	withoutCitationMarkers,
 } from '../../src/routes/admin/jobs/[job]/cases/lanes';
 import type { Entry, GroupInfo, StreamInfo } from '../../src/lib/api/types';
 
@@ -129,7 +130,8 @@ describe('caseAnswer', () => {
 			outcome: 'completed',
 			facts: { faq: { answer: '  Refunds take 5 business days. [1]  ', citations: ['a', 'b'] } },
 		});
-		expect(caseAnswer(h)).toEqual({ text: 'Refunds take 5 business days. [1]', cited: 2 });
+		// Shown without the marker: the count beside it is what the marker meant.
+		expect(caseAnswer(h)).toEqual({ text: 'Refunds take 5 business days.', cited: 2 });
 	});
 
 	it('reads the assistant answer and counts its sources', () => {
@@ -149,5 +151,20 @@ describe('caseAnswer', () => {
 		expect(caseAnswer({})).toBeNull();
 		expect(caseAnswer({ resolution: 'not json' })).toBeNull();
 		expect(caseAnswer({ resolution: 'null' })).toBeNull();
+	});
+});
+
+describe('withoutCitationMarkers', () => {
+	it('strips a run and the comma form, keeping the sentence intact', () => {
+		expect(withoutCitationMarkers('Agents run in your channels [1][2]. Open source [2].', 2)).toBe(
+			'Agents run in your channels. Open source.',
+		);
+		expect(withoutCitationMarkers('Open source [1, 2] and public [1].', 2)).toBe('Open source and public.');
+	});
+
+	it('leaves a bracket whose numbers are not citations of this answer', () => {
+		expect(withoutCitationMarkers('The 2026 [5] review said so.', 4)).toBe('The 2026 [5] review said so.');
+		expect(withoutCitationMarkers('a claim [1, 9]', 2)).toBe('a claim [1, 9]');
+		expect(withoutCitationMarkers('a [note] here', 3)).toBe('a [note] here');
 	});
 });
