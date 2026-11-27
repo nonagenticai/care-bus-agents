@@ -34,11 +34,13 @@ pub struct ToolExecutor<M: McpClient> {
     pub consume: ConsumeOptions,
 }
 
-/// Decision D5: per-tool budget. `TOOL_TIMEOUT_MS_FAQ` (default 20000) for `faq`,
+/// Decision D5: per-tool budget. `TOOL_TIMEOUT_MS_FAQ` (default 300000) for `faq`,
 /// `TOOL_TIMEOUT_MS_ACTION` (default 30000) for the website actions, `TOOL_TIMEOUT_MS` (default 3000) otherwise.
+/// faq is `strata_rag` `/api/ask` now: retrieval plus chat generation, whose own timeout is 240 s, so the
+/// tool budget must sit above it (the deployment's 300 s matches this default).
 pub fn tool_timeout(tool: &str, get: impl Fn(&str) -> Option<String>) -> Duration {
     let (key, default) = match tool {
-        "faq" => ("TOOL_TIMEOUT_MS_FAQ", 20_000),
+        "faq" => ("TOOL_TIMEOUT_MS_FAQ", 300_000),
         "ebook" | "early-access" | "handover" => ("TOOL_TIMEOUT_MS_ACTION", 30_000),
         _ => ("TOOL_TIMEOUT_MS", 3_000),
     };

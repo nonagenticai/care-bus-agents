@@ -51,8 +51,10 @@ impl JobSettings {
             .clamp(MIN_ANSWER_TOKENS, MAX_ANSWER_TOKENS)
     }
 
-    /// The system prompt: who answers, how, and the fixed citation contract.
-    pub fn system_prompt(&self) -> String {
+    /// The job's persona: the actor line, the stance and the preamble — no citation rules. This is
+    /// what a `faq.ask` sends strata_rag as `instructions`, so the answer keeps the job's voice
+    /// while strata_rag generates it.
+    pub fn instructions(&self) -> String {
         let mut parts = Vec::new();
         if !self.actor.trim().is_empty() {
             parts.push(format!("You are {}.", self.actor.trim()));
@@ -63,9 +65,25 @@ impl JobSettings {
         if !self.preamble.trim().is_empty() {
             parts.push(self.preamble.trim().to_string());
         }
-        parts.push(RULES.to_string());
         parts.join("\n\n")
     }
+
+    /// The system prompt: who answers, how, and the fixed citation contract.
+    pub fn system_prompt(&self) -> String {
+        let persona = self.instructions();
+        if persona.is_empty() {
+            RULES.to_string()
+        } else {
+            format!("{persona}\n\n{RULES}")
+        }
+    }
+}
+
+/// What a `faq.ask` sends strata_rag besides the question: the job's persona and the answer budget.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Instructions {
+    pub text: String,
+    pub max_tokens: u32,
 }
 
 /// The model to call: the tenant's `answer` binding, else the deployment's platform default.
@@ -155,6 +173,37 @@ impl Answerer {
         resp.json()
             .await
             .map_err(|e| format!("answer context unreadable: {e}"))
+    }
+
+    /// The job persona and answer budget a `faq.ask` sends strata_rag, over the service token.
+    ///
+    /// `Ok(None)` when carebus-api does not serve the settings route (an older API during a
+    /// rollout, or an unknown job): the answer is then composed with strata_rag's default prompt.
+    /// Any other failure is an error, and the step is worth retrying.
+    pub async fn instructions(&self, scope: &Scope) -> Result<Option<Instructions>, String> {
+        let resp = self
+            .http
+            .post(format!("{}/api/internal/answer-context", self.api_base))
+            .bearer_auth(&self.api_token)
+            .json(&json!({"tenant_id": scope.tenant, "job": scope.job}))
+            .send()
+            .await
+            .map_err(|e| format!("job settings unreachable: {e}"))?;
+        let status = resp.status();
+        if status == reqwest::StatusCode::NOT_FOUND {
+            return Ok(None);
+        }
+        if !status.is_success() {
+            return Err(format!("job settings refused: {status}"));
+        }
+        let ctx: AnswerContext = resp
+            .json()
+            .await
+            .map_err(|e| format!("job settings unreadable: {e}"))?;
+        Ok(Some(Instructions {
+            text: ctx.settings.instructions(),
+            max_tokens: ctx.settings.max_tokens(),
+        }))
     }
 
     /// One grounded answer. The result is the `faq` step's fact: `answer`, the cited chunk ids,
@@ -304,6 +353,27 @@ mod tests {
         );
         assert!(p.contains("We are the nonagentic.ai website host."), "{p}");
         assert!(p.contains("Cite the source of every statement"), "{p}");
+    }
+
+    #[test]
+    fn the_instructions_are_the_persona_without_the_citation_rules() {
+        assert_eq!(
+            settings().instructions(),
+            "You are the nonagentic.ai website assistant.\n\n\
+             Be direct and helpful; hand work to George.\n\n\
+             We are the nonagentic.ai website host."
+        );
+        assert_eq!(JobSettings::default().instructions(), "");
+        assert_eq!(
+            JobSettings {
+                stance: "  ".into(),
+                actor: String::new(),
+                preamble: "Only the preamble.".into(),
+                max_tokens: None,
+            }
+            .instructions(),
+            "Only the preamble."
+        );
     }
 
     #[test]

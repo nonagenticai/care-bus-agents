@@ -156,7 +156,7 @@ async fn faq_gets_the_longer_timeout_budget() {
 fn tool_timeout_defaults_and_overrides() {
     let none = |_: &str| None;
     assert_eq!(tool_timeout("order", none), Duration::from_millis(3_000));
-    assert_eq!(tool_timeout("faq", none), Duration::from_millis(20_000));
+    assert_eq!(tool_timeout("faq", none), Duration::from_millis(300_000));
     for action in ["ebook", "early-access", "handover"] {
         assert_eq!(
             tool_timeout(action, none),
@@ -175,7 +175,7 @@ fn tool_timeout_defaults_and_overrides() {
     assert_eq!(tool_timeout("ebook", set), Duration::from_millis(12_000));
     assert_eq!(
         tool_timeout("faq", |_: &str| Some("not-a-number".to_string())),
-        Duration::from_millis(20_000)
+        Duration::from_millis(300_000)
     );
 }
 

@@ -6,8 +6,9 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use axum::Router;
-use axum::http::HeaderMap;
+use axum::http::{HeaderMap, StatusCode};
 use axum::routing::post;
+use carebus::answer::Answerer;
 use carebus::bus::Envelope;
 use carebus::domain::{
     RequestType, TOOL_CALL, TOOL_RESPONSE, ToolCall, ToolResponse, WORK_FAILED, WORK_REQUESTED,
@@ -215,4 +216,119 @@ async fn an_answer_is_kept_only_when_the_mcp_server_confirms_the_filter() {
     assert_eq!(r.error.as_deref(), Some(FAQ_UNSCOPED));
     let done = done.expect("the response is stored for redelivery");
     assert!(!done.contains("I do not know"), "{done}");
+}
+
+/// carebus-api's answer-context route answering `status` + `body`; records (Authorization, body).
+async fn context_stub(
+    status: StatusCode,
+    body: Value,
+) -> (String, Arc<Mutex<Vec<(String, Value)>>>) {
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let s = seen.clone();
+    let app = Router::new().route(
+        "/api/internal/answer-context",
+        post(move |h: HeaderMap, axum::Json(b): axum::Json<Value>| {
+            let (s, body) = (s.clone(), body.clone());
+            async move {
+                let auth = h
+                    .get("authorization")
+                    .and_then(|v| v.to_str().ok())
+                    .unwrap_or("")
+                    .to_string();
+                s.lock().unwrap().push((auth, b));
+                (status, axum::Json(body))
+            }
+        }),
+    );
+    let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}", l.local_addr().unwrap());
+    tokio::spawn(async move { axum::serve(l, app).await.unwrap() });
+    (url, seen)
+}
+
+/// A faq worker with the answerer wired to a carebus-api stub at `url`.
+fn instructed_worker(bus: carebus::Bus, url: &str) -> Worker {
+    let mut w = Worker::new(bus, "faq");
+    w.answerer = Answerer::from_vars(|k| match k {
+        "CAREBUS_API_URL" => Some(url.to_string()),
+        "CAREBUS_API_TOKEN" => Some("svc-token".into()),
+        _ => None,
+    })
+    .expect("an answerer");
+    w
+}
+
+#[tokio::test]
+async fn faq_ask_carries_the_job_persona_and_answer_budget() {
+    let bus = bus("faq-instructed").await;
+    let (url, seen) = context_stub(
+        StatusCode::OK,
+        json!({
+            "settings": {"preamble": "Site host.", "actor": "the site host", "stance": "Be warm.", "max_tokens": "512"},
+            "provider": null,
+        }),
+    )
+    .await;
+    let w = instructed_worker(bus.clone(), &url);
+    // a plan step's own instructions/max_tokens are dropped: the job settings win
+    let req = ask(
+        "CASE-f5",
+        json!({"question": "q", "instructions": "model text", "max_tokens": 9}),
+    );
+    work(&w, &faq_space(), &req).await;
+
+    let sent = calls(&entries(&bus, &bus.streams.tool("faq")).await);
+    assert_eq!(sent.len(), 1);
+    assert_eq!(sent[0].mcp_tool, "faq_ask");
+    assert_eq!(
+        sent[0].arguments,
+        json!({
+            "question": "q",
+            "instructions": "You are the site host.\n\nBe warm.\n\nSite host.",
+            "max_tokens": 512,
+        })
+    );
+    let asked = seen.lock().unwrap().clone();
+    assert_eq!(asked.len(), 1);
+    assert_eq!(asked[0].0, "Bearer svc-token");
+    assert_eq!(
+        asked[0].1,
+        json!({"tenant_id": crate::common::BOOT_TENANT, "job": "customer_care_agent"})
+    );
+}
+
+#[tokio::test]
+async fn an_older_api_without_the_settings_route_answers_without_a_persona() {
+    let bus = bus("faq-instructed-404").await;
+    let (url, _) = context_stub(StatusCode::NOT_FOUND, json!({"error": "not_found"})).await;
+    let w = instructed_worker(bus.clone(), &url);
+    work(&w, &faq_space(), &ask("CASE-f6", json!({"question": "q"}))).await;
+
+    let sent = calls(&entries(&bus, &bus.streams.tool("faq")).await);
+    assert_eq!(sent.len(), 1);
+    assert_eq!(sent[0].arguments, json!({"question": "q"}));
+}
+
+#[tokio::test]
+async fn a_failing_settings_route_fails_the_step_retryably_without_a_call() {
+    let bus = bus("faq-instructed-500").await;
+    let (url, _) = context_stub(StatusCode::INTERNAL_SERVER_ERROR, json!({})).await;
+    let w = instructed_worker(bus.clone(), &url);
+    let sp = faq_space();
+    work(&w, &sp, &ask("CASE-f7", json!({"question": "q"}))).await;
+
+    let failed = wait_entries(&bus, &bus.streams.worker_results(&sp.area), 1, |e| {
+        e.event() == Some(WORK_FAILED)
+    })
+    .await;
+    assert_eq!(failed[0].payload["retryable"], true);
+    assert!(
+        failed[0].payload["error"]
+            .as_str()
+            .unwrap_or_default()
+            .starts_with("faq_instructions_unavailable"),
+        "{:?}",
+        failed[0].payload
+    );
+    assert!(calls(&entries(&bus, &bus.streams.tool("faq")).await).is_empty());
 }

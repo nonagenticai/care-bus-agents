@@ -178,15 +178,13 @@ mod plan_tests {
         let plan: Plan = serde_json::from_value(serde_json::json!({
             "phases": [{
                 "steps": [
-                    {"worker": "faq", "action": "search", "as": "knowledge",
-                     "args": {"question": "$request.question"}},
-                    {"worker": "faq", "action": "answer", "as": "faq",
-                     "args": {"question": "$request.question", "sources": "$knowledge.sources"}}
+                    {"worker": "faq", "action": "ask", "as": "faq",
+                     "args": {"question": "$request.question"}}
                 ],
                 "gate": null
             }]
         }))
         .expect("a plan");
-        validate_plan(&plan).expect("faq.search and faq.answer are runnable actions");
+        validate_plan(&plan).expect("faq.ask is a runnable action");
     }
 }

@@ -21,9 +21,16 @@ pub const SIDE_EFFECT_TOOLS: [&str; 6] = [
     "handover_request",
 ];
 
-/// Arguments of `faq_ask` that name stores. Only the worker sets one (`leaf_ids`, from carebus-api's faq scope);
-/// whatever a plan step put there is dropped first.
-pub const FAQ_STORE_ARGS: [&str; 3] = ["leaf_ids", "root_id", "root_ids"];
+/// Arguments of `faq_ask` that only the worker sets: the stores to search (`leaf_ids`, from
+/// carebus-api's faq scope) and the answer's persona/budget (`instructions`, `max_tokens`, from the
+/// job settings). Whatever a plan step put there is dropped first.
+pub const FAQ_WORKER_ARGS: [&str; 5] = [
+    "leaf_ids",
+    "root_id",
+    "root_ids",
+    "instructions",
+    "max_tokens",
+];
 /// A `faq_ask` sent with `leaf_ids` whose answer does not confirm them (`scope.leaf_ids`): an MCP server that does
 /// not know the filter searched every store, walled ones included, so the answer is dropped.
 pub const FAQ_UNSCOPED: &str =
