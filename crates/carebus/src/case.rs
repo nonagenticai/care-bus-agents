@@ -96,8 +96,10 @@ pub struct CaseSnapshot {
     pub resolved: bool,
 }
 
-/// Default case deadline (`CASE_DEADLINE_MS`).
-pub const DEFAULT_CASE_DEADLINE: Duration = Duration::from_secs(120);
+/// Default case deadline (`CASE_DEADLINE_MS`). It must sit above the largest tool budget: faq is
+/// allowed 300 s for strata_rag `/api/ask` generation, and the old 120 s default failed a
+/// legitimate answer live (CASE-a02008fc, 2026-11-27: "deadline exceeded after 120 s").
+pub const DEFAULT_CASE_DEADLINE: Duration = Duration::from_secs(330);
 
 impl CaseStore {
     pub fn new(bus: Bus) -> Self {
