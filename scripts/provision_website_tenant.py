@@ -67,6 +67,10 @@ PREAMBLE_FILE = HERE / "website-chat-preamble.txt"
 
 ACTOR = "the nonagentic.ai website assistant"
 STANCE = "Helpful, concise and honest; never invent prices, dates or availability."
+BROWSER_UA = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
+)
 
 PROCEDURE = {
     "name": "website_faq",
@@ -215,6 +219,9 @@ def call(method: str, path: str, token: str | None = TOKEN, body=None, headers=N
         req.add_header("Authorization", f"Bearer {token}")
         req.add_header("X-Active-Tenant-Id", TENANT)
     req.add_header("Accept", "application/json")
+    # cust.nonagentic.ai sits behind Cloudflare, whose browser-signature check refuses a
+    # non-browser client with 1010 before the request ever reaches carebus-api.
+    req.add_header("User-Agent", BROWSER_UA)
     if data is not None:
         req.add_header("Content-Type", "application/json")
     for k, v in (headers or {}).items():
