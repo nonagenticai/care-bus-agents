@@ -27,9 +27,12 @@ use uuid::Uuid;
 use crate::{
     audit,
     error::{ApiError, ApiJson, ApiPath, ApiQuery, ApiResult},
+    handover::ReplyInput,
     state::AppState,
     tenancy::JobAdmin,
 };
+
+use super::handover;
 
 /// The bearer secret's header. One header for every public web-channel route.
 pub const SECRET_HEADER: &str = "x-carebus-webchat-secret";
@@ -59,6 +62,11 @@ pub fn public_routes() -> Router<AppState> {
         .route(
             "/api/channel/webchat/{channel}/conversations/{id}/state",
             get(state),
+        )
+        // The operator side: the front end that owns the bot's webhook relays a supergroup message here.
+        .route(
+            "/api/channel/webchat/{channel}/handover/reply",
+            post(handover_reply),
         )
 }
 
@@ -338,6 +346,16 @@ async fn messages(
         _ => conversation_for(&bus, session_key).await?,
     };
     remember(&bus, &id, session_key, &m).await?;
+    // Human mode: a person holds the conversation, so the visitor's words go into the log (the web replays them) and
+    // into the handover topic, and no turn runs — the agent must not talk over the operator.
+    let locked: bool = bus.conn().exists(chat::lock_key(&bus, &id)).await?;
+    if locked {
+        chat::accept_customer(&bus, &ChatEvent::new(&id, "customer", text, None))
+            .await
+            .map_err(ApiError::Internal)?;
+        handover::forward_to_topic(&s, &bus, &id, text).await;
+        return Ok((StatusCode::ACCEPTED, Json(json!({"conversation_id": id}))));
+    }
     let conv = super::conversations::Conv::for_scope(&s, &scope)
         .await
         .map_err(ApiError::Internal)?;
@@ -350,6 +368,18 @@ async fn messages(
         }
     });
     Ok((StatusCode::ACCEPTED, Json(json!({"conversation_id": id}))))
+}
+
+/// An operator's message for a handover topic, delivered by the front end that owns the bot's webhook. The channel
+/// secret authenticates the front end; the topic must belong to this channel's tenant and job, else it is a 404.
+async fn handover_reply(
+    State(s): State<AppState>,
+    headers: HeaderMap,
+    ApiPath(p): ApiPath<ChannelPath>,
+    ApiJson(i): ApiJson<ReplyInput>,
+) -> ApiResult<Json<Value>> {
+    let (scope, _bus) = authenticate(&s, &p.channel, &headers).await?;
+    handover::apply_reply(&s, Some(&scope), &i).await
 }
 
 fn cursor_expired(after: usize) -> ApiError {

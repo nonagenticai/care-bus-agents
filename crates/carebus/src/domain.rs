@@ -20,13 +20,16 @@ pub const TOOL_RESPONSE: &str = "tool.response";
 /// in one cannot delay another. Agents consume the areas of their scope's context spaces (`spaces::run_with_catalog`).
 pub const AREAS: [&str; 4] = ["order-support", "logistics", "payments", "faq"];
 /// Worker kinds. One worker group and one `bus:tool:{tool}` stream per entry.
-pub const TOOLS: [&str; 6] = [
+pub const TOOLS: [&str; 9] = [
     "crm",
     "order",
     "delivery",
     "faq",
     "business-rules",
     "procedures",
+    "ebook",
+    "early-access",
+    "handover",
 ];
 /// Every event a consumer can match on, independent of the context-space prefix.
 pub const EVENTS: [&str; 7] = [

@@ -531,9 +531,9 @@ struct To {
 }
 
 /// ARCHIVED -> PUBLISHED is the roll-back: an archived version was PUBLISHED before, and re-publishing it takes
-/// the same path as any publish (runnable plan, two distinct reviewers, the current PUBLISHED of the name is
-/// archived in the same transaction, one PUBLISHED per context space). Reviewers are added by `approve`, never by a
-/// transition: a publish with fewer than two distinct reviewers is refused and changes nothing.
+/// the same path as any publish (a runnable plan; the current PUBLISHED of the name is archived in the same
+/// transaction, one PUBLISHED per context space). Reviewers are recorded by `approve`, but a publish does not
+/// require them: a solo tenant publishes on its own (owner ruling 2026-11-27).
 fn allowed(from: &str, to: &str) -> bool {
     matches!(
         (from, to),
@@ -570,7 +570,7 @@ async fn transition(
     .bind(&name)
     .fetch_all(&mut *tx)
     .await?;
-    let (id, _, from, mut reviewers, plan) = rows
+    let (id, _, from, _reviewers, plan) = rows
         .into_iter()
         .find(|r| r.1 == version)
         .ok_or_else(|| ApiError::NotFound(format!("procedure {resource}")))?;
@@ -584,19 +584,7 @@ async fn transition(
         check_plan(&plan)?;
     }
     let mut archived: Vec<String> = Vec::new();
-    reviewers.sort();
-    reviewers.dedup();
     if t.to == "PUBLISHED" {
-        if reviewers.len() < 2 {
-            // Refused like every other invalid transition: nothing is written (the transaction rolls back on drop).
-            return Err(ApiError::Conflict(
-                "needs_two_reviewers",
-                format!(
-                    "{} reviewer(s) so far; publishing needs two distinct reviewers",
-                    reviewers.len()
-                ),
-            ));
-        }
         archived = sqlx::query_scalar(
             "UPDATE procedures SET version_status='ARCHIVED', updated_at=now()
               WHERE name=$1 AND origin='tenant' AND version_status='PUBLISHED' RETURNING version",
@@ -657,7 +645,7 @@ async fn transition(
 }
 
 /// Approve a version under review (CANARY): the caller joins `reviewers` (kept sorted and distinct). Approving is
-/// separate from publishing -- a publish needs two distinct reviewers and is its own `status` call. Returns the
+/// separate from publishing -- an approval is recorded, publishing is its own `status` call. Returns the
 /// updated detail. Only CANARY can be approved (`not_in_review`), and once per reviewer (`already_approved`).
 async fn approve(
     JobAdmin(ctx): JobAdmin,

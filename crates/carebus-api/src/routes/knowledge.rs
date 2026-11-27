@@ -35,11 +35,16 @@ pub fn internal_routes() -> Router<AppState> {
 #[serde(deny_unknown_fields)]
 struct FaqScopeInput {
     tenant_id: Uuid,
+    /// The job whose bound knowledge stores the chat searches. Absent (or a job with no bound leaf store): the
+    /// tenant-level answer below, unchanged.
+    #[serde(default)]
+    job: Option<String>,
 }
 
-/// What the customer chat of `tenant_id` may search ([`walls::chat_leaves`]): `{"restricted": false}` when the
-/// tenant has no walled store, else `{"restricted": true, "leaf_ids": [...]}` (empty: search nothing). The worker
-/// passes `leaf_ids` to `faq_ask`, and the executor accepts the answer only when the MCP server confirms the filter.
+/// What the customer chat may search ([`walls::chat_leaves`] / [`walls::job_chat_leaves`]): the job's bound leaf
+/// stores outside every wall when it has any, else `{"restricted": false}` when the tenant has no walled store, else
+/// `{"restricted": true, "leaf_ids": [...]}` (empty: search nothing). The worker passes `leaf_ids` to `faq_ask`, and
+/// the executor accepts the answer only when the MCP server confirms the filter.
 async fn faq_scope(
     caller: Caller,
     State(s): State<AppState>,
@@ -53,6 +58,11 @@ async fn faq_scope(
             "invalid_tenant",
             "tenant_id must be a non-nil uuid.".into(),
         ));
+    }
+    if let Some(job) = i.job.as_deref().map(str::trim).filter(|j| !j.is_empty())
+        && let Some(leaves) = walls::job_chat_leaves(&s, i.tenant_id, job).await?
+    {
+        return Ok(Json(json!({"restricted": true, "leaf_ids": leaves})));
     }
     Ok(Json(match walls::chat_leaves(&s, i.tenant_id).await? {
         None => json!({"restricted": false}),

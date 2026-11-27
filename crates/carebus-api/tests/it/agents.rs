@@ -56,6 +56,9 @@ async fn agents_aggregate_their_consumer_groups() {
             "worker-faq",
             "worker-business-rules",
             "worker-procedures",
+            "worker-ebook",
+            "worker-early-access",
+            "worker-handover",
             "tool-executor"
         ]
     );

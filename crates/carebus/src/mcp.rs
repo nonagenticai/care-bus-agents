@@ -12,10 +12,13 @@ use crate::domain::{Plan, TOOLS};
 use crate::tools::{FakeTools, ToolClient, ToolError};
 
 /// Tools that change backend state; they receive `idempotency_key`.
-pub const SIDE_EFFECT_TOOLS: [&str; 3] = [
+pub const SIDE_EFFECT_TOOLS: [&str; 6] = [
     "order_create_rma",
     "order_create_warranty_claim",
     "order_issue_refund",
+    "ebook_request",
+    "early_access_request",
+    "handover_request",
 ];
 
 /// Arguments of `faq_ask` that name stores. Only the worker sets one (`leaf_ids`, from carebus-api's faq scope);
@@ -41,10 +44,11 @@ pub trait McpClient: Send + Sync + 'static {
 }
 
 fn prefix(tool: &str) -> &str {
-    if tool == "business-rules" {
-        "rules"
-    } else {
-        tool
+    match tool {
+        "business-rules" => "rules",
+        // The wire name stays hyphen-free so `split_mcp_name` round-trips it.
+        "early-access" => "early_access",
+        _ => tool,
     }
 }
 

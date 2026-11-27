@@ -29,15 +29,18 @@ pub struct ToolExecutor<M: McpClient> {
     pub timeout: Duration,
     /// Upper bound per call for the `faq` tool (strata_rag `/api/ask` runs a generation).
     pub faq_timeout: Duration,
+    /// Upper bound per call for the website action tools (book fulfilment, Keycloak, handover).
+    pub action_timeout: Duration,
     pub consume: ConsumeOptions,
 }
 
-/// Decision D5: per-tool budget. `TOOL_TIMEOUT_MS_FAQ` (default 20000) for `faq`, `TOOL_TIMEOUT_MS` (default 3000) otherwise.
+/// Decision D5: per-tool budget. `TOOL_TIMEOUT_MS_FAQ` (default 20000) for `faq`,
+/// `TOOL_TIMEOUT_MS_ACTION` (default 30000) for the website actions, `TOOL_TIMEOUT_MS` (default 3000) otherwise.
 pub fn tool_timeout(tool: &str, get: impl Fn(&str) -> Option<String>) -> Duration {
-    let (key, default) = if tool == "faq" {
-        ("TOOL_TIMEOUT_MS_FAQ", 20_000)
-    } else {
-        ("TOOL_TIMEOUT_MS", 3_000)
+    let (key, default) = match tool {
+        "faq" => ("TOOL_TIMEOUT_MS_FAQ", 20_000),
+        "ebook" | "early-access" | "handover" => ("TOOL_TIMEOUT_MS_ACTION", 30_000),
+        _ => ("TOOL_TIMEOUT_MS", 3_000),
     };
     Duration::from_millis(get(key).and_then(|v| v.parse().ok()).unwrap_or(default))
 }
@@ -78,23 +81,29 @@ pub fn reclaim_idle_for(timeout: Duration, faq_timeout: Duration) -> Duration {
 
 impl<M: McpClient> ToolExecutor<M> {
     pub fn check_reclaim(&self) -> Result<()> {
-        check_reclaim(self.consume.reclaim_idle, self.timeout, self.faq_timeout)
+        check_reclaim(
+            self.consume.reclaim_idle,
+            self.timeout.max(self.action_timeout),
+            self.faq_timeout,
+        )
     }
 
     pub fn new(bus: Bus, mcp: M) -> Self {
         let env = |k: &str| std::env::var(k).ok();
         let timeout = tool_timeout("order", env);
         let faq_timeout = tool_timeout("faq", env);
+        let action_timeout = tool_timeout("ebook", env);
         Self {
             bus,
             mcp,
             timeout,
             faq_timeout,
+            action_timeout,
             // One entry per read: an entry is only pending while its own call runs, never
             // while it waits behind others in a batch (where other replicas would reclaim it).
             consume: ConsumeOptions {
                 batch: 1,
-                reclaim_idle: reclaim_idle_for(timeout, faq_timeout),
+                reclaim_idle: reclaim_idle_for(timeout.max(action_timeout), faq_timeout),
                 ..ConsumeOptions::default()
             },
         }
@@ -185,10 +194,10 @@ impl<M: McpClient> ToolExecutor<M> {
 
     /// The call's time limit: the tool budget, or the call's own `timeout_ms` if shorter.
     fn limit_for(&self, call: &ToolCall) -> Duration {
-        let budget = if call.work.worker == "faq" {
-            self.faq_timeout
-        } else {
-            self.timeout
+        let budget = match call.work.worker.as_str() {
+            "faq" => self.faq_timeout,
+            "ebook" | "early-access" | "handover" => self.action_timeout,
+            _ => self.timeout,
         };
         budget.min(Duration::from_millis(call.timeout_ms.max(1)))
     }

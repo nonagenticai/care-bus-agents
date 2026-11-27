@@ -157,13 +157,22 @@ fn tool_timeout_defaults_and_overrides() {
     let none = |_: &str| None;
     assert_eq!(tool_timeout("order", none), Duration::from_millis(3_000));
     assert_eq!(tool_timeout("faq", none), Duration::from_millis(20_000));
+    for action in ["ebook", "early-access", "handover"] {
+        assert_eq!(
+            tool_timeout(action, none),
+            Duration::from_millis(30_000),
+            "{action} must get the action budget, not the 3 s default"
+        );
+    }
     let set = |k: &str| match k {
         "TOOL_TIMEOUT_MS" => Some("1500".to_string()),
         "TOOL_TIMEOUT_MS_FAQ" => Some("9000".to_string()),
+        "TOOL_TIMEOUT_MS_ACTION" => Some("12000".to_string()),
         _ => None,
     };
     assert_eq!(tool_timeout("crm", set), Duration::from_millis(1_500));
     assert_eq!(tool_timeout("faq", set), Duration::from_millis(9_000));
+    assert_eq!(tool_timeout("ebook", set), Duration::from_millis(12_000));
     assert_eq!(
         tool_timeout("faq", |_: &str| Some("not-a-number".to_string())),
         Duration::from_millis(20_000)

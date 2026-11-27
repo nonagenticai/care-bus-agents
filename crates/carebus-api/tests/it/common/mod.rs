@@ -459,6 +459,7 @@ pub fn test_config(database_url: String, test: &str) -> Config {
         licence: Default::default(),
         metering: Default::default(),
         telegram: None,
+        handover: None,
         service_actor: None,
         // Never seed 0033's row from a developer's shell: a test that wants one writes it.
         seed_platform_default: false,

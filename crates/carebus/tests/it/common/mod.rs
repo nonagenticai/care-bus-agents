@@ -24,7 +24,9 @@ pub fn executor_fast<M: carebus::mcp::McpClient>(
 ) -> ConsumeOptions {
     ConsumeOptions {
         batch: 1,
-        reclaim_idle: ex.timeout.max(ex.faq_timeout)
+        // Every budget the executor serves, including the website actions, or its own check
+        // refuses to start.
+        reclaim_idle: ex.timeout.max(ex.faq_timeout).max(ex.action_timeout)
             + carebus::executor::RECLAIM_SLACK
             + Duration::from_secs(1),
         ..fast()

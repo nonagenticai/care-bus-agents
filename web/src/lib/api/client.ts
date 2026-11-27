@@ -329,8 +329,8 @@ export function createClient(o: Opts) {
 		// routes::procedures::create: 201 with the stored version; 400 invalid_plan / steps_do_not_match_plan /
 		// invalid_version / unknown_context_space, 409 version_exists, 422 secret_value_rejected.
 		createProcedure: (p: T.ProcedureInput) => req<T.ProcedureDetail>('POST', J('/procedures'), p),
-		// routes::procedures::transition: 200 with the detail; 409 invalid_transition / needs_two_reviewers (a publish
-		// with fewer than two distinct reviewers; nothing is written) / space_already_published, 400 invalid_plan.
+		// routes::procedures::transition: 200 with the detail; 409 invalid_transition / space_already_published,
+		// 400 invalid_plan.
 		setProcedureStatus: (name: string, version: string, to: T.VersionStatus) =>
 			req<T.ProcedureDetail>('POST', J(`/procedures/${seg(name)}/versions/${seg(version)}/status`), { to }),
 		// routes::procedures::approve: adds the caller to a CANARY version's reviewers, 200 with the updated detail;

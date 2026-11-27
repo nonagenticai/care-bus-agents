@@ -110,7 +110,10 @@ async fn a_tenant_with_walls_asks_only_the_leaves_outside_them() {
     let asked = seen.lock().unwrap().clone();
     assert_eq!(asked.len(), 1);
     assert_eq!(asked[0].0, "Bearer svc-token");
-    assert_eq!(asked[0].1, json!({"tenant_id": crate::common::BOOT_TENANT}));
+    assert_eq!(
+        asked[0].1,
+        json!({"tenant_id": crate::common::BOOT_TENANT, "job": "customer_care_agent"})
+    );
 }
 
 #[tokio::test]

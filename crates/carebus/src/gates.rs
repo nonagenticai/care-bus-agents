@@ -170,7 +170,7 @@ impl GateClient {
         let mut req = self
             .http
             .post(format!("{}/api/internal/faq/scope", self.base_url))
-            .json(&serde_json::json!({"tenant_id": scope.tenant}));
+            .json(&serde_json::json!({"tenant_id": scope.tenant, "job": scope.job}));
         if let Some(t) = &self.token {
             req = req.bearer_auth(t);
         }
