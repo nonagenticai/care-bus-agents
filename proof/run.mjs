@@ -182,6 +182,10 @@ async function bddProof(work) {
   });
   const report = parsePlaywrightJson(testRun.stdout);
   const specs = collectSpecs(report.suites);
+  if (testRun.code !== 0) {
+    console.error(`[bdd] playwright exited ${testRun.code}`);
+    console.error(testRun.stderr.slice(-3000));
+  }
   const acceptance = specs.find((spec) => spec.title === 'A visitor asks what Care Bus is');
   let answer = '';
   try {
@@ -205,6 +209,13 @@ async function bddProof(work) {
         .filter((spec) => spec.ok === false)
         .map((spec) => spec.title)
         .slice(0, 20),
+      failure_details: specs
+        .filter((spec) => spec.ok === false)
+        .map((spec) => ({
+          title: spec.title,
+          error: String(spec.tests?.[0]?.results?.find((r) => r.error)?.error?.message ?? '').slice(0, 1200),
+        }))
+        .slice(0, 10),
     },
     acceptance: acceptance
       ? {
