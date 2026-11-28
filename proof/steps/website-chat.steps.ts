@@ -30,6 +30,13 @@ let answer = '';
 
 Given('I open the website chat', async ({ page }) => {
   await page.goto('/');
+  // lang-auto.js inserts a language-suggestion bar from the visitor's IP country.
+  // It overlays the page and intercepts the FAB click; a real visitor dismisses
+  // it with the same button. The class is stable across translations.
+  const dismiss = page.locator('.lang-suggest-x');
+  if ((await dismiss.count()) > 0) {
+    await dismiss.first().click({ timeout: 3_000 }).catch(() => {});
+  }
   await page.locator('button.cb-fab').click();
   // The composer is disabled until the widget has a session; waiting on it is
   // the cheapest proof that the chat backend is reachable from the browser.
