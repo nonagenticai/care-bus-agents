@@ -152,7 +152,7 @@ async fn list(
             );
             params.push(Param::Int(limit));
             params.push(Param::Int(offset));
-            let mut query = sqlx::query_as::<_, CaseRow>(&sql);
+            let mut query = sqlx::query_as::<_, CaseRow>(sqlx::AssertSqlSafe(sql));
             for p in params {
                 query = match p {
                     Param::Text(v) => query.bind(v),
@@ -183,7 +183,7 @@ async fn list(
             params.push(Param::Timestamp(before_ts));
             params.push(Param::Text(before_id));
             params.push(Param::Int(limit));
-            let mut query = sqlx::query_as::<_, CaseRow>(&sql);
+            let mut query = sqlx::query_as::<_, CaseRow>(sqlx::AssertSqlSafe(sql));
             for p in params {
                 query = match p {
                     Param::Text(v) => query.bind(v),
