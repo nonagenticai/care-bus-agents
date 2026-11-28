@@ -1242,27 +1242,27 @@ async fn the_run_list_searches_status_and_started_by_and_never_wildcards() {
 
     assert_eq!(
         item_ids(&runs_page(&e, &id, "?q=completed").await),
-        [r1_id.clone()],
+        vec![r1_id.clone()],
         "by status"
     );
     assert_eq!(
         item_ids(&runs_page(&e, &id, "?q=failed").await),
-        [r2_id.clone()],
+        vec![r2_id.clone()],
         "by the other status"
     );
     assert_eq!(
         item_ids(&runs_page(&e, &id, "?q=u-admin").await),
-        [r2_id.clone(), r1_id.clone()],
+        vec![r2_id.clone(), r1_id.clone()],
         "by started_by, newest first"
     );
     assert_eq!(
         item_ids(&runs_page(&e, &id, "?q=compl%25ed").await),
-        [r1_id.clone()],
+        vec![r1_id.clone()],
         "% is dropped from a token, never sent to LIKE"
     );
     assert_eq!(
         item_ids(&runs_page(&e, &id, "?q=%25").await),
-        [r2_id, r1_id],
+        vec![r2_id, r1_id],
         "a lone % narrows nothing"
     );
     assert!(item_ids(&runs_page(&e, &id, "?q=nobody").await).is_empty());
