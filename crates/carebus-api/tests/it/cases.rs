@@ -633,3 +633,176 @@ async fn open_filter_finds_cases_beyond_the_first_unfiltered_page() {
     assert_eq!(page["items"][0]["case_id"], "CASE-OPEN-054");
     assert!(page["next"].is_null());
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// Server-side search and sort
+// ---------------------------------------------------------------------------------------------------------------
+
+/// Inserts one case row directly; `search_text` is a generated column, so it fills itself.
+async fn insert_case(
+    e: &crate::common::TestEnv,
+    case: &str,
+    customer: &str,
+    request_type: &str,
+    outcome: Option<&str>,
+    duration_ms: Option<i64>,
+) {
+    sqlx::query(
+        "INSERT INTO case_history
+           (case_id, customer_id, request_type, area, context_space, outcome, duration_ms, started_at)
+         VALUES ($1, $2, $3, 'order-support', 'retail:order-support:returns', $4, $5, now())",
+    )
+    .bind(case)
+    .bind(customer)
+    .bind(request_type)
+    .bind(outcome)
+    .bind(duration_ms)
+    .execute(crate::common::pool(e))
+    .await
+    .unwrap();
+}
+
+/// The list as the console reads it, under the provisioned tenant user.
+async fn get_cases(e: &crate::common::TestEnv, query: &str) -> (StatusCode, serde_json::Value) {
+    let t = crate::common::user();
+    crate::common::send(
+        &e.app,
+        crate::common::get(&crate::common::j(&format!("/cases{query}")), Some(&t)),
+    )
+    .await
+}
+
+fn case_ids(v: &serde_json::Value) -> Vec<String> {
+    v["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|i| i["case_id"].as_str().unwrap().to_string())
+        .collect()
+}
+
+#[tokio::test]
+async fn cases_search_matches_customer_and_request_type_tokens() {
+    let e = crate::common::env("cases-search").await;
+    insert_case(&e, "CASE-S1", "C-10482", "return", None, None).await;
+    insert_case(&e, "CASE-S2", "C-99999", "billing", None, None).await;
+
+    let (s, b) = get_cases(&e, "?q=C-10482").await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(case_ids(&b), ["CASE-S1"], "customer id is searched");
+
+    let (_, b) = get_cases(&e, "?q=billing").await;
+    assert_eq!(case_ids(&b), ["CASE-S2"], "request type is searched");
+
+    let (_, b) = get_cases(&e, "?q=C-99999%20billing").await;
+    assert_eq!(case_ids(&b), ["CASE-S2"], "two tokens match the same row");
+
+    let (_, b) = get_cases(&e, "?q=C-10482%20billing").await;
+    assert!(
+        b["items"].as_array().unwrap().is_empty(),
+        "tokens are ANDed across fields"
+    );
+}
+
+#[tokio::test]
+async fn cases_search_never_treats_percent_or_underscore_as_wildcards() {
+    let e = crate::common::env("cases-search-wildcard").await;
+    for c in ["CASE-AB", "CASE-AXB", "CASE-AYB"] {
+        insert_case(&e, c, "C-1", "return", None, None).await;
+    }
+    // `%25` is a literal `%`: the token becomes `case-ab`, which must not match `CASE-AXB`/`CASE-AYB`.
+    let (s, b) = get_cases(&e, "?q=CASE-A%25B").await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(case_ids(&b), ["CASE-AB"]);
+    // `_` is LIKE's single-character wildcard and is stripped as well.
+    let (_, b) = get_cases(&e, "?q=CASE-A_B").await;
+    assert_eq!(case_ids(&b), ["CASE-AB"]);
+    // A query of only wildcard characters has no tokens and therefore filters nothing.
+    let (_, b) = get_cases(&e, "?q=%25&sort=case&dir=asc").await;
+    assert_eq!(case_ids(&b), ["CASE-AB", "CASE-AXB", "CASE-AYB"]);
+}
+
+#[tokio::test]
+async fn cases_request_type_filter_is_exact() {
+    let e = crate::common::env("cases-request-type").await;
+    insert_case(&e, "CASE-RT1", "C-1", "return", None, None).await;
+    insert_case(&e, "CASE-RT2", "C-1", "returning", None, None).await;
+    insert_case(&e, "CASE-RT3", "C-2", "billing", None, None).await;
+
+    let (s, b) = get_cases(&e, "?request_type=return").await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(case_ids(&b), ["CASE-RT1"], "`returning` is not `return`");
+
+    let (_, b) = get_cases(&e, "?request_type=return&q=C-1").await;
+    assert_eq!(
+        case_ids(&b),
+        ["CASE-RT1"],
+        "the exact filter narrows the search"
+    );
+
+    let (_, b) = get_cases(&e, "?request_type=return&q=CASE-RT2").await;
+    assert!(b["items"].as_array().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn cases_sort_uses_the_header_keys_and_puts_nulls_last() {
+    let e = crate::common::env("cases-sort").await;
+    insert_case(&e, "CASE-M1", "C-1", "return", Some("completed"), Some(300)).await;
+    insert_case(&e, "CASE-M2", "C-1", "return", None, None).await;
+    insert_case(&e, "CASE-M3", "C-1", "return", Some("failed"), Some(100)).await;
+
+    let (s, b) = get_cases(&e, "?sort=case").await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(case_ids(&b), ["CASE-M1", "CASE-M2", "CASE-M3"]);
+    let (_, b) = get_cases(&e, "?sort=case&dir=desc").await;
+    assert_eq!(case_ids(&b), ["CASE-M3", "CASE-M2", "CASE-M1"]);
+
+    // time is duration_ms: 100, 300, then the null duration last in both directions
+    let (_, b) = get_cases(&e, "?sort=time&dir=asc").await;
+    assert_eq!(case_ids(&b), ["CASE-M3", "CASE-M1", "CASE-M2"]);
+    let (_, b) = get_cases(&e, "?sort=time&dir=desc").await;
+    assert_eq!(case_ids(&b), ["CASE-M1", "CASE-M3", "CASE-M2"]);
+
+    // outcome is compared lowercased; a missing outcome stays last in both directions
+    let (_, b) = get_cases(&e, "?sort=outcome&dir=asc").await;
+    assert_eq!(case_ids(&b), ["CASE-M1", "CASE-M3", "CASE-M2"]);
+    let (_, b) = get_cases(&e, "?sort=outcome&dir=desc").await;
+    assert_eq!(case_ids(&b), ["CASE-M3", "CASE-M1", "CASE-M2"]);
+}
+
+#[tokio::test]
+async fn sorted_pages_continue_with_an_offset_cursor_and_keep_the_order() {
+    let e = crate::common::env("cases-sort-page").await;
+    for c in ["CASE-G1", "CASE-G2", "CASE-G3"] {
+        insert_case(&e, c, "C-1", "return", None, None).await;
+    }
+    let (s, p1) = get_cases(&e, "?sort=case&dir=asc&limit=2").await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(case_ids(&p1), ["CASE-G1", "CASE-G2"]);
+    let next = p1["next"].as_str().unwrap();
+    assert_eq!(next, "o:2");
+    let (_, p2) = get_cases(&e, &format!("?sort=case&dir=asc&limit=2&before={next}")).await;
+    assert_eq!(case_ids(&p2), ["CASE-G3"]);
+    assert!(p2["next"].is_null(), "a short page ends the list");
+
+    // the offset cursor belongs to the sorted path only
+    let (s, b) = get_cases(&e, "?before=o:2").await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    assert_eq!(b["error"]["code"], "invalid_cursor");
+}
+
+#[tokio::test]
+async fn unknown_sort_or_direction_is_400() {
+    let e = crate::common::env("cases-sort-bad").await;
+    let (s, b) = get_cases(&e, "?sort=nope").await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    assert_eq!(b["error"]["code"], "invalid_sort");
+
+    let (s, b) = get_cases(&e, "?sort=case&dir=sideways").await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    assert_eq!(b["error"]["code"], "invalid_dir");
+
+    let (s, b) = get_cases(&e, "?sort=case&before=nope").await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    assert_eq!(b["error"]["code"], "invalid_cursor");
+}

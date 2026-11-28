@@ -2,10 +2,11 @@
 //! (listed with that tenant's own care-bus licence) plus the job's 24 h call stats from the audit rows the recorder
 //! writes in that job's scope.
 use axum::{Json, Router, extract::State, routing::get};
+use serde::Deserialize;
 use serde_json::{Value, json};
 
-use crate::error::{ApiError, ApiResult};
-use crate::page::Paged;
+use crate::error::{ApiError, ApiQuery, ApiResult};
+use crate::page::{Paged, search_tokens};
 use crate::state::AppState;
 use crate::tenancy::JobMember;
 
@@ -14,11 +15,18 @@ pub fn routes() -> Router<AppState> {
     Router::new().route("/tools", get(list))
 }
 
+#[derive(Deserialize)]
+struct ToolsQuery {
+    /// Free text over the tool name and description; every whitespace-separated token must occur.
+    q: Option<String>,
+}
+
 type Stat = (String, i64, Option<f64>, Option<f64>);
 
 async fn list(
     JobMember(ctx): JobMember,
     State(s): State<AppState>,
+    ApiQuery(q): ApiQuery<ToolsQuery>,
 ) -> ApiResult<Json<Paged<Value>>> {
     let mcp = s.mcp.as_ref().ok_or(ApiError::Upstream("mcp"))?;
     let tools = mcp.list_tools(ctx.t.tenant).await.map_err(|e| {
@@ -38,8 +46,17 @@ async fn list(
     .fetch_all(&mut *tx)
     .await?;
     drop(tx);
+    let tokens = search_tokens(q.q.as_deref());
     let items = tools
         .into_iter()
+        .filter(|t| {
+            let hay = format!(
+                "{} {}",
+                t.name.to_lowercase(),
+                t.description.as_deref().unwrap_or("").to_lowercase()
+            );
+            tokens.iter().all(|tok| hay.contains(tok))
+        })
         .map(|t| {
             let st = stats.iter().find(|r| r.0 == t.name);
             json!({

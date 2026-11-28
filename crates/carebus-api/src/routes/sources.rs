@@ -13,7 +13,9 @@ use uuid::Uuid;
 
 use crate::error::{ApiError, ApiJson, ApiPath, ApiQuery, ApiResult};
 use crate::netguard::{self, ApiSample, Auth};
-use crate::page::{Page, Paged, ts_cursor};
+use crate::page::{
+    Page, Paged, descending, offset_next, search_tokens, sort_expr, sort_offset, ts_cursor,
+};
 use crate::runs::{self, SourceDeleted, SourceRun, Upload};
 use crate::sources::{self, CredentialsChange, SealedChange, SourceType, SourceView};
 use crate::state::AppState;
@@ -71,14 +73,43 @@ pub fn routes() -> Router<AppState> {
 struct ListQuery {
     limit: Option<i64>,
     before: Option<String>,
+    q: Option<String>,
+    sort: Option<String>,
+    dir: Option<String>,
+}
+
+/// The list's fetch of one page: the name-cursor default, or the caller-sorted offset page.
+async fn source_page(
+    s: &AppState,
+    ctx: &JobCtx,
+    tokens: &[String],
+    sorted: Option<sources::Sort<'_>>,
+    before: Option<&str>,
+    limit: i64,
+    hidden: &[Uuid],
+) -> ApiResult<Vec<SourceView>> {
+    match sorted {
+        None => sources::page(s, ctx, tokens, before, limit, hidden).await,
+        Some(by) => sources::sorted_page(s, ctx, tokens, &by, limit, hidden).await,
+    }
 }
 
 async fn list(
     JobMember(ctx): JobMember,
     State(s): State<AppState>,
-    ApiQuery(q): ApiQuery<ListQuery>,
+    ApiQuery(query): ApiQuery<ListQuery>,
 ) -> ApiResult<Json<Paged<SourceView>>> {
-    let page = Page::new(q.limit, q.before);
+    let tokens = search_tokens(query.q.as_deref());
+    let desc = descending(query.dir.as_deref())?;
+    let sorted = match sort_expr(query.sort.as_deref(), sources::SORTS)? {
+        None => None,
+        Some(expr) => Some(sources::Sort {
+            expr,
+            desc,
+            offset: sort_offset(query.before.as_deref())?,
+        }),
+    };
+    let page = Page::new(query.limit, query.before);
     let limit = page.limit();
     let hidden: Vec<Uuid> = walls::hidden(&s, &ctx.t)
         .await?
@@ -86,7 +117,16 @@ async fn list(
         .iter()
         .filter_map(|h| h.parse().ok())
         .collect();
-    let mut items = sources::page(&s, &ctx, page.before.as_deref(), limit, &hidden).await?;
+    let mut items = source_page(
+        &s,
+        &ctx,
+        &tokens,
+        sorted,
+        page.before.as_deref(),
+        limit,
+        &hidden,
+    )
+    .await?;
     let running: Vec<Uuid> = items
         .iter()
         .filter_map(|v| {
@@ -108,9 +148,25 @@ async fn list(
                 );
             }
         }
-        items = sources::page(&s, &ctx, page.before.as_deref(), limit, &hidden).await?;
+        items = source_page(
+            &s,
+            &ctx,
+            &tokens,
+            sorted,
+            page.before.as_deref(),
+            limit,
+            &hidden,
+        )
+        .await?;
     }
-    Ok(Json(Paged::new(items, limit, |v| v.name.clone())))
+    let paged = match sorted {
+        None => Paged::new(items, limit, |v| v.name.clone()),
+        Some(by) => {
+            let next = offset_next(by.offset, limit, items.len() as i64 == limit);
+            Paged { items, next }
+        }
+    };
+    Ok(Json(paged))
 }
 
 async fn one(
@@ -471,23 +527,25 @@ async fn resync(
 struct RunsQuery {
     limit: Option<i64>,
     before: Option<String>,
+    q: Option<String>,
 }
 
 async fn runs_list(
     JobMember(ctx): JobMember,
     State(s): State<AppState>,
     ApiPath(IdPath { id }): ApiPath<IdPath>,
-    ApiQuery(q): ApiQuery<RunsQuery>,
+    ApiQuery(query): ApiQuery<RunsQuery>,
 ) -> ApiResult<Json<Paged<SourceRun>>> {
     visible(&s, &ctx, id).await?; // 404 for an unknown (or walled) source, never an empty page
-    let page = Page::new(q.limit, q.before);
+    let tokens = search_tokens(query.q.as_deref());
+    let page = Page::new(query.limit, query.before);
     let limit = page.limit();
     let before = page.before_ts()?;
     let mut live = None;
     if let Some(r) = runs::running_of(&s, &ctx, id).await? {
         live = Some(runs::refresh(&s, &ctx, r).await?);
     }
-    let mut items = runs::page(&s, &ctx, id, before, limit).await?;
+    let mut items = runs::page(&s, &ctx, id, before, limit, &tokens).await?;
     if let Some(l) = live {
         // The refreshed run's live-only fields: staleness, and a crawl's or sitemap's page-job summary.
         for r in items.iter_mut().filter(|r| r.id == l.id) {

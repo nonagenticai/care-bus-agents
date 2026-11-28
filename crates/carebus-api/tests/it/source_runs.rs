@@ -1204,3 +1204,66 @@ async fn a_page_job_is_owned_through_its_parent_and_then_deletes_only_with_it() 
     let g = fake.lock().unwrap();
     assert!(!g.jobs.contains_key(&pages[0]) && !g.jobs.contains_key(&pages[1]));
 }
+
+async fn runs_page(e: &crate::common::TestEnv, id: &str, query: &str) -> Value {
+    let viewer = crate::common::user();
+    let uri = crate::common::j(&format!("/sources/{id}/runs{query}"));
+    let (s, b) = crate::common::send(&e.app, crate::common::get(&uri, Some(&viewer))).await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    b
+}
+
+fn item_ids(v: &Value) -> Vec<String> {
+    v["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|i| i["id"].as_str().unwrap().to_string())
+        .collect()
+}
+
+#[tokio::test]
+async fn the_run_list_searches_status_and_started_by_and_never_wildcards() {
+    let (e, fake) = fakes::sources_env("runs-search").await;
+    let id = create(&e, website("Help centre")).await;
+    let (_, r1) = resync(&e, &id).await;
+    for j in ids(&r1["ingest_job_ids"]) {
+        fakes::complete(&fake, &j, &[fakes::doc_id(1)]);
+    }
+    let r1_id = r1["id"].as_str().unwrap().to_string();
+    assert_eq!(run(&e, &id, &r1_id).await["status"], "completed");
+
+    let (_, r2) = resync(&e, &id).await;
+    let jobs = ids(&r2["ingest_job_ids"]);
+    fakes::complete(&fake, &jobs[0], &[fakes::doc_id(2)]);
+    fakes::fail(&fake, &jobs[1], "HTTP 404 from help.example.nl");
+    let r2_id = r2["id"].as_str().unwrap().to_string();
+    assert_eq!(run(&e, &id, &r2_id).await["status"], "failed");
+
+    assert_eq!(
+        item_ids(&runs_page(&e, &id, "?q=completed").await),
+        [r1_id.clone()],
+        "by status"
+    );
+    assert_eq!(
+        item_ids(&runs_page(&e, &id, "?q=failed").await),
+        [r2_id.clone()],
+        "by the other status"
+    );
+    assert_eq!(
+        item_ids(&runs_page(&e, &id, "?q=u-admin").await),
+        [r2_id.clone(), r1_id.clone()],
+        "by started_by, newest first"
+    );
+    assert_eq!(
+        item_ids(&runs_page(&e, &id, "?q=compl%25ed").await),
+        [r1_id.clone()],
+        "% is dropped from a token, never sent to LIKE"
+    );
+    assert_eq!(
+        item_ids(&runs_page(&e, &id, "?q=%25").await),
+        [r2_id, r1_id],
+        "a lone % narrows nothing"
+    );
+    assert!(item_ids(&runs_page(&e, &id, "?q=nobody").await).is_empty());
+}

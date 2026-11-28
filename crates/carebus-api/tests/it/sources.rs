@@ -507,3 +507,157 @@ async fn strata_rag_unavailable_on_save_is_503_never_a_guess() {
         StatusCode::SERVICE_UNAVAILABLE
     );
 }
+
+async fn list(e: &crate::common::TestEnv, query: &str) -> Value {
+    let viewer = crate::common::user();
+    let uri = crate::common::j(&format!("/sources{query}"));
+    let (s, b) = crate::common::send(&e.app, crate::common::get(&uri, Some(&viewer))).await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    b
+}
+
+fn names(v: &Value) -> Vec<String> {
+    v["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|i| i["name"].as_str().unwrap().to_string())
+        .collect()
+}
+
+#[tokio::test]
+async fn the_list_searches_name_and_type_and_never_wildcards() {
+    let (e, _) = fakes::sources_env("src-search").await;
+    for n in ["Help centre", "Warranty pages"] {
+        let mut b = website_source();
+        b["name"] = json!(n);
+        assert_eq!(post(&e, b).await.0, StatusCode::CREATED);
+    }
+    let mut api = website_source();
+    api["name"] = json!("Customers import");
+    api["type"] = json!("api");
+    api["config"] = json!({"url": "https://api.example.nl/v2/customers", "auth": {"type": "none"}});
+    assert_eq!(post(&e, api).await.0, StatusCode::CREATED);
+
+    assert_eq!(
+        names(&list(&e, "?q=HELP").await),
+        ["Help centre"],
+        "a name, case-insensitively"
+    );
+    assert_eq!(
+        names(&list(&e, "?q=api").await),
+        ["Customers import"],
+        "matched by type"
+    );
+    assert_eq!(
+        names(&list(&e, "?q=warranty+pages").await),
+        ["Warranty pages"],
+        "both tokens"
+    );
+    assert!(
+        names(&list(&e, "?q=warranty+centre").await).is_empty(),
+        "tokens are ANDed"
+    );
+
+    let mut pct = website_source();
+    pct["name"] = json!("100% cotton");
+    assert_eq!(post(&e, pct).await.0, StatusCode::CREATED);
+    assert_eq!(names(&list(&e, "?q=100%25").await), ["100% cotton"]);
+    assert_eq!(
+        names(&list(&e, "?q=%25").await),
+        [
+            "100% cotton",
+            "Customers import",
+            "Help centre",
+            "Warranty pages"
+        ],
+        "a lone % is dropped, never a wildcard"
+    );
+}
+
+#[tokio::test]
+async fn the_sorted_list_orders_documents_and_keeps_an_absent_run_last() {
+    let (e, _) = fakes::sources_env("src-sort-docs").await;
+    let mut ids = Vec::new();
+    for n in ["Alpha", "Bravo", "Charlie"] {
+        let mut b = website_source();
+        b["name"] = json!(n);
+        let (s, created) = post(&e, b).await;
+        assert_eq!(s, StatusCode::CREATED, "{created}");
+        ids.push(created["id"].as_str().unwrap().to_string());
+    }
+    // Alpha's last run has two documents, Charlie's one, Bravo has no run at all
+    for (id, docs) in [(&ids[0], vec!["d1", "d2"]), (&ids[2], vec!["d3"])] {
+        sqlx::query(
+            "INSERT INTO source_runs (id, source_id, status, started_by, document_ids, started_at, finished_at)
+             VALUES ($1, $2::uuid, 'completed', 'u-admin', $3, now(), now())",
+        )
+        .bind(uuid::Uuid::new_v4())
+        .bind(id)
+        .bind(docs.iter().map(|d| d.to_string()).collect::<Vec<_>>())
+        .execute(crate::common::pool(&e))
+        .await
+        .unwrap();
+    }
+    assert_eq!(
+        names(&list(&e, "?sort=documents").await),
+        ["Charlie", "Alpha", "Bravo"],
+        "1 document, 2 documents, no run last"
+    );
+    assert_eq!(
+        names(&list(&e, "?sort=documents&dir=desc").await),
+        ["Alpha", "Charlie", "Bravo"],
+        "a source without a run is last in both directions"
+    );
+}
+
+#[tokio::test]
+async fn the_sorted_list_orders_enabled() {
+    let (e, _) = fakes::sources_env("src-sort-enabled").await;
+    for (n, on) in [("Amy", true), ("Bob", true), ("Zed", false)] {
+        let mut b = website_source();
+        b["name"] = json!(n);
+        b["enabled"] = json!(on);
+        assert_eq!(post(&e, b).await.0, StatusCode::CREATED);
+    }
+    assert_eq!(
+        names(&list(&e, "?sort=enabled").await),
+        ["Zed", "Amy", "Bob"],
+        "disabled first, then by name"
+    );
+    assert_eq!(
+        names(&list(&e, "?sort=enabled&dir=desc").await),
+        ["Bob", "Amy", "Zed"]
+    );
+}
+
+#[tokio::test]
+async fn a_sorted_page_advances_by_the_offset_cursor_and_a_bad_sort_is_400() {
+    let (e, _) = fakes::sources_env("src-sort-page").await;
+    for n in ["c", "a", "b"] {
+        let mut b = website_source();
+        b["name"] = json!(n);
+        assert_eq!(post(&e, b).await.0, StatusCode::CREATED);
+    }
+    let p1 = list(&e, "?sort=name&limit=2").await;
+    assert_eq!(names(&p1), ["a", "b"]);
+    assert_eq!(p1["next"], json!("o:2"));
+    let p2 = list(&e, "?sort=name&limit=2&before=o:2").await;
+    assert_eq!(names(&p2), ["c"]);
+    assert_eq!(p2["next"], Value::Null);
+
+    let viewer = crate::common::user();
+    for (query, code) in [
+        ("?sort=store", "invalid_sort"),
+        ("?sort=name&dir=sideways", "invalid_dir"),
+        ("?sort=name&before=b", "invalid_cursor"),
+    ] {
+        let uri = crate::common::j(&format!("/sources{query}"));
+        let (s, b) = crate::common::send(&e.app, crate::common::get(&uri, Some(&viewer))).await;
+        assert_eq!(
+            (s, b["error"]["code"].clone()),
+            (StatusCode::BAD_REQUEST, json!(code)),
+            "{query}: {b}"
+        );
+    }
+}

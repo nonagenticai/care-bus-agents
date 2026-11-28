@@ -38,13 +38,23 @@ pub fn routes() -> Router<AppState> {
         .route("/api/ingest/jobs/{id}/retry", post(retry))
 }
 
+/// The orders strata_ingest accepts for its job list.
+const JOB_SORTS: [&str; 5] = ["created", "source", "status", "steps", "cost"];
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ListQuery {
     store_id: Option<Uuid>,
     status: Option<String>,
+    /// Free text over the job id, source file/URL or title; whitespace-separated tokens must all occur.
+    q: Option<String>,
+    /// `created` | `source` | `status` | `steps` | `cost` (strata_ingest's allowlist).
+    sort: Option<String>,
+    /// `asc` | `desc`; ascending is the default when `sort` is set.
+    dir: Option<String>,
     limit: Option<i64>,
-    before: Option<Uuid>,
+    /// A job id for the default order, or `o:<offset>` for a sorted page.
+    before: Option<String>,
 }
 
 async fn list(
@@ -60,6 +70,58 @@ async fn list(
             format!("status must be one of {}.", ingest::JOB_STATUSES.join(", ")),
         ));
     }
+    if let Some(sort) = &q.sort
+        && !JOB_SORTS.contains(&sort.as_str())
+    {
+        return Err(ApiError::BadRequest(
+            "invalid_sort",
+            format!("sort must be one of {}.", JOB_SORTS.join(", ")),
+        ));
+    }
+    if let Some(dir) = &q.dir
+        && !["asc", "desc"].contains(&dir.as_str())
+    {
+        return Err(ApiError::BadRequest(
+            "invalid_dir",
+            "dir must be asc or desc.".into(),
+        ));
+    }
+    // The cursor names a job id in the default order and an offset in a sorted page; validate here
+    // so a malformed cursor is this API's 400, never the upstream's.
+    let before = match (q.before.as_deref(), q.sort.as_deref()) {
+        (None, _) => None,
+        (Some(b), Some(_)) => {
+            let ok = b
+                .strip_prefix("o:")
+                .and_then(|n| n.parse::<i64>().ok())
+                .is_some_and(|n| (0..=1_000_000).contains(&n));
+            if !ok {
+                return Err(ApiError::BadRequest(
+                    "invalid_cursor",
+                    "A sorted page's before cursor is o:<offset>.".into(),
+                ));
+            }
+            Some(b.to_string())
+        }
+        (Some(b), None) => {
+            Uuid::parse_str(b).map_err(|_| {
+                ApiError::BadRequest(
+                    "invalid_cursor",
+                    "The before cursor is not a job id.".into(),
+                )
+            })?;
+            Some(b.to_string())
+        }
+    };
+    let text = q.q.as_deref().map(str::trim).filter(|t| !t.is_empty());
+    if let Some(text) = text
+        && text.chars().count() > 200
+    {
+        return Err(ApiError::BadRequest(
+            "invalid_query",
+            "q must be at most 200 characters.".into(),
+        ));
+    }
     let mut path = format!(
         "/api/ingest/jobs?limit={}",
         q.limit.unwrap_or(50).clamp(1, 200)
@@ -70,7 +132,19 @@ async fn list(
     if let Some(st) = &q.status {
         path.push_str(&format!("&status={st}"));
     }
-    if let Some(b) = q.before {
+    if let Some(text) = text {
+        // Upstream text; percent-encode it so `&`, `%` or a space cannot reshape the query string.
+        let encoded =
+            percent_encoding::utf8_percent_encode(text, percent_encoding::NON_ALPHANUMERIC);
+        path.push_str(&format!("&q={encoded}"));
+    }
+    if let Some(sort) = &q.sort {
+        path.push_str(&format!("&sort={sort}"));
+    }
+    if let Some(dir) = &q.dir {
+        path.push_str(&format!("&dir={dir}"));
+    }
+    if let Some(b) = &before {
         path.push_str(&format!("&before={b}"));
     }
     // A job into a store walled for a matter the caller is not a member of is not theirs to see (crate::walls).

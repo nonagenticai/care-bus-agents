@@ -148,3 +148,28 @@ async fn tools_lists_catalogue_with_24h_stats_from_audit_rows() {
         [crate::common::BOOT_TENANT.parse::<uuid::Uuid>().unwrap()]
     );
 }
+
+#[tokio::test]
+async fn tools_q_filters_the_catalogue() {
+    let mut e = crate::common::env("tools-q").await;
+    let (mcp, _) = stub_mcp().await;
+    e.state.mcp = Some(Arc::new(mcp));
+    let app = carebus_api::router(e.state.clone());
+    let t = crate::common::user();
+    let get = |q: &str| crate::common::get(&crate::common::j(&format!("/tools{q}")), Some(&t));
+    let (s, b) = crate::common::send(&app, get("?q=faq")).await;
+    assert_eq!(s, StatusCode::OK);
+    let names: Vec<&str> = b["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|i| i["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(names, ["faq_ask"]);
+    // Every whitespace-separated token must occur in the name or the description.
+    let (_, both) = crate::common::send(&app, get("?q=order%20one")).await;
+    assert_eq!(both["items"].as_array().unwrap().len(), 1);
+    assert_eq!(both["items"][0]["name"], "order_get_order");
+    let (_, none) = crate::common::send(&app, get("?q=zzz")).await;
+    assert_eq!(none["items"], json!([]));
+}
