@@ -262,7 +262,7 @@ test('adding a provider sends the token once; editing with a blank token keeps i
 	await add.getByRole('button', { name: 'Save', exact: true }).click();
 	await expect(add.getByText('Enter a name.')).toBeVisible();
 	await expect(add.getByText(/No user or password in the URL/)).toBeVisible();
-	await add.getByLabel('Name').fill('Laya staging');
+	await add.getByRole('textbox', { name: /^Name/ }).fill('Laya staging');
 	await add.getByLabel('Kind').selectOption('laya');
 	await add.getByLabel('Base URL').fill('https://laya-staging.example.eu');
 	await add.getByLabel('Token').fill('lic-123');
@@ -282,7 +282,7 @@ test('adding a provider sends the token once; editing with a blank token keeps i
 	const edit = page.getByRole('dialog', { name: 'Local vLLM' });
 	await expect(edit.getByLabel('Token')).toHaveValue('');
 	await expect(edit.getByText('Used by: Qualify')).toBeVisible();
-	await edit.getByLabel('Name').fill('Local vLLM (eu)');
+	await edit.getByRole('textbox', { name: /^Name/ }).fill('Local vLLM (eu)');
 	await edit.getByRole('button', { name: 'Save', exact: true }).click();
 	await expect(edit).toBeHidden();
 	const kept = sent.find((s) => s.method === 'PUT' && s.path === `/api/providers/${LLM_ID}`);
@@ -412,7 +412,7 @@ test('Use for: a new Laya provider is bound to gates on Save, with a model from 
 	await page.goto('/admin/providers');
 	await page.getByRole('button', { name: 'Add provider' }).click();
 	const add = page.getByRole('dialog', { name: 'Add LLM provider' });
-	await add.getByLabel('Name').fill('Laya prod');
+	await add.getByRole('textbox', { name: /^Name/ }).fill('Laya prod');
 	await add.getByLabel('Kind').selectOption('laya');
 	await add.getByLabel('Base URL').fill('https://laya-prod.example.eu');
 	await add.getByLabel('Token').fill('lic-9');

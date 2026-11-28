@@ -304,12 +304,14 @@ test('an empty backend list offers Add connector and creates one', async ({ page
 	await page.goto(`/admin/jobs/${E2E_JOB}/backends`);
 	await expect(page.getByText('No connectors yet.')).toBeVisible();
 	await page.getByRole('button', { name: 'Add connector' }).first().click();
-	await page.getByLabel('Name').fill('Orders API');
-	await page.getByLabel('System').fill('orders');
-	await page.getByLabel('Base URL').fill('https://orders.example/api');
-	await page.getByRole('button', { name: 'Save' }).click();
+	await page.getByRole('textbox', { name: 'Key', exact: true }).fill('orders-api');
+	await page.getByRole('textbox', { name: 'Name', exact: true }).fill('Orders API');
+	await page.getByRole('textbox', { name: 'System', exact: true }).fill('orders');
+	await page.getByRole('textbox', { name: 'Base URL', exact: true }).fill('https://orders.example/api');
+	await page.getByRole('button', { name: 'Save', exact: true }).click();
 	await expect.poll(() => posts.length).toBe(1);
 	expect(posts[0]).toMatchObject({
+		id: 'orders-api',
 		name: 'Orders API',
 		system: 'orders',
 		base_url: 'https://orders.example/api',

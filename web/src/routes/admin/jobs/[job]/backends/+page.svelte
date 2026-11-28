@@ -41,6 +41,8 @@
 	const canWrite = $derived(session.can('tenant_admin'));
 	let open = $state(false);
 	let draft = $state<Connector | null>(null);
+	/** The key a NEW connector is created with; kept out of `draft.id` so a failed create stays a create. */
+	let newKey = $state('');
 	let original = $state('');
 	const dirty = $derived(draft !== null && JSON.stringify(toConnectorInput(draft)) !== original);
 	let testMsg = $state('');
@@ -115,6 +117,7 @@
 	});
 	function add() {
 		baseConn = null;
+		newKey = '';
 		draft = blankConnector();
 		original = JSON.stringify(toConnectorInput(draft));
 		testMsg = '';
@@ -155,10 +158,18 @@
 		fault = null;
 		check = null;
 		const name = draft.name;
-		const input = toConnectorInput($state.snapshot(draft) as Connector);
-		const r = await guardOutcome(() => api().saveConnector(input), `Saved ${name}.`, 'Not saved', {
-			reconcile: true,
-		});
+		// A new connector POSTs with the key typed in the form; an existing one PUTs with its id.
+		const create = !draft.id;
+		const input = {
+			...toConnectorInput($state.snapshot(draft) as Connector),
+			...(create ? { id: newKey.trim() } : {}),
+		};
+		const r = await guardOutcome(
+			() => (create ? api().createConnector(input) : api().saveConnector(input)),
+			`Saved ${name}.`,
+			'Not saved',
+			{ reconcile: true },
+		);
 		if (r.kind === 'ok') {
 			saving = false;
 			open = false;
@@ -295,6 +306,17 @@
 		{/if}
 		<fieldset class="be-fields" disabled={!canWrite || saving}>
 			<div class="form-grid">
+				{#if !draft.id}
+					<label class="field">
+						<span class="label">Key</span><input
+							class="input mono"
+							bind:value={newKey}
+							placeholder="orders-api"
+							autocomplete="off"
+							spellcheck="false"
+						/>
+					</label>
+				{/if}
 				<label class="field">
 					<span class="label">Name</span><input class="input" bind:value={draft.name} autocomplete="off" />
 				</label>
@@ -446,8 +468,10 @@
 			<button
 				class="btn primary"
 				type="button"
-				disabled={!canWrite || saving || secretError !== ''}
-				title={!canWrite ? 'Needs the tenant_admin role' : secretError}
+				disabled={!canWrite || saving || secretError !== '' || (!draft.id && !newKey.trim())}
+				title={!canWrite
+					? 'Needs the tenant_admin role'
+					: secretError || (!draft.id && !newKey.trim() ? 'Give the connector a key first' : '')}
 				onclick={save}
 			>
 				{saving ? 'Saving…' : 'Save'}
