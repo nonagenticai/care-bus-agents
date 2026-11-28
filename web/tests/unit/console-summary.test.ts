@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import type { BusEvent } from '../../src/lib/api/types';
 import { ConsoleStore, MAX_PER_LANE } from '../../src/lib/console/console.svelte';
-import { caseOf, links, plain } from '../../src/lib/console/bus';
+import { caseOf, links, plain, summary } from '../../src/lib/console/bus';
 import {
 	discardUnsent,
 	emptyOutbox,
@@ -60,6 +60,19 @@ describe('plain-language summaries use the real topics and fields', () => {
 		expect(plain(ev(`${T}tool.response`, { mcp_tool: 'orders_get', ok: false, error: 'boom' }))).toBe(
 			'Tool orders_get failed: boom.',
 		);
+	});
+	it('clips a long tool argument so one row cannot fill the trace', () => {
+		const e = ev(`${T}tool.call`, {
+			mcp_tool: 'faq_ask',
+			arguments: { instructions: 'x'.repeat(600), question: 'what is care bus?' },
+		});
+		const s = summary(e);
+		expect(s.length).toBeLessThanOrEqual(160);
+		expect(s).toContain('instructions=xxxxxxxx');
+		expect(s).toContain('question=what is care bus?');
+		expect(s).toContain('…');
+		// The full prompt is not in the row; EventDetail's payload tab still has it.
+		expect(s).not.toContain('x'.repeat(60));
 	});
 	it('request.resolved maps each outcome', () => {
 		expect(plain(ev(`${T}request.resolved`, { outcome: 'completed' }))).toBe('Case completed.');
