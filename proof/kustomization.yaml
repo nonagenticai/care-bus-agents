@@ -1,0 +1,18 @@
+# Render the proof Job and its mounted sources:
+#   kubectl apply -k proof/
+# The ConfigMap keys are the file basenames (the runner reads /proof/src/<name>).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: care-bus
+resources:
+  - k8s/job.yaml
+configMapGenerator:
+  - name: carebus-proof-src
+    files:
+      - lean/CareBusModel.lean
+      - lean/NegativeControl.lean
+      - features/website-chat.feature
+      - steps/website-chat.steps.ts
+      - vectors/carebus-vectors.json
+      - known-generated-defects.json
+      - run.mjs
