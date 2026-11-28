@@ -167,6 +167,37 @@ async fn an_operator_message_reaches_the_visitor_and_auto_releases_the_chat() {
     assert_eq!(state["locked"], json!(false));
 }
 
+/// The topic mapping is global across tenants and jobs, but it carries the deployment key prefix. Two
+/// environments sharing one Redis (as this suite does) must not overwrite each other's mapping; gate run
+/// 46168702000 lost one operator's message exactly that way.
+#[tokio::test]
+async fn two_environments_at_the_same_topic_keep_separate_mappings() {
+    let (a, _) = env_with_bot("handover_isolation_a").await;
+    let (b, _) = env_with_bot("handover_isolation_b").await;
+    let (ka, sa) = register(&a).await;
+    let ia = conversation(&a, &ka, &sa).await;
+    open_handover(&a, &ia).await;
+    let (kb, sb) = register(&b).await;
+    let ib = conversation(&b, &kb, &sb).await;
+    open_handover(&b, &ib).await;
+
+    // B's handover opened last. A reply delivered on A's channel must still land in A's conversation.
+    let (s, body) = crate::common::send(&a.app, reply(&ka, &sa, OPERATOR, "Hello from A")).await;
+    assert_eq!(s, StatusCode::OK, "{body}");
+    let a_events = events(&a, &ka, &sa, &ia).await;
+    assert!(
+        a_events
+            .iter()
+            .any(|ev| ev["role"] == "human" && ev["text"] == "Hello from A"),
+        "A's operator message is replayed in A's conversation: {a_events:?}"
+    );
+    let b_events = events(&b, &kb, &sb, &ib).await;
+    assert!(
+        !b_events.iter().any(|ev| ev["text"] == "Hello from A"),
+        "A's operator message never appears in B's conversation: {b_events:?}"
+    );
+}
+
 #[tokio::test]
 async fn a_visitor_message_while_handed_over_goes_into_the_topic() {
     let (e, seen) = env_with_bot("handover_forward").await;

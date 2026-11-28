@@ -142,7 +142,9 @@ async fn open(
     let mut c = bus.conn();
     let _: () = c
         .set_ex(
-            topic_key(chat_id, thread),
+            // The root bus, not the scoped one: the reply route finds the scope from this mapping, so the key
+            // carries the deployment prefix only.
+            topic_key(&s.bus, chat_id, thread),
             mapping.to_string(),
             chat::TTL_SECS,
         )
@@ -209,10 +211,10 @@ pub async fn apply_reply(
             "text must be 1 to 4000 bytes.".into(),
         ));
     }
-    // The mapping is global (chat_id, thread_id): find the bus from the key itself.
+    // The mapping is global across tenants and jobs, under the deployment prefix: find the bus from the key itself.
     let mut admin = s.bus.conn();
     let raw: Option<String> = admin
-        .get(topic_key(i.chat_id, i.thread_id))
+        .get(topic_key(&s.bus, i.chat_id, i.thread_id))
         .await
         .map_err(|e| ApiError::Internal(anyhow::anyhow!(e)))?;
     let Some(raw) = raw else {
@@ -257,7 +259,10 @@ pub async fn apply_reply(
         .await
         .map_err(|e| ApiError::Internal(anyhow::anyhow!(e)))?;
     let _: i64 = admin
-        .expire(topic_key(i.chat_id, i.thread_id), chat::TTL_SECS as i64)
+        .expire(
+            topic_key(&s.bus, i.chat_id, i.thread_id),
+            chat::TTL_SECS as i64,
+        )
         .await
         .unwrap_or(0);
     let _: i64 = admin
