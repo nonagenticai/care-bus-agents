@@ -17,6 +17,7 @@
 		"lint": "prettier --check .",
 		"test": "vitest run",
 		"test:e2e": "playwright test",
+		"test:live": "playwright test -c playwright.live.config.ts",
 		"verify:no-e2e-shim": "node scripts/verify-no-e2e-shim.mjs"
 	},
 	"dependencies": {

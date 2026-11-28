@@ -314,4 +314,18 @@ example :
     composeFaq [some 1] [7] (some ['H','i',' ','[','1',']']) = Reply.answer ['H','i'] := by
   decide
 
+/-! ## Axiom audit
+
+`POST /api/check` answers `valid: true` for exit 0 with no error, and a proof hole is only a
+warning. The runner parses these lines and refuses `sorryAx` (and any axiom outside the three Lean
+core admits). A theorem renamed here without updating `proof/run.mjs` fails the check. -/
+
+#print axioms trimLeft_length_le
+#print axioms trimRight_length_le
+#print axioms trim_length_le
+#print axioms dropTrailingSpace_length_le
+#print axioms takeUntilClose_snd_length_le
+#print axioms stripGo_length_le
+#print axioms strip_length_le
+
 end CareBus

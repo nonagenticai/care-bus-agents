@@ -16,9 +16,15 @@
 
 import { createBdd } from 'playwright-bdd';
 import { expect, test } from '@playwright/test';
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 
 const { Given, When, Then } = createBdd();
+
+const slug = (title: string) =>
+  title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
 
 // chat-bridge's carebus turn may publish this acknowledgement before the
 // platform has composed the answer. It is not the answer.
@@ -78,14 +84,25 @@ Then('I receive a complete answer within {int} seconds', async ({ page }, second
   const count = await bubbles.count();
   answer = (await bubbles.nth(count - 1).locator('.cb-bubble').innerText()).trim();
   expect(answer.length).toBeGreaterThan(0);
-  // The runner reads this after the suite; it is the text the assertions above
-  // judged, kept verbatim as evidence.
-  writeFileSync('.proof-answer.txt', answer, 'utf8');
+  const elapsed = Date.now() - askedAt;
+  // The runner reads one artifact per scenario after the suite: the text these assertions judged,
+  // its title, and the measured latency, kept verbatim as evidence.
+  mkdirSync('.proof-answers', { recursive: true });
+  writeFileSync(
+    `.proof-answers/${slug(test.info().title)}.json`,
+    JSON.stringify({
+      title: test.info().title,
+      title_path: test.info().titlePath,
+      answer,
+      elapsed_ms: elapsed,
+    }),
+    'utf8',
+  );
   // Evidence that this file's own steps ran (a generated stub would not reach
   // here because the composer never becomes enabled without the Given above).
   test.info().annotations.push({
     type: 'carebus-proof',
-    description: `answer ${answer.length} chars in ${Date.now() - askedAt} ms`,
+    description: `answer ${answer.length} chars in ${elapsed} ms`,
   });
 });
 
@@ -103,4 +120,13 @@ Then('the answer has no literal newline escapes', async () => {
 Then('the answer mentions Care Bus', async () => {
   const normalized = answer.toLowerCase().replace(/-/g, ' ');
   expect(normalized).toContain('care bus');
+});
+
+Then('the answer says it cannot answer from the sources', async () => {
+  // Grounding: a question outside the knowledge stores must produce a refusal, not a confident
+  // unsourced answer. The wording is the model's; the alternatives cover the live and fallback
+  // phrasings ("I don't have that in the sources…", "I couldn't find an answer…").
+  expect(answer).toMatch(
+    /sources|not sure|don't|do not|won't|will not|couldn't|cannot|can't|unable|no information/i,
+  );
 });

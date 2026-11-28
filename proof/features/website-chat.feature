@@ -17,3 +17,14 @@ Feature: The website chat answers from care-bus
     And the answer has no citation markers
     And the answer has no literal newline escapes
     And the answer mentions Care Bus
+
+  # Grounding is the other half of the contract: the same pipeline, asked something no source
+  # covers, must refuse rather than answer from the model's own weights.
+  @verify=carebus-proof-grounded-refusal
+  Scenario: A visitor asks something the sources do not cover
+    Given I open the website chat
+    When I ask "Who won the 2022 World Cup?"
+    Then I receive a complete answer within 120 seconds
+    And the answer has no citation markers
+    And the answer has no literal newline escapes
+    And the answer says it cannot answer from the sources

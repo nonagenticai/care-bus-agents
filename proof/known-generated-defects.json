@@ -1,0 +1,12 @@
+{
+  "about": "Generated bdd suites are LLM-authored: their locators are not runtime-verified by bdd_playwright_service. A generated failure is non-gating ONLY when it matches an entry here by spec title AND error substring. Anything unmatched fails the Job, so a new or different failure can never be swallowed.",
+  "generated": [
+    {
+      "spec": "the / page still loads and shows its captured content",
+      "error_includes": "AI that finishes the work — and proves it .",
+      "reason": "bdd_playwright_service emitted an accessible name that is not in the live DOM: the h1 is `AI that finishes the work — <em>and proves it</em>.` and its accessible name has no space before the final period. The generated name adds one, so exact: true can never match.",
+      "evidence": "GET https://nonagentic.ai/ -> h1 `AI that finishes the work — <em>and proves it</em>.`; generated locator getByRole('heading', { name: 'AI that finishes the work — and proves it .', exact: true }).first()",
+      "review": "Remove when bdd_playwright_service grounds generated accessible names against its inspection snapshot, or when the inspection reliably captures the h1."
+    }
+  ]
+}

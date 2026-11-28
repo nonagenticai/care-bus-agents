@@ -13,4 +13,6 @@ configMapGenerator:
       - lean/NegativeControl.lean
       - features/website-chat.feature
       - steps/website-chat.steps.ts
+      - vectors/carebus-vectors.json
+      - known-generated-defects.json
       - run.mjs

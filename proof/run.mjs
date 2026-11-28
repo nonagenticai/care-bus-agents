@@ -7,11 +7,14 @@
  *      website (it is a generator, not a runner). This script starts the job,
  *      waits, downloads the package, adds `website-chat.feature` + its steps,
  *      installs the package, and runs `npx bddgen && npx playwright test`.
- *      The generated suite is a smoke signal; the acceptance scenario (ours) is
- *      the gating oracle for the website answer.
+ *      Two acceptance scenarios are the gating oracle. A generated failure is
+ *      non-gating ONLY when it matches `known-generated-defects.json`; an
+ *      unmatched generated failure fails the run.
  *   2. lean4-prover kernel-checks `CareBusModel.lean` via POST /api/check and
- *      must REFUSE `NegativeControl.lean`. A prover that accepts both proves
- *      nothing.
+ *      must REFUSE `NegativeControl.lean`. The model is assembled with named
+ *      theorems from `vectors/carebus-vectors.json` (the same corpus the Rust
+ *      test asserts), and the runner audits `#print axioms` for `sorryAx`: the
+ *      prover's `valid` alone does not reject `sorry`.
  *
  * One-shot by design: run it as the Job in k8s/job.yaml. It prints one line
  * `ATTESTATION <json>` and exits non-zero when a gating check fails.
@@ -20,8 +23,9 @@
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const env = (name, fallback) => {
   const value = process.env[name];
@@ -46,6 +50,29 @@ const MINT_APP = env('MINT_APP', 'strata_rag');
 const MINT_BUNDLE = env('MINT_BUNDLE', 'care-bus');
 const PROOF_ROOT = env('PROOF_ROOT', '/proof/src');
 const WORK_DIR = env('WORK_DIR', '/work');
+const VECTORS_FILE = env('VECTORS_FILE', 'carebus-vectors.json');
+const KNOWN_DEFECTS_FILE = env('KNOWN_DEFECTS_FILE', 'known-generated-defects.json');
+const LATENCY_BUDGET_MS = Number(env('LATENCY_BUDGET_MS', String(45_000)));
+
+// The gating oracle. Every title must be present in the Playwright report and pass.
+const ACCEPTANCE_TITLES = [
+  'A visitor asks what Care Bus is',
+  'A visitor asks something the sources do not cover',
+];
+
+// The `#print axioms` lines the model carries. A rename here fails the check.
+const MODEL_THEOREMS = [
+  'CareBus.trimLeft_length_le',
+  'CareBus.trimRight_length_le',
+  'CareBus.trim_length_le',
+  'CareBus.dropTrailingSpace_length_le',
+  'CareBus.takeUntilClose_snd_length_le',
+  'CareBus.stripGo_length_le',
+  'CareBus.strip_length_le',
+];
+
+// Lean's core admits these; anything else (notably `sorryAx`) is refused.
+const ALLOWED_AXIOMS = new Set(['propext', 'Classical.choice', 'Quot.sound']);
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -186,12 +213,23 @@ async function bddProof(work) {
     console.error(`[bdd] playwright exited ${testRun.code}`);
     console.error(testRun.stderr.slice(-3000));
   }
-  const acceptance = specs.find((spec) => spec.title === 'A visitor asks what Care Bus is');
-  let answer = '';
-  try {
-    answer = (await readFile(path.join(pkg, '.proof-answer.txt'), 'utf8')).trim();
-  } catch {
-    // The step writes it; absent means the acceptance scenario never reached its Then.
+  const acceptance = ACCEPTANCE_TITLES.map((title) => {
+    const spec = specs.find((s) => s.title === title);
+    return spec
+      ? { title, ok: spec.ok === true, annotations: spec.tests?.[0]?.annotations ?? [] }
+      : { title, ok: false, annotations: [], missing: true };
+  });
+  const answers = await readAnswers(pkg);
+  const known = await loadKnownDefects();
+  const failing = specs.filter((spec) => spec.ok === false);
+  const generatedFailures = failing.filter((spec) => !ACCEPTANCE_TITLES.includes(spec.title));
+  const matched = [];
+  const unclassified = [];
+  for (const spec of generatedFailures) {
+    const error = stripAnsi(failureMessage(spec)).slice(0, 1200);
+    const entry = known.find((k) => k.spec === spec.title && error.includes(k.error_includes));
+    if (entry) matched.push({ spec: spec.title, reason: entry.reason });
+    else unclassified.push({ spec: spec.title, error: error.slice(0, 800) });
   }
 
   return {
@@ -203,28 +241,23 @@ async function bddProof(work) {
     step_defs_generated: result.step_defs_generated ?? status.step_defs_generated ?? 0,
     package_sha256: sha256(zip),
     generated: {
-      specs: specs.length - (acceptance ? 1 : 0),
+      specs: specs.length - acceptance.filter((a) => !a.missing).length,
       stats: report.stats ?? null,
-      failures: specs
-        .filter((spec) => spec.ok === false)
-        .map((spec) => spec.title)
-        .slice(0, 20),
-      failure_details: specs
-        .filter((spec) => spec.ok === false)
-        .map((spec) => ({
-          title: spec.title,
-          error: String(spec.tests?.[0]?.results?.find((r) => r.error)?.error?.message ?? '').slice(0, 1200),
-        }))
+      failures: failing.map((spec) => spec.title).slice(0, 20),
+      failure_details: failing
+        .map((spec) => ({ title: spec.title, error: stripAnsi(failureMessage(spec)).slice(0, 1200) }))
         .slice(0, 10),
+      known_defects_matched: matched,
+      unclassified_failures: unclassified,
+      verdict:
+        generatedFailures.length === 0
+          ? 'green'
+          : unclassified.length === 0
+            ? 'classified'
+            : 'unclassified',
     },
-    acceptance: acceptance
-      ? {
-          title: acceptance.title,
-          ok: acceptance.ok === true,
-          annotations: acceptance.tests?.[0]?.annotations ?? [],
-        }
-      : { title: 'A visitor asks what Care Bus is', ok: false, annotations: [], missing: true },
-    answer,
+    acceptance,
+    answers,
     exit_code: testRun.code,
   };
 }
@@ -269,6 +302,42 @@ function collectSpecs(suites, out = []) {
   return out;
 }
 
+// Playwright colours its error messages; the known-defect match is on the plain text.
+const stripAnsi = (text) => text.replace(/\u001b\[[0-9;]*[A-Za-z]/g, '');
+
+function failureMessage(spec) {
+  return String(spec.tests?.[0]?.results?.find((r) => r.error)?.error?.message ?? '');
+}
+
+async function loadKnownDefects() {
+  // Fail closed: a missing or unreadable file means NO generated failure is allowed.
+  try {
+    const doc = JSON.parse(await readFile(path.join(PROOF_ROOT, KNOWN_DEFECTS_FILE), 'utf8'));
+    return Array.isArray(doc.generated) ? doc.generated : [];
+  } catch {
+    return [];
+  }
+}
+
+async function readAnswers(pkg) {
+  const dir = path.join(pkg, '.proof-answers');
+  let names = [];
+  try {
+    names = await readdir(dir);
+  } catch {
+    return [];
+  }
+  const answers = [];
+  for (const name of names.filter((n) => n.endsWith('.json')).sort()) {
+    try {
+      answers.push(JSON.parse(await readFile(path.join(dir, name), 'utf8')));
+    } catch {
+      // A torn artifact is absence, not evidence; the missing-answer gate catches it.
+    }
+  }
+  return answers;
+}
+
 async function extractZip(zipPath, destination) {
   try {
     run('unzip', ['-q', '-o', zipPath, '-d', destination], { timeoutMs: 120_000 });
@@ -284,6 +353,85 @@ async function extractZip(zipPath, destination) {
   const require = createRequire(`${harness}/`);
   const extract = require('extract-zip');
   await extract(zipPath, { dir: destination });
+}
+
+/** A Lean `List Char` literal. ASCII keeps its readable form; `Char.ofNat` carries the rest. */
+function leanChars(text) {
+  const parts = [];
+  for (const ch of text) {
+    const cp = ch.codePointAt(0);
+    if (cp === 39) parts.push("'\\''");
+    else if (cp === 92) parts.push("'\\\\'");
+    else if (cp >= 32 && cp < 127) parts.push(`'${ch}'`);
+    else parts.push(`Char.ofNat ${cp}`);
+  }
+  return `[${parts.join(',')}]`;
+}
+
+/**
+ * The model source plus one named theorem per vector, then `#print axioms` for every theorem the
+ * audit expects. The Rust test reads the same JSON, so a change on either side fails one of them.
+ */
+function assembleLean(model, vectors) {
+  const lines = [
+    model.trimEnd(),
+    '',
+    '/-! Generated from proof/vectors/carebus-vectors.json — the corpus the Rust test asserts. -/',
+    // `decide` on the longest live answer exceeds Lean's default recursion depth (measured:
+    // faq_vec on the ~130-char answer failed at the default and left a sorryAx).
+    'set_option maxRecDepth 400000',
+  ];
+  const axiomNames = [];
+  for (const [i, v] of (vectors.strip ?? []).entries()) {
+    const name = `strip_vec_${i}`;
+    lines.push(
+      `theorem ${name} : CareBus.strip ${v.max} ${leanChars(v.text)} = ${leanChars(v.expected)} := by decide`,
+    );
+    axiomNames.push(name);
+  }
+  for (const [i, v] of (vectors.faq ?? []).entries()) {
+    const name = `faq_vec_${i}`;
+    const numbers = (v.sources ?? []).map((s) => (typeof s.number === 'number' ? `some ${s.number}` : 'none'));
+    const citations = (v.citations ?? []).map((_, j) => String(j + 1));
+    // `some x` must be parenthesised: Lean application is left-associative, so
+    // `composeFaq [] [] some xs` would apply the result of `composeFaq [] []` to `some`.
+    const answer = typeof v.answer === 'string' ? `(some ${leanChars(v.answer)})` : 'none';
+    const rhs =
+      v.kind === 'fallback' ? 'CareBus.Reply.fallback' : `CareBus.Reply.answer ${leanChars(v.expected)}`;
+    lines.push(
+      `theorem ${name} : CareBus.composeFaq [${numbers.join(', ')}] [${citations.join(', ')}] ${answer} = ${rhs} := by decide`,
+    );
+    axiomNames.push(name);
+  }
+  for (const name of axiomNames) lines.push(`#print axioms ${name}`);
+  return { source: lines.join('\n'), axiomNames };
+}
+
+/** Every expected theorem must print "does not depend on any axioms" or only core admits. */
+function axiomReport(stdout, expected) {
+  const lines = String(stdout ?? '').split('\n');
+  const missing = [];
+  const refused = [];
+  for (const name of expected) {
+    const line = lines.find((l) => l.includes(`'${name}'`));
+    if (!line) {
+      missing.push(name);
+      continue;
+    }
+    if (line.includes('does not depend on any axioms')) continue;
+    const listed = line.match(/depends on axioms: \[(.*)\]/);
+    if (!listed) {
+      refused.push(`${name}: unparseable axiom line: ${line.trim()}`);
+      continue;
+    }
+    const unexpected = listed[1]
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .filter((a) => !ALLOWED_AXIOMS.has(a));
+    if (unexpected.length) refused.push(`${name}: ${unexpected.join(', ')}`);
+  }
+  return { clean: missing.length === 0 && refused.length === 0, missing, refused };
 }
 
 async function leanProof(work) {
@@ -313,8 +461,7 @@ async function leanProof(work) {
   });
   if (!mint?.token) throw new Error('licenses returned no bundle token');
 
-  const check = async (file) => {
-    const source = await readFile(path.join(PROOF_ROOT, file), 'utf8');
+  const check = async (file, source) => {
     const started = Date.now();
     const response = await fetchJson(`${LEAN_URL}/api/check`, {
       method: 'POST',
@@ -328,16 +475,33 @@ async function leanProof(work) {
       valid: response.valid === true,
       computation_time_ms: response.computation_time_ms ?? null,
       duration_ms: Date.now() - started,
-      stdout: String(response.stdout ?? '').slice(0, 1200),
+      // `#print axioms` writes one line per theorem; 1200 chars was the old cap and would truncate.
+      stdout: String(response.stdout ?? '').slice(0, 8000),
       stderr: String(response.stderr ?? '').slice(0, 1200),
       diagnostics: (response.diagnostics ?? []).slice(0, 10),
     };
   };
 
+  const rawVectors = await readFile(path.join(PROOF_ROOT, VECTORS_FILE), 'utf8');
+  const vectors = JSON.parse(rawVectors);
+  const model = await readFile(path.join(PROOF_ROOT, 'CareBusModel.lean'), 'utf8');
+  const assembled = assembleLean(model, vectors);
+  const main = await check('CareBusModel.lean', assembled.source);
+  main.vectors = {
+    file: VECTORS_FILE,
+    sha256: sha256(rawVectors),
+    strip: vectors.strip?.length ?? 0,
+    faq: vectors.faq?.length ?? 0,
+  };
+  main.axioms = axiomReport(main.stdout, MODEL_THEOREMS.concat(assembled.axiomNames));
+  // The prover's `valid` treats `sorry` as a warning; the assembled source must not contain one.
+  main.sorry_free = !/\b(sorry|admit)\b/.test(assembled.source);
+  const negativeSource = await readFile(path.join(PROOF_ROOT, 'NegativeControl.lean'), 'utf8');
+
   return {
     service: 'lean4-prover',
-    main: await check('CareBusModel.lean'),
-    negative: await check('NegativeControl.lean'),
+    main,
+    negative: await check('NegativeControl.lean', negativeSource),
   };
 }
 
@@ -345,13 +509,24 @@ async function main() {
   await mkdir(WORK_DIR, { recursive: true });
   const failures = [];
   const attestation = {
-    schema: 'carebus-proof/1',
+    schema: 'carebus-proof/2',
     started_at: new Date().toISOString(),
   };
 
   try {
     attestation.lean = await leanProof(WORK_DIR);
     if (!attestation.lean.main.valid) failures.push('lean: CareBusModel.lean was not valid');
+    if (!attestation.lean.main.sorry_free) {
+      failures.push('lean: the assembled model contains a sorry/admit token');
+    }
+    if (!attestation.lean.main.axioms?.clean) {
+      const audit = attestation.lean.main.axioms ?? {};
+      failures.push(
+        `lean: axiom audit failed (missing: ${audit.missing?.join(', ') || '—'}; refused: ${
+          audit.refused?.join('; ') || '—'
+        })`,
+      );
+    }
     if (attestation.lean.negative.valid) failures.push('lean: NegativeControl.lean was accepted (vacuous check)');
   } catch (error) {
     failures.push(`lean: ${error.message}`);
@@ -360,13 +535,34 @@ async function main() {
 
   try {
     attestation.bdd = await bddProof(WORK_DIR);
-    if (!attestation.bdd.acceptance.ok) failures.push('bdd: the acceptance scenario did not pass');
-    if (attestation.bdd.generated.specs < 1) failures.push('bdd: the generated suite carried no other scenario');
-    if (!attestation.bdd.answer) failures.push('bdd: no answer text was captured');
-    if (/\[\d{1,3}(?:\s*,\s*\d{1,3})*\]/.test(attestation.bdd.answer)) {
-      failures.push('bdd: the answer still contains a citation marker');
+    for (const scenario of attestation.bdd.acceptance) {
+      if (!scenario.ok) failures.push(`bdd: acceptance scenario "${scenario.title}" did not pass`);
     }
-    if (attestation.bdd.answer.includes('\\n')) failures.push('bdd: the answer contains a literal \\n');
+    if (attestation.bdd.generated.specs < 1) failures.push('bdd: the generated suite carried no other scenario');
+    if (attestation.bdd.generated.unclassified_failures.length) {
+      const titles = attestation.bdd.generated.unclassified_failures.map((f) => f.spec).join('; ');
+      failures.push(
+        `bdd: ${attestation.bdd.generated.unclassified_failures.length} generated failure(s) not in ${KNOWN_DEFECTS_FILE}: ${titles}`,
+      );
+    }
+    for (const title of ACCEPTANCE_TITLES) {
+      const answer = attestation.bdd.answers.find(
+        (a) => a.title === title || (Array.isArray(a.title_path) && a.title_path.includes(title)),
+      );
+      if (!answer?.answer) {
+        failures.push(`bdd: no answer captured for "${title}"`);
+        continue;
+      }
+      if (/\[\d{1,3}(?:\s*,\s*\d{1,3})*\]/.test(answer.answer)) {
+        failures.push(`bdd: "${title}" still contains a citation marker`);
+      }
+      if (answer.answer.includes('\\n')) failures.push(`bdd: "${title}" contains a literal \\n`);
+      if (typeof answer.elapsed_ms === 'number' && answer.elapsed_ms > LATENCY_BUDGET_MS) {
+        failures.push(
+          `bdd: "${title}" took ${answer.elapsed_ms} ms (budget ${LATENCY_BUDGET_MS} ms)`,
+        );
+      }
+    }
   } catch (error) {
     failures.push(`bdd: ${error.message}`);
     attestation.bdd = { error: error.message };
@@ -379,7 +575,14 @@ async function main() {
   process.exit(failures.length === 0 ? 0 : 1);
 }
 
-main().catch((error) => {
-  console.error(`proof runner crashed: ${error.stack ?? error.message}`);
-  process.exit(2);
-});
+// Importing this file (for the assembly helpers) must not start a proof run.
+const invokedDirectly =
+  process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
+if (invokedDirectly) {
+  main().catch((error) => {
+    console.error(`proof runner crashed: ${error.stack ?? error.message}`);
+    process.exit(2);
+  });
+}
+
+export { assembleLean, axiomReport, leanChars };

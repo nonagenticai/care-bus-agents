@@ -1,0 +1,69 @@
+{
+  "about": "One corpus, two consumers: the Rust unit test in crates/carebus/src/interaction.rs asserts without_citation_markers/compose_reply against it, and proof/run.mjs turns it into Lean theorems that lean4-prover decides. Drift on either side fails.",
+  "strip": [
+    { "text": "word[1] next", "max": 1, "expected": "word next" },
+    { "text": "word [1] next", "max": 1, "expected": "word next" },
+    { "text": "[1] Leads the sentence", "max": 1, "expected": "Leads the sentence" },
+    { "text": "no markers here", "max": 3, "expected": "no markers here" },
+    { "text": "a [x] and [[2]] b [9]", "max": 3, "expected": "a [x] and [] b [9]" },
+    { "text": "Care Bus is open source [1, 2]. It looks orders up [1].", "max": 2, "expected": "Care Bus is open source. It looks orders up." },
+    { "text": "Open source [1, 2] and public [1].", "max": 2, "expected": "Open source and public." },
+    { "text": "a claim [1, 9]", "max": 2, "expected": "a claim [1, 9]" },
+    { "text": "The 2026 [5] review covers the rest.", "max": 4, "expected": "The 2026 [5] review covers the rest." },
+    { "text": "[[1]2]", "max": 2, "expected": "[2]" },
+    { "text": "channels [1][2][3][4]. Prices [2].", "max": 4, "expected": "channels. Prices." },
+    { "text": "marker [1]", "max": 0, "expected": "marker [1]" },
+    { "text": "€5 [1] pricing", "max": 1, "expected": "€5 pricing" },
+    { "text": "", "max": 3, "expected": "" },
+    { "text": "   ", "max": 3, "expected": "" }
+  ],
+  "faq": [
+    {
+      "answer": "The email address of Leanne Graham is Sincere@april.biz [1].",
+      "citations": ["a"],
+      "sources": [{ "chunk_id": "a" }],
+      "kind": "answer",
+      "expected": "The email address of Leanne Graham is Sincere@april.biz."
+    },
+    {
+      "answer": "I do not know; the sources do not say.",
+      "citations": [],
+      "sources": [],
+      "kind": "fallback"
+    },
+    {
+      "answer": "   ",
+      "citations": ["x"],
+      "sources": [],
+      "kind": "fallback"
+    },
+    {
+      "answer": "Conveyor [1] and the tools [5].",
+      "citations": ["a"],
+      "sources": [{ "chunk_id": "a", "number": 1 }, { "chunk_id": "e", "number": 5 }],
+      "kind": "answer",
+      "expected": "Conveyor and the tools."
+    },
+    {
+      "answer": "Care Bus runs in your own channels [1][2][3][4]. Prices are per seat [2]. The 2026 [5] review covers the rest.",
+      "citations": ["a", "b", "c", "d"],
+      "sources": [],
+      "kind": "answer",
+      "expected": "Care Bus runs in your own channels. Prices are per seat. The 2026 [5] review covers the rest."
+    },
+    {
+      "answer": "  Hi [1]  ",
+      "citations": ["a"],
+      "sources": [],
+      "kind": "answer",
+      "expected": "Hi"
+    },
+    {
+      "answer": "[1]",
+      "citations": ["a"],
+      "sources": [],
+      "kind": "answer",
+      "expected": ""
+    }
+  ]
+}

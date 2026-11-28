@@ -1180,6 +1180,53 @@ mod tests {
         );
     }
 
+    /// The corpus is shared with the Lean proof: `proof/run.mjs` turns the same file into
+    /// `theorem strip_vec_N` / `faq_vec_N` and lean4-prover decides them. A change on either side
+    /// that the other does not agree with fails here or there.
+    #[test]
+    fn the_proof_vectors_are_what_the_code_does() {
+        let raw = include_str!("../../../proof/vectors/carebus-vectors.json");
+        let vectors: serde_json::Value = serde_json::from_str(raw).expect("vectors parse");
+
+        for v in vectors["strip"].as_array().expect("strip vectors") {
+            let text = v["text"].as_str().expect("text");
+            let max = v["max"].as_u64().expect("max") as usize;
+            assert_eq!(
+                without_citation_markers(text, max),
+                v["expected"].as_str().expect("expected"),
+                "strip vector {text:?} (max {max})"
+            );
+        }
+
+        for v in vectors["faq"].as_array().expect("faq vectors") {
+            let mut r: Resolution = serde_json::from_str(LIVE_FAQ_RESOLVED).unwrap();
+            let facts = serde_json::json!({
+                "faq": {
+                    "answer": v["answer"],
+                    "citations": v["citations"],
+                    "sources": v["sources"],
+                    "timings_ms": {},
+                }
+            });
+            r.facts = facts.as_object().expect("facts object").clone();
+            match v["kind"].as_str().expect("kind") {
+                "answer" => assert_eq!(
+                    compose_reply(&r),
+                    v["expected"].as_str().expect("expected"),
+                    "faq vector {:?}",
+                    v["answer"]
+                ),
+                "fallback" => assert_eq!(
+                    compose_reply(&r),
+                    FAQ_FALLBACK,
+                    "faq vector {:?} must fall back",
+                    v["answer"]
+                ),
+                other => panic!("unknown kind {other}"),
+            }
+        }
+    }
+
     #[test]
     fn faq_reply_escalates_when_the_answer_cites_no_source() {
         let mut r: Resolution = serde_json::from_str(LIVE_FAQ_RESOLVED).unwrap();
