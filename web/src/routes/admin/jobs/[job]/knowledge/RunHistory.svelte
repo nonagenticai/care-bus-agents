@@ -6,15 +6,28 @@
 	import type { Paged, Source, SourceRun } from '$lib/api/types';
 	import Status from '$lib/ui/Status.svelte';
 	import Unavailable from '$lib/ui/Unavailable.svelte';
+	import FilterInput from '$lib/ui/FilterInput.svelte';
+	import { debounce } from '$lib/debounce';
 
 	let { source, canWrite, onchange }: { source: Source; canWrite: boolean; onchange: () => void } = $props();
 	/** Older-runs cursor: `''` is the newest page. */
 	let before = $state('');
+	// The runs search is the server's: `q` goes to the API, not over the loaded page.
+	let filter = $state('');
+	let q = $state('');
+	const pushQ = debounce(() => (q = filter.trim()), 300);
+	$effect(() => {
+		// Clearing the box applies at once; typing waits out the debounce.
+		if (filter.trim() === '') q = '';
+		else pushQ();
+	});
 	const runs = new Resource<Paged<SourceRun>>(() =>
-		api().sourceRuns(source.id, { limit: 20, before: before || undefined }),
+		api().sourceRuns(source.id, { q: q || undefined, limit: 20, before: before || undefined }),
 	);
 	$effect(() => {
 		void source.id;
+		void q;
+		// A new source or a new search starts at the newest runs: the cursor belongs to the old list.
 		before = '';
 		runs.refresh();
 	});
@@ -86,10 +99,15 @@
 		</button>
 		<button class="btn" type="button" onclick={() => runs.refresh()}>Refresh</button>
 	</div>
+	<FilterInput
+		bind:value={filter}
+		label="Search runs"
+		placeholder="Search status, who started it, or error"
+	/>
 	{#if runs.value.state === 'unavailable'}
 		<Unavailable reason={runs.value.reason} retry={() => runs.refresh()} />
 	{:else if runs.value.state === 'empty'}
-		<div class="empty">Not synced yet.</div>
+		<div class="empty">{q ? 'No runs match this search.' : 'Not synced yet.'}</div>
 	{:else if runs.value.state === 'ok'}
 		<div class="tbl-wrap">
 			<table class="tbl dense stack-phone">

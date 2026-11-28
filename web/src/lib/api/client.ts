@@ -218,8 +218,16 @@ export function createClient(o: Opts) {
 			req<{ stream: string; entry_id: string }>('POST', J(`/dead-letters/${seg(entryId)}/replay`)),
 		discardDeadLetter: (entryId: string) =>
 			req<{ deleted: string }>('DELETE', J(`/dead-letters/${seg(entryId)}`)),
-		cases: (q: { outcome?: T.CaseFilter; area?: string; limit?: number; before?: string }) =>
-			req<T.Paged<T.CaseRow>>('GET', J(`/cases${qs(q)}`)),
+		cases: (q: {
+			outcome?: T.CaseFilter;
+			area?: string;
+			request_type?: string;
+			q?: string;
+			sort?: string;
+			dir?: 'asc' | 'desc';
+			limit?: number;
+			before?: string;
+		}) => req<T.Paged<T.CaseRow>>('GET', J(`/cases${qs(q)}`)),
 		case: (id: string) => req<T.CaseDetail>('GET', J(`/cases/${seg(id)}`)),
 		/** The tenant's LLM providers, the qualify/gates bindings and the platform default (spec §2). */
 		llmProviders: () => req<LlmProviders>('GET', '/api/providers'),
@@ -273,7 +281,11 @@ export function createClient(o: Opts) {
 		retryRemoval: (id: string) => req<Signup>('POST', `/api/signup-approvals/${seg(id)}/removal/retry`),
 		/** The pre-approved invite: the signup recorded, then the same approve. */
 		inviteSignup: (input: InviteInput) => req<InviteResult>('POST', '/api/signup-approvals/invite', input),
-		connectors: (layer?: T.Layer) => req<T.Paged<T.Connector>>('GET', J(`/connectors${layerQ(layer)}`)),
+		connectors: (layer?: T.Layer, q?: string) =>
+			req<T.Paged<T.Connector>>(
+				'GET',
+				J(`/connectors${qs({ layer: layer === 'effective' ? undefined : layer, q })}`),
+			),
 		createConnector: async (c: T.ConnectorInput) => {
 			guardSecretRef(c.secret_ref);
 			return req<T.Connector>('POST', J('/connectors'), c);
@@ -347,7 +359,7 @@ export function createClient(o: Opts) {
 			beam: number;
 			min_score: number;
 		}) => req<T.QueryResult>('POST', '/api/knowledge/query', body),
-		sources: (q: { limit?: number; before?: string } = {}) =>
+		sources: (q: { q?: string; sort?: string; dir?: 'asc' | 'desc'; limit?: number; before?: string } = {}) =>
 			req<T.Paged<T.Source>>('GET', J(`/sources${qs(q)}`)),
 		source: (id: string) => req<T.Source>('GET', J(`/sources/${seg(id)}`)),
 		createSource: async (s: T.SourceInput) => {
@@ -380,12 +392,21 @@ export function createClient(o: Opts) {
 		/** A file source sends its files; every other type sends no body. */
 		resync: (id: string, files?: File[]) =>
 			req<T.SourceRun>('POST', J(`/sources/${seg(id)}/resync`), files ? filesForm(files) : undefined),
-		sourceRuns: (id: string, q: { limit?: number; before?: string } = {}) =>
+		sourceRuns: (id: string, q: { q?: string; limit?: number; before?: string } = {}) =>
 			req<T.Paged<T.SourceRun>>('GET', J(`/sources/${seg(id)}/runs${qs(q)}`)),
 		sourceRun: (id: string, runId: string) =>
 			req<T.SourceRun>('GET', J(`/sources/${seg(id)}/runs/${seg(runId)}`)),
-		ingestJobs: (q: { store_id?: string; status?: string; limit?: number; before?: string } = {}) =>
-			req<T.Paged<T.IngestJob>>('GET', `/api/ingest/jobs${qs(q)}`),
+		ingestJobs: (
+			q: {
+				store_id?: string;
+				status?: string;
+				q?: string;
+				sort?: string;
+				dir?: 'asc' | 'desc';
+				limit?: number;
+				before?: string;
+			} = {},
+		) => req<T.Paged<T.IngestJob>>('GET', `/api/ingest/jobs${qs(q)}`),
 		ingestJob: (id: string) => req<T.IngestJob>('GET', `/api/ingest/jobs/${seg(id)}`),
 		retryJob: (id: string) => req<T.IngestJob>('POST', `/api/ingest/jobs/${seg(id)}/retry`),
 		/** A queued job is `cancelled` at once, a running one `cancelling` until its step ends; 409 once ended. */
@@ -428,7 +449,7 @@ export function createClient(o: Opts) {
 			req<T.Paged<T.EvalRunSummary>>('GET', `/api/knowledge/eval/runs${qs(q)}`),
 		/** One run with its question snapshot and per-question `results`. */
 		evalRun: (id: string) => req<T.EvalRun>('GET', `/api/knowledge/eval/runs/${seg(id)}`),
-		tools: () => req<T.Paged<T.ToolInfo>>('GET', J('/tools')),
+		tools: (q?: string) => req<T.Paged<T.ToolInfo>>('GET', J(`/tools${qs({ q })}`)),
 		// routes::research (plan 18): any member of the tenant. 201 the queued run; 400 invalid_body, 422 unknown_store
 		// (a store that is not one of this job's knowledge stores).
 		createResearchRun: (input: ResearchRunInput) => req<ResearchRun>('POST', J('/research-runs'), input),

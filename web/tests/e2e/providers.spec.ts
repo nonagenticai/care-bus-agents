@@ -490,6 +490,16 @@ test('a tenant_user sees the LLM providers read-only with the role hint', async 
 	await expect(drawer.getByRole('button', { name: 'Delete provider' })).toBeDisabled();
 });
 
+test('the LLM providers table refreshes on demand', async ({ page }) => {
+	const sent = await mockApi(page);
+	await page.goto('/admin/providers');
+	const card = page.locator('section.card', { hasText: 'LLM providers' });
+	await card.getByRole('button', { name: 'Refresh' }).click();
+	await expect
+		.poll(() => sent.filter((s) => s.method === 'GET' && s.path === '/api/providers').length)
+		.toBeGreaterThan(1);
+});
+
 /** The generated LLM providers body, for overrides that change one part. */
 function llmBody() {
 	return JSON.parse(readFileSync('src/lib/api/fixtures/providers/llm_providers.json', 'utf8'));

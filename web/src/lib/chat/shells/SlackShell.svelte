@@ -18,25 +18,6 @@
 
 <div class="sk-host" data-look="slack">
 	<div class="sk">
-		<div class="sk-rail" aria-hidden="true">
-			<div class="sk-ws">CB</div>
-			<div class="sk-rail-ic"><svg viewBox="0 0 24 24"><path d={ICON.home} /></svg></div>
-			<div class="sk-rail-ic"><svg viewBox="0 0 24 24"><path d={ICON.chat} /></svg></div>
-		</div>
-
-		<aside class="sk-side" aria-label="Channels">
-			<header class="sk-ws-head"><span class="sk-ws-name">Care Bus</span></header>
-			<div class="sk-side-scroll">
-				<div class="sk-sect">Channels</div>
-				<div class="sk-ch on" aria-current="true"><span aria-hidden="true">#</span> support</div>
-				<div class="sk-sect">Direct messages</div>
-				<div class="sk-dm"><span class="sk-pres on" aria-hidden="true"></span>{agentName}</div>
-				<div class="sk-dm">
-					<span class="sk-pres on" aria-hidden="true"></span>{customerName} <span class="sk-you">you</span>
-				</div>
-			</div>
-		</aside>
-
 		<section class="sk-main" aria-label="Conversation with {agentName}">
 			<header class="sk-head">
 				<div class="sk-title"><span class="sk-hash" aria-hidden="true">#</span> support</div>
@@ -125,12 +106,6 @@
 		/* Slack-style palette: light, dark (follows the app theme through color-scheme). */
 		--sk-bg: light-dark(#ffffff, #1a1d21);
 		--sk-fg: light-dark(#1d1c1d, #d1d2d3);
-		--sk-rail: light-dark(#3a1140, #121016);
-		--sk-side: light-dark(#3f0e40, #19171d);
-		--sk-side-fg: light-dark(#cfc3cf, #cfc3cf);
-		--sk-side-muted: light-dark(#b39db4, #a99aaa);
-		--sk-side-on: light-dark(#1164a3, #1164a3);
-		--sk-presence: #2bac76;
 		--sk-brand: light-dark(#4a154b, #6a2a6b);
 		--sk-you: light-dark(#2eb67d, #1f8a5c);
 		--sk-line: light-dark(#e2e2e2, #35373b);
@@ -152,106 +127,13 @@
 	}
 	.sk {
 		display: grid;
-		grid-template-columns: 70px 260px minmax(0, 1fr);
+		grid-template-columns: minmax(0, 1fr);
 		grid-template-rows: minmax(0, 1fr);
 		height: 100%;
 		background: var(--sk-bg);
 		color: var(--sk-fg);
 		font-family: Lato, 'Helvetica Neue', system-ui, sans-serif;
 		font-size: 15px;
-	}
-	.sk-rail {
-		background: var(--sk-rail);
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		gap: 14px;
-		padding: 14px 0;
-	}
-	.sk-ws {
-		width: 40px;
-		height: 40px;
-		border-radius: 11px;
-		background: #fff;
-		color: #3a1140;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		font-weight: 800;
-		font-size: 16px;
-	}
-	.sk-rail-ic {
-		width: 40px;
-		height: 40px;
-		border-radius: 11px;
-		background: rgba(255, 255, 255, 0.12);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-	}
-	.sk-rail-ic svg {
-		width: 22px;
-		height: 22px;
-		fill: #fff;
-	}
-	.sk-side {
-		background: var(--sk-side);
-		color: var(--sk-side-fg);
-		display: flex;
-		flex-direction: column;
-		border-right: 1px solid rgba(0, 0, 0, 0.2);
-		min-width: 0;
-	}
-	.sk-ws-head {
-		padding: 16px 16px 14px;
-		border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-	}
-	.sk-ws-name {
-		color: #fff;
-		font-weight: 800;
-		font-size: 17px;
-	}
-	.sk-side-scroll {
-		padding: 12px 8px;
-		overflow-y: auto;
-	}
-	.sk-sect {
-		font-size: 13px;
-		color: var(--sk-side-muted);
-		padding: 12px 12px 4px;
-	}
-	.sk-ch,
-	.sk-dm {
-		padding: 5px 14px;
-		border-radius: 6px;
-		display: flex;
-		align-items: center;
-		gap: 7px;
-		line-height: 1.5;
-		min-width: 0;
-		overflow: hidden;
-		white-space: nowrap;
-		text-overflow: ellipsis;
-	}
-	.sk-ch.on {
-		background: var(--sk-side-on);
-		color: #fff;
-		font-weight: 700;
-	}
-	.sk-pres {
-		width: 9px;
-		height: 9px;
-		border-radius: 50%;
-		flex-shrink: 0;
-		border: 1.5px solid var(--sk-side-muted);
-	}
-	.sk-pres.on {
-		background: var(--sk-presence);
-		border-color: var(--sk-presence);
-	}
-	.sk-you {
-		color: var(--sk-side-muted);
-		font-size: 13px;
 	}
 	.sk-main {
 		display: flex;
@@ -474,12 +356,6 @@
 		white-space: nowrap;
 	}
 	@container sk (max-width: 720px) {
-		.sk {
-			grid-template-columns: 56px minmax(0, 1fr);
-		}
-		.sk-side {
-			display: none;
-		}
 		.sk-head {
 			padding: 10px 12px;
 		}
@@ -491,14 +367,6 @@
 		}
 		.sk-compose {
 			margin: 4px 12px 12px;
-		}
-	}
-	@container sk (max-width: 380px) {
-		.sk {
-			grid-template-columns: minmax(0, 1fr);
-		}
-		.sk-rail {
-			display: none;
 		}
 	}
 </style>

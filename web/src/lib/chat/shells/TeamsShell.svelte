@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { ICON, RAIL } from '../icons';
+	import { ICON } from '../icons';
 	import { PENDING_LABEL, formatTime, initials, type LineStatus } from '../looks';
 	import { enterSends, stick, type ShellProps } from './types';
 
@@ -14,44 +14,10 @@
 		notice,
 	}: ShellProps = $props();
 	const unsent = (s: LineStatus) => s !== 'sent' && s !== 'read';
-	const last = $derived(lines.filter((l) => l.role !== 'system').at(-1));
 </script>
 
 <div class="tm-host" data-look="teams">
 	<div class="tm">
-		<div class="tm-rail" aria-hidden="true">
-			{#each RAIL as item (item.key)}
-				<div class="tm-rail-btn" class:on={item.active}>
-					<svg viewBox="0 0 24 24"><path d={item.icon} /></svg>
-					<span>{item.label}</span>
-				</div>
-			{/each}
-			<div class="tm-rail-btn tm-rail-foot">
-				<svg viewBox="0 0 24 24"><path d={ICON.apps} /></svg>
-				<span>Apps</span>
-			</div>
-		</div>
-
-		<aside class="tm-list" aria-label="Conversations">
-			<div class="tm-list-head">
-				<h2>Chat</h2>
-				<div class="tm-search" aria-hidden="true">
-					<svg viewBox="0 0 24 24"><path d={ICON.search} /></svg>Search
-				</div>
-			</div>
-			<div class="tm-item on" aria-current="true">
-				<div class="tm-ava bot">{initials(agentName)}</div>
-				<div class="tm-item-body">
-					<div class="tm-item-top">
-						<span class="tm-item-name">{agentName}</span><span class="tm-item-time">
-							{formatTime(last?.at ?? null)}
-						</span>
-					</div>
-					<div class="tm-item-prev">{typing ? 'Typing…' : (last?.text ?? 'Start the conversation')}</div>
-				</div>
-			</div>
-		</aside>
-
 		<section class="tm-conv" aria-label="Conversation with {agentName}">
 			<header class="tm-head">
 				<div class="tm-ava bot lg">{initials(agentName)}</div>
@@ -136,14 +102,8 @@
 		/* Teams-style palette: light, dark (follows the app theme through color-scheme). */
 		--tm-bg: light-dark(#f5f5f5, #1f1f1f);
 		--tm-fg: light-dark(#242424, #e0e0e0);
-		--tm-rail: light-dark(#ebebeb, #0f0f0f);
-		--tm-rail-line: light-dark(#e0e0e0, #2b2b2b);
-		--tm-rail-fg: light-dark(#444444, #b8b8b8);
 		--tm-brand: light-dark(#5b5fc7, #7f85f5);
-		--tm-list: light-dark(#ffffff, #1f1f1f);
 		--tm-line: light-dark(#e6e6e6, #2b2b2b);
-		--tm-search: light-dark(#f0f0f0, #2d2c2c);
-		--tm-search-fg: light-dark(#707070, #a8a8a8);
 		--tm-item-on: light-dark(#f0f0fb, #2d2c2c);
 		--tm-conv: light-dark(#ffffff, #1a1a1a);
 		--tm-sub: light-dark(#616161, #c8c8c8);
@@ -163,114 +123,13 @@
 	}
 	.tm {
 		display: grid;
-		grid-template-columns: 68px 300px minmax(0, 1fr);
+		grid-template-columns: minmax(0, 1fr);
 		grid-template-rows: minmax(0, 1fr);
 		height: 100%;
 		background: var(--tm-bg);
 		color: var(--tm-fg);
 		font-family: 'Segoe UI', system-ui, 'Helvetica Neue', sans-serif;
 		font-size: 14px;
-	}
-	.tm-rail {
-		background: var(--tm-rail);
-		border-right: 1px solid var(--tm-rail-line);
-		display: flex;
-		flex-direction: column;
-		padding: 8px 0;
-	}
-	.tm-rail-foot {
-		margin-top: auto;
-	}
-	.tm-rail-btn {
-		padding: 8px 0 6px;
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		gap: 3px;
-		color: var(--tm-rail-fg);
-		font-size: 10px;
-		position: relative;
-	}
-	.tm-rail-btn svg {
-		width: 22px;
-		height: 22px;
-		fill: currentColor;
-	}
-	.tm-rail-btn.on {
-		color: var(--tm-brand);
-		font-weight: 600;
-	}
-	.tm-rail-btn.on::before {
-		content: '';
-		position: absolute;
-		left: 4px;
-		top: 8px;
-		bottom: 14px;
-		width: 3px;
-		border-radius: 3px;
-		background: var(--tm-brand);
-	}
-	.tm-list {
-		background: var(--tm-list);
-		border-right: 1px solid var(--tm-line);
-		overflow-y: auto;
-	}
-	.tm-list-head {
-		padding: 16px 16px 8px;
-	}
-	.tm-list-head h2 {
-		margin: 0 0 12px;
-		font-size: 20px;
-		font-weight: 600;
-	}
-	.tm-search {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		background: var(--tm-search);
-		border-radius: 6px;
-		padding: 7px 12px;
-		color: var(--tm-search-fg);
-		font-size: 13px;
-	}
-	.tm-search svg {
-		width: 14px;
-		height: 14px;
-		fill: currentColor;
-	}
-	.tm-item {
-		display: flex;
-		gap: 10px;
-		padding: 10px 14px;
-		align-items: center;
-	}
-	.tm-item.on {
-		background: var(--tm-item-on);
-		box-shadow: inset 3px 0 0 var(--tm-brand);
-	}
-	.tm-item-body {
-		flex: 1;
-		min-width: 0;
-	}
-	.tm-item-top {
-		display: flex;
-		justify-content: space-between;
-		align-items: baseline;
-		gap: 8px;
-	}
-	.tm-item-name {
-		font-weight: 600;
-	}
-	.tm-item-time {
-		font-size: 11px;
-		color: var(--tm-time);
-	}
-	.tm-item-prev {
-		font-size: 12.5px;
-		color: var(--tm-sub);
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
 	}
 	.tm-ava {
 		width: 32px;
@@ -496,12 +355,6 @@
 		white-space: nowrap;
 	}
 	@container tm (max-width: 720px) {
-		.tm {
-			grid-template-columns: 56px minmax(0, 1fr);
-		}
-		.tm-list {
-			display: none;
-		}
 		.tm-head,
 		.tm-log,
 		.tm-compose {
@@ -512,14 +365,6 @@
 		}
 		.tm-msg {
 			max-width: 92%;
-		}
-	}
-	@container tm (max-width: 380px) {
-		.tm {
-			grid-template-columns: minmax(0, 1fr);
-		}
-		.tm-rail {
-			display: none;
 		}
 	}
 </style>

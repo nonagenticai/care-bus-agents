@@ -11,44 +11,57 @@
 	import JsonView from '$lib/ui/JsonView.svelte';
 	import SortTh from '$lib/ui/SortTh.svelte';
 	import Unavailable from '$lib/ui/Unavailable.svelte';
-	import { matchesQuery, nextSort, sortRows, type SortState } from '$lib/sort';
+	import { nextSort, sortRows, type SortState } from '$lib/sort';
+	import { debounce } from '$lib/debounce';
 	import { schemaFields } from './schema';
 
-	const tools = new Resource<Paged<ToolInfo>>(() => api().tools());
-	tools.refresh();
+	let filter = $state('');
+	let search = $state('');
+	const pushSearch = debounce(() => (search = filter.trim()), 300);
+	$effect(() => {
+		// Clearing the box applies at once; typing waits out the debounce.
+		if (filter.trim() === '') search = '';
+		else pushSearch();
+	});
+	const tools = new Resource<Paged<ToolInfo>>(() => api().tools(search || undefined));
+	$effect(() => {
+		// The API filters the catalogue, so a new search reloads the list.
+		void search;
+		tools.refresh();
+	});
 	let open = $state(false);
 	let sel = $state<ToolInfo | null>(null);
-	let filter = $state('');
 	let sort = $state<SortState | null>(null);
 	const toggleSort = (key: string) => (sort = nextSort(sort, key));
 	const group = (name: string) => name.split('_')[0] ?? name;
 	const rows = $derived(tools.value.state === 'ok' ? tools.value.data.items : []);
 	const shown = $derived(
-		sortRows(
-			rows.filter((t) => matchesQuery(filter, [t.name, group(t.name), t.description])),
-			sort,
-			(t, key) => {
-				switch (key) {
-					case 'tool':
-						return t.name;
-					case 'group':
-						return group(t.name);
-					case 'calls':
-						return t.calls_24h;
-					case 'errors':
-						return t.error_rate;
-					case 'p95':
-						return t.p95_ms;
-					default:
-						return null;
-				}
-			},
-		),
+		sortRows(rows, sort, (t, key) => {
+			switch (key) {
+				case 'tool':
+					return t.name;
+				case 'group':
+					return group(t.name);
+				case 'calls':
+					return t.calls_24h;
+				case 'errors':
+					return t.error_rate;
+				case 'p95':
+					return t.p95_ms;
+				default:
+					return null;
+			}
+		}),
 	);
 
 	function select(t: ToolInfo) {
 		sel = t;
 		open = true;
+	}
+
+	function clearSearch() {
+		filter = '';
+		search = '';
 	}
 </script>
 
@@ -64,21 +77,16 @@
 	<p class="muted">Loading…</p>
 {:else if tools.value.state === 'unavailable'}
 	<Unavailable reason={tools.value.reason} retry={() => tools.refresh()} />
-{:else if tools.value.state === 'empty'}
+{:else if tools.value.state === 'empty' && !search}
 	<div class="empty">
 		The MCP server lists no tools for this job. Tools come from the job's release and MCP bridge.
 	</div>
 {:else}
-	<FilterInput
-		bind:value={filter}
-		label="Search tools"
-		placeholder="Search tool or description"
-		count={filter ? `${shown.length} of ${rows.length}` : ''}
-	/>
-	{#if filter && shown.length === 0}
+	<FilterInput bind:value={filter} label="Search tools" placeholder="Search name or description" />
+	{#if tools.value.state === 'empty'}
 		<div class="empty">
-			No tools match “{filter}”.
-			<button class="btn" onclick={() => (filter = '')}>Clear search</button>
+			No tools match “{search}”.
+			<button class="btn" onclick={clearSearch}>Clear search</button>
 		</div>
 	{:else}
 		<Card cls="flush">

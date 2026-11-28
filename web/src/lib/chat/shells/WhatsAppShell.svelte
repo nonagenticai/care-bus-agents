@@ -13,7 +13,6 @@
 		onsend,
 		notice,
 	}: ShellProps = $props();
-	const last = $derived(lines.filter((l) => l.role !== 'system').at(-1));
 	/** Read ticks: one grey tick while sending, two grey once stored, two blue once the agent has answered. */
 	const TICK: Record<LineStatus, { icon: string; label: string }> = {
 		read: { icon: ICON.checks, label: 'Read' },
@@ -27,27 +26,6 @@
 
 <div class="wa-host" data-look="whatsapp">
 	<div class="wa">
-		<aside class="wa-list" aria-label="Conversations">
-			<header class="wa-list-head">
-				<div class="wa-me" aria-hidden="true">{initials(customerName)}</div>
-				<svg class="wa-ic" viewBox="0 0 24 24" aria-hidden="true"><path d={ICON.more} /></svg>
-			</header>
-			<div class="wa-search" aria-hidden="true">
-				<svg viewBox="0 0 24 24"><path d={ICON.search} /></svg><span>Search or start a new chat</span>
-			</div>
-			<div class="wa-row on" aria-current="true">
-				<div class="wa-ava" aria-hidden="true">{initials(agentName)}</div>
-				<div class="wa-row-body">
-					<div class="wa-row-top">
-						<span class="wa-row-name">{agentName}</span><span class="wa-row-time">
-							{formatTime(last?.at ?? null)}
-						</span>
-					</div>
-					<div class="wa-row-prev">{typing ? 'typing…' : (last?.text ?? 'Start the conversation')}</div>
-				</div>
-			</div>
-		</aside>
-
 		<section class="wa-conv" aria-label="Conversation with {agentName}">
 			<header class="wa-head">
 				<div class="wa-ava sm" aria-hidden="true">{initials(agentName)}</div>
@@ -146,8 +124,6 @@
 		--wa-line: light-dark(#e9edef, #222d34);
 		--wa-icon: light-dark(#54656f, #aebac1);
 		--wa-muted: light-dark(#667781, #8696a0);
-		--wa-search: light-dark(#f0f2f5, #202c33);
-		--wa-row-on: light-dark(#f0f2f5, #2a3942);
 		--wa-brand: light-dark(#00a884, #00a884);
 		--wa-ava: linear-gradient(135deg, #00a884, #008069);
 		--wa-wall: light-dark(#efeae2, #0b141a);
@@ -167,7 +143,7 @@
 	}
 	.wa {
 		display: grid;
-		grid-template-columns: 340px minmax(0, 1fr);
+		grid-template-columns: minmax(0, 1fr);
 		grid-template-rows: minmax(0, 1fr);
 		height: 100%;
 		background: var(--wa-bg);
@@ -180,57 +156,6 @@
 		height: 20px;
 		fill: var(--wa-icon);
 		flex-shrink: 0;
-	}
-	.wa-list {
-		background: var(--wa-panel);
-		border-right: 1px solid var(--wa-line);
-		display: flex;
-		flex-direction: column;
-		min-width: 0;
-	}
-	.wa-list-head {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		background: var(--wa-bar);
-		padding: 10px 16px;
-	}
-	.wa-me {
-		width: 40px;
-		height: 40px;
-		border-radius: 50%;
-		background: var(--wa-brand);
-		color: #fff;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		font-weight: 700;
-	}
-	.wa-search {
-		display: flex;
-		align-items: center;
-		gap: 10px;
-		margin: 8px 12px;
-		padding: 7px 12px;
-		background: var(--wa-search);
-		border-radius: 8px;
-		color: var(--wa-muted);
-		font-size: 14px;
-	}
-	.wa-search svg {
-		width: 15px;
-		height: 15px;
-		fill: currentColor;
-	}
-	.wa-row {
-		display: flex;
-		gap: 13px;
-		align-items: center;
-		padding: 11px 16px;
-		border-bottom: 1px solid var(--wa-line);
-	}
-	.wa-row.on {
-		background: var(--wa-row-on);
 	}
 	.wa-ava {
 		width: 48px;
@@ -249,31 +174,6 @@
 		width: 40px;
 		height: 40px;
 		font-size: 13px;
-	}
-	.wa-row-body {
-		flex: 1;
-		min-width: 0;
-	}
-	.wa-row-top {
-		display: flex;
-		justify-content: space-between;
-		align-items: baseline;
-		gap: 8px;
-	}
-	.wa-row-name {
-		font-size: 16px;
-		font-weight: 500;
-	}
-	.wa-row-time,
-	.wa-row-prev {
-		font-size: 12px;
-		color: var(--wa-muted);
-	}
-	.wa-row-prev {
-		font-size: 14px;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
 	}
 	.wa-conv {
 		display: flex;
@@ -511,9 +411,6 @@
 	@container wa (max-width: 720px) {
 		.wa {
 			grid-template-columns: minmax(0, 1fr);
-		}
-		.wa-list {
-			display: none;
 		}
 		.wa-head {
 			padding: 9px 12px;

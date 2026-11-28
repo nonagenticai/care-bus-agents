@@ -45,6 +45,7 @@
 	import Status from '$lib/ui/Status.svelte';
 	import Drawer from '$lib/ui/Drawer.svelte';
 	import Callout from '$lib/ui/Callout.svelte';
+	import Freshness from '$lib/ui/Freshness.svelte';
 	import Unavailable from '$lib/ui/Unavailable.svelte';
 
 	const ROLE_HINT = 'Needs the tenant_admin role';
@@ -234,16 +235,26 @@
 	let pdDraft = $state({ base_url: '', model: '', token: '', clear: false });
 	let pdBusy = $state(false);
 	let pdFailure = $state('');
+	/** Set when the fresh read failed: the draft is the page's copy, which may be older than the row. */
+	let pdStale = $state('');
 
-	function editPlatform() {
+	/** Opens the editor from the freshest server copy: this page's list may be older than the row. */
+	async function editPlatform() {
 		if (!data) return;
+		pdFailure = '';
+		pdStale = '';
+		let current = data.platform_default;
+		try {
+			current = await api().platformDefault();
+		} catch {
+			pdStale = 'Could not read the current value; showing the one loaded with this page.';
+		}
 		pdDraft = {
-			base_url: data.platform_default.base_url ?? '',
-			model: data.platform_default.model ?? '',
+			base_url: current.base_url ?? '',
+			model: current.model ?? '',
 			token: '',
 			clear: false,
 		};
-		pdFailure = '';
 		pdOpen = true;
 	}
 
@@ -364,6 +375,7 @@
 		cls="flush"
 	>
 		{#snippet actions()}
+			<Freshness resource={llm} />
 			<button
 				class="btn primary sm"
 				type="button"
@@ -567,6 +579,7 @@
 			</div>
 		{/if}
 		{#if pdOpen}
+			{#if pdStale}<p class="muted" role="status">{pdStale}</p>{/if}
 			<fieldset class="llm-fields" disabled={pdBusy}>
 				<div class="form-grid">
 					<label class="field">

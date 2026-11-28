@@ -27,7 +27,8 @@
 	import SortTh from '$lib/ui/SortTh.svelte';
 	import Status from '$lib/ui/Status.svelte';
 	import Unavailable from '$lib/ui/Unavailable.svelte';
-	import { matchesQuery, nextSort, sortRows, type SortState } from '$lib/sort';
+	import { nextSort, type SortState } from '$lib/sort';
+	import { debounce } from '$lib/debounce';
 
 	const STATUSES = [
 		'queued',
@@ -46,10 +47,20 @@
 	let store = $state('');
 	/** Older-results cursor from the URL (`?before=`), shared with the Pagination control. */
 	const before = $derived(page.url.searchParams.get('before') ?? '');
+	// Search and order run on the server (strata_ingest): every row is searched and a sorted page
+	// pages by offset, so the list never filters or sorts just the loaded page.
+	let filter = $state('');
+	/** The debounced text actually sent; `filter` is what the field shows. */
+	let search = $state('');
+	const pushSearch = debounce((v: string) => (search = v.trim()), 300);
+	let sort = $state<SortState | null>(null);
 	const jobs = new Resource<Paged<IngestJob>>(() =>
 		api().ingestJobs({
 			status: status || undefined,
 			store_id: store || undefined,
+			q: search || undefined,
+			sort: sort?.key,
+			dir: sort?.dir,
 			limit: LIMIT,
 			before: before || undefined,
 		}),
@@ -60,6 +71,8 @@
 		void status;
 		void store;
 		void before;
+		void search;
+		void sort;
 		jobs.refresh();
 	});
 	/** A filter change always means page one: a cursor from the other filter would skip the newest jobs. */
@@ -82,38 +95,13 @@
 	const storeName = (id: string) =>
 		(stores.value.state === 'ok' ? stores.value.data.items.find((s) => s.id === id)?.name : undefined) ??
 		id.slice(0, 8);
-	// Client-side over the loaded page: status and store filter server-side, but the API has no `q`, so the
-	// caption says "loaded" instead of implying the whole history was searched.
-	let filter = $state('');
-	let sort = $state<SortState | null>(null);
-	const toggleSort = (key: string) => (sort = nextSort(sort, key));
+	const toggleSort = (key: string) => {
+		sort = nextSort(sort, key);
+		refilter();
+	};
 	const rows = $derived(jobs.value.state === 'ok' ? jobs.value.data.items : []);
-	const shown = $derived(
-		sortRows(
-			rows.filter((j) =>
-				matchesQuery(filter, [j.id, storeName(j.store_id), jobSourceLabel(j), j.status, when(j.created_at)]),
-			),
-			sort,
-			(j, key) => {
-				switch (key) {
-					case 'created':
-						return j.created_at;
-					case 'store':
-						return storeName(j.store_id);
-					case 'source':
-						return jobSourceLabel(j);
-					case 'status':
-						return j.status;
-					case 'steps':
-						return j.steps.length;
-					case 'cost':
-						return jobCost(j);
-					default:
-						return null;
-				}
-			},
-		),
-	);
+	// The field stays responsive while typing; the debounced text is what the server searches.
+	$effect(() => pushSearch(filter));
 	const active = (j: IngestJob) => ['queued', 'running', 'cancelling'].includes(j.status);
 	const polling = $derived(jobs.value.state === 'ok' && jobs.value.data.items.some(active));
 	// Each finished refresh schedules the next one while work is in flight; unmount or a quiet list stops it.
@@ -392,15 +380,10 @@
 	{#if polling}
 		<p class="muted" role="status">Jobs in progress: this list refreshes every {POLL_MS / 1000} seconds.</p>
 	{/if}
-	<FilterInput
-		bind:value={filter}
-		label="Search ingest jobs"
-		placeholder="Search store, source or status"
-		count={filter ? `${shown.length} of ${rows.length} loaded` : ''}
-	/>
-	{#if filter && shown.length === 0}
+	<FilterInput bind:value={filter} label="Search ingest jobs" placeholder="Search job, source or status" />
+	{#if (search || filter) && rows.length === 0}
 		<div class="empty">
-			No loaded ingest jobs match “{filter}”.
+			No ingest jobs match “{filter}”.
 			<button class="btn" onclick={() => (filter = '')}>Clear search</button>
 		</div>
 	{:else}
@@ -410,7 +393,9 @@
 					<thead>
 						<tr>
 							<SortTh key="created" label="Created" {sort} onSort={toggleSort} />
-							<SortTh key="store" label="Store" {sort} onSort={toggleSort} />
+							<!-- No store arrow: strata_ingest holds only the store id, so a server order
+							     would contradict the store name this page shows. -->
+							<th>Store</th>
 							<SortTh key="source" label="Source" {sort} onSort={toggleSort} />
 							<SortTh key="status" label="Status" {sort} onSort={toggleSort} />
 							<SortTh key="steps" label="Steps" cls="r" {sort} onSort={toggleSort} />
@@ -418,7 +403,7 @@
 						</tr>
 					</thead>
 					<tbody>
-						{#each shown as j}
+						{#each rows as j}
 							<tr>
 								<td data-label="Created">
 									<button

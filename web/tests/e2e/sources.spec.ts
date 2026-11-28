@@ -297,3 +297,52 @@ test('a lost save answer that the re-read confirms is reported as saved', async 
 		'Saved — confirmed after reloading.',
 	);
 });
+
+test('the sources search runs on the server and renders the short result it returns', async ({ page }) => {
+	const sources = JSON.parse(readFileSync('src/lib/api/fixtures/sources.json', 'utf8'));
+	const short = {
+		...sources,
+		items: sources.items.filter((s: { name: string }) => s.name === 'Help centre'),
+		next: null,
+	};
+	const sent = await mockApi(page, { override: { '/api/sources': short } });
+	await page.goto('/admin/knowledge');
+	await expect(page.getByRole('cell', { name: 'Help centre' })).toBeVisible();
+	await page.getByLabel('Search sources').fill('returns');
+	await expect
+		.poll(() => sent.filter((r) => r.method === 'GET' && r.path === '/api/sources').at(-1)?.search ?? '')
+		.toContain('q=returns');
+	await expect(page.getByRole('cell', { name: 'Help centre' })).toBeVisible();
+	await expect(page.getByRole('cell', { name: 'Customer API' })).toHaveCount(0);
+	// No client-side "N of M loaded" caption: the server did the filtering.
+	await expect(page.getByText(/of \d+ loaded/)).toHaveCount(0);
+});
+
+test('the target store column has no sort control; name sorts on the server', async ({ page }) => {
+	// The sort controls live in the table head, which the phone layout replaces with per-row labels.
+	await page.setViewportSize({ width: 1280, height: 900 });
+	const sent = await mockApi(page);
+	await page.goto('/admin/knowledge');
+	await expect(page.getByRole('columnheader', { name: 'Target store' }).getByRole('button')).toHaveCount(0);
+	const name = page.getByRole('columnheader', { name: /Name/ });
+	await expect(name.getByRole('button')).toHaveCount(1);
+	await name.getByRole('button').click();
+	await expect
+		.poll(() => sent.filter((r) => r.method === 'GET' && r.path === '/api/sources').at(-1)?.search ?? '')
+		.toContain('sort=name');
+});
+
+test('the run history search runs on the server', async ({ page }) => {
+	const sent = await mockApi(page);
+	const id = '00000000-0000-4000-8000-000000000001';
+	await page.goto('/admin/knowledge');
+	await page.getByRole('cell', { name: 'Customer API' }).getByRole('button').click();
+	const history = page.locator('.drawer section.runs');
+	await history.getByLabel('Search runs').fill('failed');
+	await expect
+		.poll(
+			() =>
+				sent.filter((r) => r.method === 'GET' && r.path === `/api/sources/${id}/runs`).at(-1)?.search ?? '',
+		)
+		.toContain('q=failed');
+});

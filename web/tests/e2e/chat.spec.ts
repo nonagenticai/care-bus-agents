@@ -52,6 +52,11 @@ for (const [look, label] of LOOKS) {
 		await page.goto('/chat');
 		const shell = page.locator(`[data-look="${look}"]`);
 		await expect(shell).toBeVisible();
+		// The decorative rail, the fake Search box and the one-row fake conversation list are gone:
+		// nothing in the shell promises a screen or a function that does not exist.
+		await expect(
+			shell.getByText(/^(Activity|People|Calendar|Files|Apps|Search|Search or start a new chat)$/),
+		).toHaveCount(0);
 		await expect(page.getByRole('button', { name: label })).toHaveAttribute('aria-pressed', 'true');
 		const input = shell.getByLabel('Message');
 		await input.fill('Where is my airfryer?');
@@ -136,6 +141,11 @@ test('every look fits a phone-width screen without horizontal scroll', async ({ 
 		await page.getByRole('button', { name: label }).click();
 		const shell = page.locator(`[data-look="${look}"]`);
 		await expect(shell).toBeVisible();
+		// The decorative rail, the fake Search box and the one-row fake conversation list are gone:
+		// nothing in the shell promises a screen or a function that does not exist.
+		await expect(
+			shell.getByText(/^(Activity|People|Calendar|Files|Apps|Search|Search or start a new chat)$/),
+		).toHaveCount(0);
 		await expect(shell.getByLabel('Message')).toBeVisible();
 		await expect(shell.getByRole('button', { name: 'Send' })).toBeVisible();
 		// The side list is hidden at this width; the conversation takes the room.

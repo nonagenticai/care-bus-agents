@@ -148,11 +148,13 @@
 						</p>
 					</div>
 				</header>
+				<!-- The lane header sits outside the scroller: a sticky header inside it covered the
+				     first visible row at the resting scroll position. -->
+				<div class="seq-h">
+					<span>Time</span><span>customer-bus</span><span>worker-bus</span><span>tool-bus</span>
+				</div>
 				<div class="seq-wrap">
 					<div class="seq">
-						<div class="seq-h">
-							<span>Time</span><span>customer-bus</span><span>worker-bus</span><span>tool-bus</span>
-						</div>
 						{#each rows as r (key(r.ev))}
 							<button
 								type="button"
@@ -348,7 +350,6 @@
 		padding: 0 8px 10px;
 	}
 	.seq {
-		min-width: 560px;
 		font-size: 12px;
 	}
 	.seq-h,
@@ -358,12 +359,11 @@
 		gap: 8px;
 		text-align: left;
 	}
+	/* Outside the scroller, so it never covers a row; 16px matches the scroller's 8px padding
+	   plus the row's own 8px, keeping the header columns above the row columns. */
 	.seq-h {
-		position: sticky;
-		top: 0;
-		z-index: 1;
 		background: var(--panel);
-		padding: 6px 8px;
+		padding: 6px 16px;
 		border-bottom: 1px solid var(--line);
 		font: 600 11px var(--cond);
 		letter-spacing: 0.07em;
@@ -444,9 +444,6 @@
 		}
 		/* A four-column lane grid cannot fit a phone; sideways scrolling inside the trace was the same
 		   clipped-text problem the drawer had. Stack it: time, then the one lane the event belongs to. */
-		.seq {
-			min-width: 0;
-		}
 		.seq-h {
 			display: none;
 		}

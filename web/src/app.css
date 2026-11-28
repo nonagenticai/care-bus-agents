@@ -204,6 +204,9 @@ pre.code .k{color:var(--accent)} pre.code .s{color:var(--cust)} pre.code .n{colo
 .bar-track{display:flex;height:12px;border-radius:3px;background:var(--sunk);overflow:hidden}
 .bar-track i{display:block;height:100%;background:currentColor}
 .bar-val{font:12px var(--mono);color:var(--muted);font-variant-numeric:tabular-nums;min-width:48px;text-align:right}
+.barsh-axis{display:grid;grid-template-columns:minmax(90px,160px) minmax(0,1fr) auto;gap:10px;align-items:center;margin-top:-2px}
+.bar-axis{display:flex;justify-content:space-between;gap:8px;border-top:1px solid var(--line-2);padding-top:3px;font:10.5px var(--mono);color:var(--faint)}
+.bar-axis i{font-style:normal}
 
 /* drawer */
 .scrim{position:fixed;inset:0;background:rgba(10,14,20,.35);z-index:20}
