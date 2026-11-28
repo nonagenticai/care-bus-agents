@@ -94,10 +94,12 @@ pub struct ReplyInput {
     pub text: String,
 }
 
-/// `handover:topic:{chat}:{thread}` -> `{tenant_id, job, conversation_id}`. Global on purpose: the reply route
-/// finds the scope from the mapping itself, whoever delivers the message.
-pub fn topic_key(chat: i64, thread: i64) -> String {
-    format!("handover:topic:{chat}:{thread}")
+/// `handover:topic:{chat}:{thread}` -> `{tenant_id, job, conversation_id}`. Global across tenants and jobs on
+/// purpose: the reply route finds the scope from the mapping itself, whoever delivers the message. It carries the
+/// deployment key prefix (like every other key), so two environments sharing one Redis — a test run, a staging
+/// copy — cannot overwrite each other's topics.
+pub fn topic_key(bus: &Bus, chat: i64, thread: i64) -> String {
+    bus.streams.key(&format!("handover:topic:{chat}:{thread}"))
 }
 
 /// In the conversation's scope: `handover:conv:{conversation}` -> `{chat_id, thread_id}`. The webchat channel
