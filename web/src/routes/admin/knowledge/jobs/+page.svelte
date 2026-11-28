@@ -22,9 +22,12 @@
 	import Freshness from '$lib/ui/Freshness.svelte';
 	import Card from '$lib/ui/Card.svelte';
 	import Drawer from '$lib/ui/Drawer.svelte';
+	import FilterInput from '$lib/ui/FilterInput.svelte';
 	import Pagination from '$lib/ui/Pagination.svelte';
+	import SortTh from '$lib/ui/SortTh.svelte';
 	import Status from '$lib/ui/Status.svelte';
 	import Unavailable from '$lib/ui/Unavailable.svelte';
+	import { matchesQuery, nextSort, sortRows, type SortState } from '$lib/sort';
 
 	const STATUSES = [
 		'queued',
@@ -79,6 +82,38 @@
 	const storeName = (id: string) =>
 		(stores.value.state === 'ok' ? stores.value.data.items.find((s) => s.id === id)?.name : undefined) ??
 		id.slice(0, 8);
+	// Client-side over the loaded page: status and store filter server-side, but the API has no `q`, so the
+	// caption says "loaded" instead of implying the whole history was searched.
+	let filter = $state('');
+	let sort = $state<SortState | null>(null);
+	const toggleSort = (key: string) => (sort = nextSort(sort, key));
+	const rows = $derived(jobs.value.state === 'ok' ? jobs.value.data.items : []);
+	const shown = $derived(
+		sortRows(
+			rows.filter((j) =>
+				matchesQuery(filter, [j.id, storeName(j.store_id), jobSourceLabel(j), j.status, when(j.created_at)]),
+			),
+			sort,
+			(j, key) => {
+				switch (key) {
+					case 'created':
+						return j.created_at;
+					case 'store':
+						return storeName(j.store_id);
+					case 'source':
+						return jobSourceLabel(j);
+					case 'status':
+						return j.status;
+					case 'steps':
+						return j.steps.length;
+					case 'cost':
+						return jobCost(j);
+					default:
+						return null;
+				}
+			},
+		),
+	);
 	const active = (j: IngestJob) => ['queued', 'running', 'cancelling'].includes(j.status);
 	const polling = $derived(jobs.value.state === 'ok' && jobs.value.data.items.some(active));
 	// Each finished refresh schedules the next one while work is in flight; unmount or a quiet list stops it.
@@ -357,46 +392,62 @@
 	{#if polling}
 		<p class="muted" role="status">Jobs in progress: this list refreshes every {POLL_MS / 1000} seconds.</p>
 	{/if}
-	<Card cls="flush">
-		<div class="tbl-wrap">
-			<table class="tbl clickable">
-				<thead>
-					<tr>
-						<th>Created</th><th>Store</th><th>Source</th><th>Status</th><th class="r">Steps</th><th class="r">
-							Cost
-						</th>
-					</tr>
-				</thead>
-				<tbody>
-					{#each jobs.value.data.items as j}
-						<tr>
-							<td>
-								<button
-									type="button"
-									class="table-action"
-									onclick={() => (
-										(cur = j),
-										(confirmCancel = false),
-										(confirmDelete = false),
-										(refusal = null),
-										(refusedParent = null),
-										(open = true)
-									)}
-								>
-									{when(j.created_at)}
-								</button>
-							</td>
-							<td class="mono">{storeName(j.store_id)}</td>
-							<td class="mono">{jobSourceLabel(j)}</td>
-							<td><Status word={j.status} /></td>
-							<td class="r">{j.steps.length}</td>
-							<td class="r">{euros(jobCost(j))}</td>
-						</tr>
-					{/each}
-				</tbody>
-			</table>
+	<FilterInput
+		bind:value={filter}
+		label="Search ingest jobs"
+		placeholder="Search store, source or status"
+		count={filter ? `${shown.length} of ${rows.length} loaded` : ''}
+	/>
+	{#if filter && shown.length === 0}
+		<div class="empty">
+			No loaded ingest jobs match “{filter}”.
+			<button class="btn" onclick={() => (filter = '')}>Clear search</button>
 		</div>
-	</Card>
+	{:else}
+		<Card cls="flush">
+			<div class="tbl-wrap">
+				<table class="tbl clickable stack-phone">
+					<thead>
+						<tr>
+							<SortTh key="created" label="Created" {sort} onSort={toggleSort} />
+							<SortTh key="store" label="Store" {sort} onSort={toggleSort} />
+							<SortTh key="source" label="Source" {sort} onSort={toggleSort} />
+							<SortTh key="status" label="Status" {sort} onSort={toggleSort} />
+							<SortTh key="steps" label="Steps" cls="r" {sort} onSort={toggleSort} />
+							<SortTh key="cost" label="Cost" cls="r" {sort} onSort={toggleSort} />
+						</tr>
+					</thead>
+					<tbody>
+						{#each shown as j}
+							<tr>
+								<td data-label="Created">
+									<button
+										type="button"
+										class="table-action"
+										onclick={() => (
+											(cur = j),
+											(confirmCancel = false),
+											(confirmDelete = false),
+											(refusal = null),
+											(refusedParent = null),
+											(open = true)
+										)}
+									>
+										{when(j.created_at)}
+									</button>
+								</td>
+								<td class="mono" data-label="Store">{storeName(j.store_id)}</td>
+								<td class="mono" data-label="Source">{jobSourceLabel(j)}</td>
+								<td data-label="Status"><Status word={j.status} /></td>
+								<td class="r" data-label="Steps">{j.steps.length}</td>
+								<td class="r" data-label="Cost">{euros(jobCost(j))}</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+		</Card>
+	{/if}
 	<Pagination next={jobs.value.data.next} count={jobs.value.data.items.length} busy={jobs.refreshing} />
 {/if}
 
@@ -429,7 +480,7 @@
 			</div>
 		{/if}
 		<div class="tbl-wrap">
-			<table class="tbl dense">
+			<table class="tbl dense stack-phone">
 				<thead>
 					<tr>
 						<th>Step</th><th>Provider</th><th>Model</th><th>Status</th><th class="r">Attempt</th><th
@@ -442,16 +493,16 @@
 				<tbody>
 					{#each cur.steps as st}
 						<tr>
-							<td>{st.kind}<span class="cell-sub mono">{st.key}</span></td>
-							<td>{st.provider ?? '—'}</td>
-							<td class="mono">{st.model ?? '—'}</td>
-							<td>
+							<td data-label="Step">{st.kind}<span class="cell-sub mono">{st.key}</span></td>
+							<td data-label="Provider">{st.provider ?? '—'}</td>
+							<td class="mono" data-label="Model">{st.model ?? '—'}</td>
+							<td data-label="Status">
 								<Status word={st.status} />{#if st.error}<span class="cell-sub">
 										{errText(st.error)}
 									</span>{/if}
 							</td>
-							<td class="r">{st.attempt}</td>
-							<td class="r">{euros(st.cost_micros)}</td>
+							<td class="r" data-label="Attempt">{st.attempt}</td>
+							<td class="r" data-label="Cost">{euros(st.cost_micros)}</td>
 						</tr>
 					{/each}
 				</tbody>

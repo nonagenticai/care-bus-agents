@@ -10,16 +10,16 @@
 {:else}
 	<Card cls="flush">
 		<div class="tbl-wrap">
-			<table class="tbl" data-testid="job-list">
+			<table class="tbl stack-phone" data-testid="job-list">
 				<thead><tr><th>Job</th><th>Key</th><th>Agents</th></tr></thead>
 				<tbody>
 					{#each app.jobs as j (j.key)}
 						<tr>
-							<td>
+							<td data-label="Job">
 								<a href={jobPath(j.key)} aria-current={j.key === app.job ? 'true' : undefined}>{j.label}</a>
 							</td>
-							<td class="mono">{j.key}</td>
-							<td>
+							<td class="mono" data-label="Key">{j.key}</td>
+							<td data-label="Agents">
 								<Status word={j.on_bus ? 'ok' : 'queued'} label={j.on_bus ? 'Serving' : 'Not on the bus'} />
 							</td>
 						</tr>

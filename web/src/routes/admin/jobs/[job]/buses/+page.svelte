@@ -147,7 +147,7 @@
 			</div>
 			<Card cls="flush">
 				<div class="tbl-wrap">
-					<table class="tbl clickable">
+					<table class="tbl clickable stack-phone">
 						<thead>
 							<tr>
 								<th>Stream</th><th>Bus</th><th class="r">Length</th><th>Consumer groups</th><th>Health</th>
@@ -157,7 +157,7 @@
 							{#each items as s}
 								{@const h = streamHealth(s)}
 								<tr onclick={() => openStream(s)}>
-									<td>
+									<td data-label="Stream">
 										<button
 											type="button"
 											class="table-action cell-title"
@@ -169,9 +169,9 @@
 											{streamLabel(s.key)}
 										</button><span class="cell-sub mono">{s.key}</span>
 									</td>
-									<td><Chip text={busName(s.bus)} variant={busVariant[s.bus]} /></td>
-									<td class="r">{fmt.n(s.length)}</td>
-									<td>
+									<td data-label="Bus"><Chip text={busName(s.bus)} variant={busVariant[s.bus]} /></td>
+									<td class="r" data-label="Length">{fmt.n(s.length)}</td>
+									<td data-label="Consumer groups">
 										{#if s.groups.length === 0}
 											<span class="muted">none</span>
 										{:else}
@@ -186,7 +186,7 @@
 											</div>
 										{/if}
 									</td>
-									<td><Status word={h.word} label={h.label} /></td>
+									<td data-label="Health"><Status word={h.word} label={h.label} /></td>
 								</tr>
 							{/each}
 						</tbody>
@@ -207,7 +207,7 @@
 			sub="Replay puts the original message back on its stream. Discard deletes it from bus:dead."
 		>
 			<div class="tbl-wrap">
-				<table class="tbl">
+				<table class="tbl stack-phone">
 					<thead>
 						<tr><th>Case</th><th>From</th><th>Reason</th><th class="r">Deliveries</th><th></th></tr>
 					</thead>
@@ -216,19 +216,19 @@
 							{@const p = deadLetter(d)}
 							{@const replayWhy = replayBlocked(admin, !!p)}
 							<tr>
-								<td>
+								<td data-label="Case">
 									<span class="cell-title mono">{d.envelope.correlation_id}</span><span class="cell-sub">
 										{entryTime(d.entry_id)} · <span class="mono">{d.entry_id}</span>
 									</span>
 								</td>
-								<td>
+								<td data-label="From">
 									<span class="cell-title">
 										{p ? streamLabel(p.stream) : '—'} · {publisherName(d.envelope.from)}
 									</span><span class="cell-sub mono">{p?.stream ?? '—'} · {d.envelope.from}</span>
 								</td>
-								<td>{p?.reason ?? 'not a dead letter'}</td>
-								<td class="r">{p?.deliveries ?? '—'}</td>
-								<td>
+								<td data-label="Reason">{p?.reason ?? 'not a dead letter'}</td>
+								<td class="r" data-label="Deliveries">{p?.deliveries ?? '—'}</td>
+								<td data-label="">
 									<div class="actions">
 										<button
 											class="btn sm"
@@ -297,7 +297,7 @@
 				another consumer.
 			</p>
 			<div class="tbl-wrap">
-				<table class="tbl dense">
+				<table class="tbl dense stack-phone">
 					<thead>
 						<tr>
 							<th>Group</th><th class="r">Consumers</th><th class="r">Pending</th><th class="r">Lag</th><th>
@@ -309,20 +309,20 @@
 						{#each stream.groups as g}
 							{@const claimWhy = claimBlocked(admin, g.pending)}
 							<tr>
-								<td>
+								<td data-label="Group">
 									<span class="cell-title">{agentName(g.name)}</span><span class="cell-sub mono">
 										{g.name}
 									</span>
 								</td>
-								<td class="r">{g.consumers}</td>
-								<td class="r">{g.pending}</td>
-								<td class="r">{g.lag ?? '—'}</td>
-								<td>
+								<td class="r" data-label="Consumers">{g.consumers}</td>
+								<td class="r" data-label="Pending">{g.pending}</td>
+								<td class="r" data-label="Lag">{g.lag ?? '—'}</td>
+								<td data-label="Last delivered">
 									{entryTime(g.last_delivered_id) || '—'}<span class="cell-sub mono">
 										{g.last_delivered_id}
 									</span>
 								</td>
-								<td>
+								<td data-label="">
 									<button
 										class="btn sm"
 										type="button"

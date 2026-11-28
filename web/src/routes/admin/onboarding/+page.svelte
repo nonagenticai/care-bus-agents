@@ -155,6 +155,8 @@
 	let modeNote = $state('');
 	const detailReq = new Latest();
 	let tenantNameInput = $state('');
+	/** The user changed the suggested workspace name: a late detail read must not put the suggestion back. */
+	let tenantNameEdited = $state(false);
 	let reasonInput = $state('');
 	/** The action running, and for which signup: its button says so and every action button waits. */
 	let busy = $state<{ id: string; action: Action } | null>(null);
@@ -186,7 +188,10 @@
 		if (m === 'remove') confirmInput = '';
 		mode = m;
 		fault = null;
-		if (m === 'approve' && s) tenantNameInput = s.suggested_tenant_name;
+		// Prefill the suggestion only until the user types their own name; entering approve again (a refresh)
+		// must not overwrite a name already being edited.
+		if (m === 'approve' && s && !tenantNameEdited) tenantNameInput = s.suggested_tenant_name;
+		if (m !== 'approve') tenantNameEdited = false;
 		if (m === 'reject') reasonInput = '';
 	}
 
@@ -806,6 +811,7 @@
 							id="tenant-name"
 							class="input"
 							bind:value={tenantNameInput}
+							oninput={() => (tenantNameEdited = true)}
 							minlength="2"
 							maxlength="120"
 							required

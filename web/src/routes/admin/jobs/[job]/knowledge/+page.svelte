@@ -10,8 +10,11 @@
 	import type { OntologyEntity, Paged, Source, StoreNode } from '$lib/api/types';
 	import Card from '$lib/ui/Card.svelte';
 	import Drawer from '$lib/ui/Drawer.svelte';
+	import FilterInput from '$lib/ui/FilterInput.svelte';
+	import SortTh from '$lib/ui/SortTh.svelte';
 	import Status from '$lib/ui/Status.svelte';
 	import Unavailable from '$lib/ui/Unavailable.svelte';
+	import { matchesQuery, nextSort, sortRows, type SortState } from '$lib/sort';
 	import SourceEditor from './SourceEditor.svelte';
 	import RunHistory from './RunHistory.svelte';
 
@@ -34,6 +37,33 @@
 	const entityItems = $derived(entities.value.state === 'ok' ? entities.value.data.items : []);
 	const storeName = (id: string) => storeItems.find((s) => s.id === id)?.name ?? id.slice(0, 8);
 	const typeLabel = (t: string) => SOURCE_TYPES.find(([k]) => k === t)?.[1] ?? t;
+	// Client-side over the loaded page (the API pages by `before`, it does not search).
+	let filter = $state('');
+	let sort = $state<SortState | null>(null);
+	const toggleSort = (key: string) => (sort = nextSort(sort, key));
+	const rows = $derived(list.value.state === 'ok' ? list.value.data.items : []);
+	const shown = $derived(
+		sortRows(
+			rows.filter((s) => matchesQuery(filter, [s.name, typeLabel(s.type), storeName(s.target_store_id)])),
+			sort,
+			(s, key) => {
+				switch (key) {
+					case 'name':
+						return s.name;
+					case 'type':
+						return typeLabel(s.type);
+					case 'store':
+						return storeName(s.target_store_id);
+					case 'documents':
+						return s.last_run?.document_count ?? null;
+					case 'enabled':
+						return s.enabled ? 1 : 0;
+					default:
+						return null;
+				}
+			},
+		),
+	);
 	function edit(s: Source | null) {
 		current = s;
 		open = true;
@@ -82,38 +112,58 @@
 	{#if list.value.data.next}
 		<p class="muted" role="status">More sources are available using Older results below.</p>
 	{/if}
-	<Card cls="flush">
-		<div class="tbl-wrap">
-			<table class="tbl clickable">
-				<thead>
-					<tr>
-						<th>Name</th><th>Type</th><th>Target store</th><th>Last run</th><th class="r">Documents</th><th>
-							Enabled
-						</th>
-					</tr>
-				</thead>
-				<tbody>
-					{#each list.value.data.items as s}
-						<tr>
-							<td><button type="button" class="table-action" onclick={() => edit(s)}>{s.name}</button></td>
-							<td>{typeLabel(s.type)}</td>
-							<td class="mono">{storeName(s.target_store_id)}</td>
-							<td>
-								{#if s.last_run}
-									<Status word={s.last_run.status} label={RUN_LABELS[s.last_run.status]} />
-									{#if s.last_run.error}<span class="cell-sub">{s.last_run.error}</span>{/if}
-								{:else}
-									<span class="muted">Not synced yet</span>
-								{/if}
-							</td>
-							<td class="r">{s.last_run ? fmt.n(s.last_run.document_count) : '—'}</td>
-							<td>{s.enabled ? 'Yes' : 'No'}</td>
-						</tr>
-					{/each}
-				</tbody>
-			</table>
+	<FilterInput
+		bind:value={filter}
+		label="Search sources"
+		placeholder="Search name, type or store"
+		count={filter ? `${shown.length} of ${rows.length} loaded` : ''}
+	/>
+	{#if filter && shown.length === 0}
+		<div class="empty">
+			No loaded sources match “{filter}”.
+			<button class="btn" onclick={() => (filter = '')}>Clear search</button>
 		</div>
-	</Card>
+	{:else}
+		<Card cls="flush">
+			<div class="tbl-wrap">
+				<table class="tbl clickable stack-phone">
+					<thead>
+						<tr>
+							<SortTh key="name" label="Name" {sort} onSort={toggleSort} />
+							<SortTh key="type" label="Type" {sort} onSort={toggleSort} />
+							<SortTh key="store" label="Target store" {sort} onSort={toggleSort} />
+							<th>Last run</th>
+							<SortTh key="documents" label="Documents" cls="r" {sort} onSort={toggleSort} />
+							<SortTh key="enabled" label="Enabled" {sort} onSort={toggleSort} />
+						</tr>
+					</thead>
+					<tbody>
+						{#each shown as s}
+							<tr>
+								<td data-label="Name">
+									<button type="button" class="table-action" onclick={() => edit(s)}>{s.name}</button>
+								</td>
+								<td data-label="Type">{typeLabel(s.type)}</td>
+								<td class="mono" data-label="Target store">{storeName(s.target_store_id)}</td>
+								<td data-label="Last run">
+									{#if s.last_run}
+										<Status word={s.last_run.status} label={RUN_LABELS[s.last_run.status]} />
+										{#if s.last_run.error}<span class="cell-sub">{s.last_run.error}</span>{/if}
+									{:else}
+										<span class="muted">Not synced yet</span>
+									{/if}
+								</td>
+								<td class="r" data-label="Documents">
+									{s.last_run ? fmt.n(s.last_run.document_count) : '—'}
+								</td>
+								<td data-label="Enabled">{s.enabled ? 'Yes' : 'No'}</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+		</Card>
+	{/if}
 {/if}
 
 {#if list.value.state === 'ok' || list.value.state === 'empty'}

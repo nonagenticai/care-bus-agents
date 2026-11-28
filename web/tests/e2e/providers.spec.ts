@@ -265,6 +265,8 @@ test('adding a provider sends the token once; editing with a blank token keeps i
 	await add.getByRole('textbox', { name: /^Name/ }).fill('Laya staging');
 	await add.getByLabel('Kind').selectOption('laya');
 	await add.getByLabel('Base URL').fill('https://laya-staging.example.eu');
+	// A provider is saved with its catalogue: the form refuses to save one with no model named.
+	await add.getByLabel(/^Models/).fill('laya-1');
 	await add.getByLabel('Token').fill('lic-123');
 	await add.getByRole('button', { name: 'Save', exact: true }).click();
 	await expect(add).toBeHidden();
@@ -273,6 +275,7 @@ test('adding a provider sends the token once; editing with a blank token keeps i
 		name: 'Laya staging',
 		kind: 'laya',
 		base_url: 'https://laya-staging.example.eu',
+		models: ['laya-1'],
 		token: 'lic-123',
 	});
 	const row = page.getByRole('table', { name: 'LLM providers' }).getByRole('row', { name: /Laya staging/ });

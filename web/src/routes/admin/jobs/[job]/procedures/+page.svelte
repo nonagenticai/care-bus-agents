@@ -281,7 +281,7 @@
 	</div>
 	<Card cls="flush">
 		<div class="tbl-wrap">
-			<table class="tbl clickable">
+			<table class="tbl clickable stack-phone">
 				<thead>
 					<tr>
 						<th>Procedure</th><th>Version</th><th>Status</th><th>Context space</th><th class="r">Steps</th><th
@@ -301,7 +301,7 @@
 						{@const sum = stepSummary(p)}
 						{@const ok = successView(p.success_rate)}
 						<tr tabindex="0" onclick={() => show(p)} onkeydown={(e) => e.key === 'Enter' && show(p)}>
-							<td>
+							<td data-label="Procedure">
 								<span class="cell-title mono">{p.name}</span><span class="cell-sub">
 									domain {p.domain} · updated {day(p.updated_at)} · {p.reviewers.length} reviewer{p.reviewers
 										.length === 1
@@ -309,21 +309,21 @@
 										: 's'}
 								</span>
 							</td>
-							<td class="mono">{p.version}</td>
-							<td><Status word={p.version_status} /></td>
-							<td><Chip text={p.context_space} /></td>
-							<td class="r">
+							<td class="mono" data-label="Version">{p.version}</td>
+							<td data-label="Status"><Status word={p.version_status} /></td>
+							<td data-label="Context space"><Chip text={p.context_space} /></td>
+							<td class="r" data-label="Steps">
 								{sum.steps}{#if sum.phases}
 									<span class="muted">in {sum.phases} phase{sum.phases === 1 ? '' : 's'}</span>{/if}
 							</td>
-							<td class="r mono">{p.runs_7d}</td>
-							<td class="pr-success">
+							<td class="r mono" data-label="Runs 7d">{p.runs_7d}</td>
+							<td class="pr-success" data-label="Success">
 								{#if ok}<Meter value={p.success_rate ?? 0} cls={ok.cls} />
 									<span class="mono">{ok.text}</span>{:else}<span class="muted">—</span>{/if}
 							</td>
 						</tr>
 					{:else}
-						<tr><td colspan="7" class="muted">No procedures with this status.</td></tr>
+						<tr><td colspan="7" class="muted" data-label="">No procedures with this status.</td></tr>
 					{/each}
 				</tbody>
 			</table>
@@ -415,7 +415,7 @@
 			{/if}
 		{:else if tab === 'steps'}
 			<div class="tbl-wrap">
-				<table class="tbl dense">
+				<table class="tbl dense stack-phone">
 					<thead>
 						<tr>
 							<th class="r">#</th><th>action_type</th><th>Preconditions</th><th>Postconditions</th><th>
@@ -426,32 +426,32 @@
 					<tbody>
 						{#each sel.steps as s (s.step_number)}
 							<tr>
-								<td class="r">{s.step_number}</td>
-								<td class="mono">
+								<td class="r" data-label="#">{s.step_number}</td>
+								<td class="mono" data-label="action_type">
 									{s.action_type}{#if s.gate}
 										<Chip text="gate" variant="warn" />{/if}
 								</td>
-								<td>
+								<td data-label="Preconditions">
 									<span class="chips">
 										{#each s.preconditions as c}<Chip text={c} variant="warn" />{:else}<span class="muted">
 												none
 											</span>{/each}
 									</span>
 								</td>
-								<td>
+								<td data-label="Postconditions">
 									<span class="chips">
 										{#each s.postconditions as c}<Chip text={c} variant="ok" />{/each}
 									</span>
 								</td>
-								<td class="mono pr-params">
+								<td class="mono pr-params" data-label="Parameters">
 									{#each paramBindings(s, sel.plan) as [k, v]}<span>{k} ← {v}</span>{:else}<span
 											class="muted"
 										>
 											none
 										</span>{/each}
 								</td>
-								<td>{s.performed_by}</td>
-								<td><Chip text={s.mcp_tool} variant="tool" /></td>
+								<td data-label="Role">{s.performed_by}</td>
+								<td data-label="Tool"><Chip text={s.mcp_tool} variant="tool" /></td>
 							</tr>
 						{/each}
 					</tbody>
@@ -499,7 +499,7 @@
 				{#if approvalNote}<p class="note" role="status">{approvalNote}</p>{/if}
 				{#if history.length}
 					<div class="tbl-wrap">
-						<table class="tbl dense clickable">
+						<table class="tbl dense clickable stack-phone">
 							<thead>
 								<tr><th>Version</th><th>Status</th><th>Updated</th><th>Reviewers</th></tr>
 							</thead>
@@ -511,10 +511,10 @@
 										onclick={() => show(h, true)}
 										onkeydown={(e) => e.key === 'Enter' && show(h, true)}
 									>
-										<td class="mono">{h.version}</td>
-										<td><Status word={h.version_status} /></td>
-										<td class="mono">{day(h.updated_at)}</td>
-										<td>{h.reviewers.join(', ') || '—'}</td>
+										<td class="mono" data-label="Version">{h.version}</td>
+										<td data-label="Status"><Status word={h.version_status} /></td>
+										<td class="mono" data-label="Updated">{day(h.updated_at)}</td>
+										<td data-label="Reviewers">{h.reviewers.join(', ') || '—'}</td>
 									</tr>
 								{/each}
 							</tbody>

@@ -407,15 +407,15 @@
 		<p class="muted">Loading…</p>
 	{:else}
 		<div class="tbl-wrap">
-			<table class="tbl" aria-label="Eval questions">
+			<table class="tbl stack-phone" aria-label="Eval questions">
 				<thead><tr><th>Question</th><th>A hit is</th><th>Leaf</th><th></th></tr></thead>
 				<tbody>
 					{#each qItems as q (q.id)}
 						<tr>
-							<td>{q.query}</td>
-							<td class="muted">{expectations(q).join(' or ')}</td>
-							<td class="mono">{q.expected_leaf ?? '—'}</td>
-							<td class="r nowrap">
+							<td data-label="Question">{q.query}</td>
+							<td class="muted" data-label="A hit is">{expectations(q).join(' or ')}</td>
+							<td class="mono" data-label="Leaf">{q.expected_leaf ?? '—'}</td>
+							<td class="r nowrap" data-label="">
 								<button
 									class="btn sm"
 									type="button"
@@ -583,7 +583,7 @@
 		<p class="muted">Loading…</p>
 	{:else}
 		<div class="tbl-wrap">
-			<table class="tbl dense" aria-label="Eval runs">
+			<table class="tbl dense stack-phone" aria-label="Eval runs">
 				<thead>
 					<tr>
 						<th></th><th>Started</th><th>Store</th><th class="r">Questions</th><th>Verdict</th>
@@ -593,7 +593,7 @@
 				<tbody>
 					{#each runPages as r (r.id)}
 						<tr class:on={detail.head?.id === r.id}>
-							<td>
+							<td data-label="">
 								<input
 									type="checkbox"
 									aria-label="Compare run {when(r.started_at)}"
@@ -602,13 +602,13 @@
 									onchange={() => toggle(r.id)}
 								/>
 							</td>
-							<td class="nowrap">{when(r.started_at)}</td>
-							<td>{storeName(r.root_id)}</td>
-							<td class="r">{r.question_count}</td>
-							<td>
+							<td class="nowrap" data-label="Started">{when(r.started_at)}</td>
+							<td data-label="Store">{storeName(r.root_id)}</td>
+							<td class="r" data-label="Questions">{r.question_count}</td>
+							<td data-label="Verdict">
 								<Chip text={runChip(r).text} variant={runChip(r).variant} title={r.error ?? undefined} />
 							</td>
-							<td>
+							<td data-label="Recall@1 / @5 / @10 per mode">
 								{#each r.reports ?? [] as rep (rep.mode)}
 									<span class="rec mono">
 										<b>{rep.mode}</b>
@@ -616,7 +616,9 @@
 									</span>
 								{/each}
 							</td>
-							<td><button class="btn sm" type="button" onclick={() => open(r)}>Open</button></td>
+							<td data-label="">
+								<button class="btn sm" type="button" onclick={() => open(r)}>Open</button>
+							</td>
 						</tr>
 					{/each}
 				</tbody>
@@ -654,7 +656,7 @@
 			{/if}
 			{#if r.reports}
 				<div class="tbl-wrap">
-					<table class="tbl dense" aria-label="Recall per mode">
+					<table class="tbl dense stack-phone" aria-label="Recall per mode">
 						<thead>
 							<tr>
 								<th>Mode</th><th class="r">Recall@1</th><th class="r">Recall@5</th><th class="r">
@@ -668,13 +670,13 @@
 						<tbody>
 							{#each r.reports ?? [] as rep (rep.mode)}
 								<tr>
-									<td>{MODE_LABEL[rep.mode] ?? rep.mode}</td>
-									<td class="r">{pct(rep.recall_at_1)}</td>
-									<td class="r">{pct(rep.recall_at_5)}</td>
-									<td class="r">{pct(rep.recall_at_10)}</td>
-									<td class="r">{pct(rep.leaf_accuracy)}</td>
-									<td class="r">{rep.laya_consulted}</td>
-									<td class="r">{rep.laya_fallbacks}</td>
+									<td data-label="Mode">{MODE_LABEL[rep.mode] ?? rep.mode}</td>
+									<td class="r" data-label="Recall@1">{pct(rep.recall_at_1)}</td>
+									<td class="r" data-label="Recall@5">{pct(rep.recall_at_5)}</td>
+									<td class="r" data-label="Recall@10">{pct(rep.recall_at_10)}</td>
+									<td class="r" data-label="Leaf accuracy">{pct(rep.leaf_accuracy)}</td>
+									<td class="r" data-label="Laya consulted">{rep.laya_consulted}</td>
+									<td class="r" data-label="Laya fallbacks">{rep.laya_fallbacks}</td>
 								</tr>
 							{/each}
 						</tbody>
@@ -688,7 +690,7 @@
 			{:else if detail.full && detail.full.status === 'completed'}
 				{@const full = detail.full}
 				<div class="tbl-wrap">
-					<table class="tbl dense" aria-label="Per-question hits">
+					<table class="tbl dense stack-phone" aria-label="Per-question hits">
 						<thead>
 							<tr>
 								<th>Question</th>
@@ -698,14 +700,14 @@
 						<tbody>
 							{#each grid(full) as row (row.index)}
 								<tr>
-									<td>
+									<td data-label="Question">
 										{row.question.query}<span class="cell-sub">
 											{expectations(row.question).join(' or ')}
 										</span>
 									</td>
 									{#each r.modes as m (m)}
 										{@const c = row.cells[m]}
-										<td class="r mono" class:miss={c?.rank == null}>
+										<td class="r mono" class:miss={c?.rank == null} data-label={m}>
 											{rankLabel(c?.rank)}{#if c?.leaf_hit != null}<span class="cell-sub">
 													{c.leaf_hit ? 'leaf ✓' : 'leaf ✗'}
 												</span>{/if}
@@ -738,7 +740,7 @@
 					<div class="empty">The two runs share no mode.</div>
 				{:else}
 					<div class="tbl-wrap">
-						<table class="tbl dense" aria-label="Recall change">
+						<table class="tbl dense stack-phone" aria-label="Recall change">
 							<thead>
 								<tr>
 									<th>Mode</th><th class="r">@1 A → B</th><th class="r">@5 A → B</th><th class="r">
@@ -749,17 +751,23 @@
 							<tbody>
 								{#each comparison.recall as d (d.mode)}
 									<tr>
-										<td>{MODE_LABEL[d.mode]}</td>
-										<td class="r">{pct(d.a.recall_at_1)} → {pct(d.b.recall_at_1)} <b>{delta(d.d1)}</b></td>
-										<td class="r">{pct(d.a.recall_at_5)} → {pct(d.b.recall_at_5)} <b>{delta(d.d5)}</b></td>
-										<td class="r">{pct(d.a.recall_at_10)} → {pct(d.b.recall_at_10)} <b>{delta(d.d10)}</b></td>
+										<td data-label="Mode">{MODE_LABEL[d.mode]}</td>
+										<td class="r" data-label="@1 A → B">
+											{pct(d.a.recall_at_1)} → {pct(d.b.recall_at_1)} <b>{delta(d.d1)}</b>
+										</td>
+										<td class="r" data-label="@5 A → B">
+											{pct(d.a.recall_at_5)} → {pct(d.b.recall_at_5)} <b>{delta(d.d5)}</b>
+										</td>
+										<td class="r" data-label="@10 A → B">
+											{pct(d.a.recall_at_10)} → {pct(d.b.recall_at_10)} <b>{delta(d.d10)}</b>
+										</td>
 									</tr>
 								{/each}
 							</tbody>
 						</table>
 					</div>
 					<div class="tbl-wrap">
-						<table class="tbl dense" aria-label="Per-question change">
+						<table class="tbl dense stack-phone" aria-label="Per-question change">
 							<thead>
 								<tr>
 									<th>Question</th>
@@ -769,15 +777,17 @@
 							<tbody>
 								{#each comparison.rows as row, i (i)}
 									<tr>
-										<td>{row.query}</td>
+										<td data-label="Question">{row.query}</td>
 										{#if row.only}
-											<td class="muted" colspan={comparison.modes.length}>
+											<td class="muted" colspan={comparison.modes.length} data-label="">
 												Only in run {row.only.toUpperCase()}
 											</td>
 										{:else}
 											{#each comparison.modes as m (m)}
 												{@const c = row.cells[m]}
-												<td class="r mono {c?.change ?? ''}">{rankLabel(c?.a)} → {rankLabel(c?.b)}</td>
+												<td class="r mono {c?.change ?? ''}" data-label={`${m} A → B`}>
+													{rankLabel(c?.a)} → {rankLabel(c?.b)}
+												</td>
 											{/each}
 										{/if}
 									</tr>

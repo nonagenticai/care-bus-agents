@@ -92,21 +92,23 @@
 		<div class="empty">Not synced yet.</div>
 	{:else if runs.value.state === 'ok'}
 		<div class="tbl-wrap">
-			<table class="tbl dense">
+			<table class="tbl dense stack-phone">
 				<thead><tr><th>Started</th><th>Status</th><th class="r">Documents</th><th>Details</th></tr></thead>
 				<tbody>
 					{#each runs.value.data.items as r}
 						<tr>
-							<td>{when(r.started_at)}<span class="cell-sub">{r.started_by}</span></td>
-							<td>
+							<td data-label="Started">{when(r.started_at)}<span class="cell-sub">{r.started_by}</span></td>
+							<td data-label="Status">
 								<Status word={r.status} label={RUN_LABELS[r.status]} />
 								{#if r.children}<span class="cell-sub">{childrenSummary(r.children)}</span>{/if}
 								{#if r.stale}<span class="cell-sub">
 										strata_ingest is unreachable; this status may be behind
 									</span>{/if}
 							</td>
-							<td class="r">{r.status === 'running' ? '—' : fmt.n(r.document_ids.length)}</td>
-							<td>
+							<td class="r" data-label="Documents">
+								{r.status === 'running' ? '—' : fmt.n(r.document_ids.length)}
+							</td>
+							<td data-label="Details">
 								{#if r.error}<span class="cell-sub">{r.error}</span>{/if}
 								{#if r.replace_report}<span class="cell-sub">{replaceSummary(r.replace_report)}</span>{/if}
 							</td>

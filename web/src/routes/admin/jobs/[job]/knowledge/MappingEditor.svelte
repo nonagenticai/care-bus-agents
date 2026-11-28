@@ -50,12 +50,12 @@
 	</div>
 {/if}
 <div class="tbl-wrap">
-	<table class="tbl dense">
+	<table class="tbl dense stack-phone">
 		<thead><tr><th>Source field</th><th>Ontology attribute</th><th></th></tr></thead>
 		<tbody>
 			{#each rows as m, i}
 				<tr>
-					<td>
+					<td data-label="Source field">
 						<input
 							class="input mono"
 							list={listId}
@@ -64,7 +64,7 @@
 							{disabled}
 						/>
 					</td>
-					<td>
+					<td data-label="Ontology attribute">
 						<select
 							class="input"
 							value={target(m)}
@@ -76,7 +76,7 @@
 							{#each options as o}<option value={`${o.entity}.${o.attribute}`}>{o.label}</option>{/each}
 						</select>
 					</td>
-					<td>
+					<td data-label="">
 						<button
 							type="button"
 							class="btn sm"
@@ -90,7 +90,7 @@
 				</tr>
 			{:else}
 				<tr>
-					<td colspan="3" class="muted">
+					<td colspan="3" class="muted" data-label="">
 						No fields mapped yet.{fields.length
 							? ''
 							: ' Test the connection (or preview columns) to discover the source fields.'}

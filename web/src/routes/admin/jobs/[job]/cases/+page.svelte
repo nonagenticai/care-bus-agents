@@ -12,9 +12,12 @@
 	import { CASE_FILTERS } from '$lib/api/types';
 	import Freshness from '$lib/ui/Freshness.svelte';
 	import Card from '$lib/ui/Card.svelte';
+	import FilterInput from '$lib/ui/FilterInput.svelte';
 	import Seg from '$lib/ui/Seg.svelte';
+	import SortTh from '$lib/ui/SortTh.svelte';
 	import Status from '$lib/ui/Status.svelte';
 	import Unavailable from '$lib/ui/Unavailable.svelte';
+	import { matchesQuery, nextSort, sortRows, type SortState } from '$lib/sort';
 
 	const PAGE = 50;
 	const outcome = $derived(page.url.searchParams.get('outcome') ?? 'all');
@@ -59,6 +62,47 @@
 		const id = caseParam;
 		if (id) void goto(jobPath(job, `/cases/${encodeURIComponent(id)}`), { replace: true });
 	});
+
+	// Search and sort are client-side over the loaded page: the API filters outcomes and areas, but there is no
+	// server `q`, so the caption says "loaded" rather than pretending it searched the whole history.
+	let filter = $state('');
+	let sort = $state<SortState | null>(null);
+	const toggleSort = (key: string) => (sort = nextSort(sort, key));
+	const shown = $derived(
+		sortRows(
+			rows.filter((c) => {
+				const proc = caseProcedure(c, labels.procedure);
+				return matchesQuery(filter, [
+					c.case_id,
+					c.customer_id,
+					c.request_type,
+					labels.type(c.request_type),
+					areaLabel(c.area),
+					proc?.text,
+				]);
+			}),
+			sort,
+			(c, key) => {
+				switch (key) {
+					case 'case':
+						return c.case_id;
+					case 'area':
+						return areaLabel(c.area);
+					case 'request':
+						return labels.type(c.request_type);
+					case 'outcome':
+						return outcomeLabel(c.outcome);
+					case 'work':
+						return c.work_items;
+					case 'time':
+						return c.duration_ms;
+					default:
+						return null;
+				}
+			},
+		),
+	);
+	const count = $derived(filter ? `${shown.length} of ${rows.length} loaded` : '');
 
 	const openCase = (id: string) => void goto(jobPath(job, `/cases/${encodeURIComponent(id)}`));
 	const get_outcome = () => outcome;
@@ -112,61 +156,75 @@
 		{/if}
 	</div>
 {:else}
-	<Card cls="flush">
-		<div class="tbl-wrap">
-			<table class="tbl clickable stack-phone">
-				<thead>
-					<tr>
-						<th>Case</th><th>Area</th><th>Request</th><th>Outcome</th><th class="r">Work items</th><th
-							class="r"
-						>
-							Time
-						</th>
-					</tr>
-				</thead>
-				<tbody>
-					{#each rows as c (c.case_id)}
-						{@const proc = caseProcedure(c, labels.procedure)}
-						<tr onclick={() => openCase(c.case_id)}>
-							<td data-label="Case">
-								<button
-									type="button"
-									class="table-action mono"
-									onclick={(e) => {
-										e.stopPropagation();
-										openCase(c.case_id);
-									}}
-								>
-									{c.case_id}
-								</button><span class="cell-sub mono">{c.customer_id}</span>
-							</td>
-							<td data-label="Area">{areaLabel(c.area)}</td>
-							<td data-label="Request">
-								{labels.type(c.request_type)}{#if proc?.recorded}<span
-										class="cell-sub"
-										title="Procedure version this case ran"
-									>
-										procedure <span class="mono">{proc.text}</span>
-									</span>{:else if proc}<span
-										class="cell-sub"
-										title="No version recorded for this case; this is the procedure its context space runs"
-									>
-										procedure <span class="mono">{proc.text}</span> (from context space)
-									</span>{/if}
-							</td>
-							<td data-label="Outcome">
-								<Status word={c.outcome ?? 'open'} label={outcomeLabel(c.outcome)} />
-							</td>
-							<td class="r" data-label="Work items">
-								{c.work_items}{c.retries ? ` (+${c.retries} retry)` : ''}
-							</td>
-							<td class="r" data-label="Time">{fmt.ms(c.duration_ms)}</td>
-						</tr>
-					{/each}
-				</tbody>
-			</table>
+	<FilterInput
+		bind:value={filter}
+		label="Search cases"
+		placeholder="Search case, customer or request"
+		{count}
+	/>
+	{#if filter && shown.length === 0}
+		<div class="empty">
+			No loaded cases match “{filter}”.
+			<button class="btn" onclick={() => (filter = '')}>Clear search</button>
 		</div>
-	</Card>
+	{:else}
+		<Card cls="flush">
+			<div class="tbl-wrap">
+				<table class="tbl clickable stack-phone">
+					<thead>
+						<tr>
+							<SortTh key="case" label="Case" {sort} onSort={toggleSort} />
+							<SortTh key="area" label="Area" {sort} onSort={toggleSort} />
+							<SortTh key="request" label="Request" {sort} onSort={toggleSort} />
+							<SortTh key="outcome" label="Outcome" {sort} onSort={toggleSort} />
+							<SortTh key="work" label="Work items" cls="r" {sort} onSort={toggleSort} />
+							<SortTh key="time" label="Time" cls="r" {sort} onSort={toggleSort} />
+						</tr>
+					</thead>
+					<tbody>
+						{#each shown as c (c.case_id)}
+							{@const proc = caseProcedure(c, labels.procedure)}
+							<tr onclick={() => openCase(c.case_id)}>
+								<td data-label="Case">
+									<button
+										type="button"
+										class="table-action mono"
+										onclick={(e) => {
+											e.stopPropagation();
+											openCase(c.case_id);
+										}}
+									>
+										{c.case_id}
+									</button><span class="cell-sub mono">{c.customer_id}</span>
+								</td>
+								<td data-label="Area">{areaLabel(c.area)}</td>
+								<td data-label="Request">
+									{labels.type(c.request_type)}{#if proc?.recorded}<span
+											class="cell-sub"
+											title="Procedure version this case ran"
+										>
+											procedure <span class="mono">{proc.text}</span>
+										</span>{:else if proc}<span
+											class="cell-sub"
+											title="No version recorded for this case; this is the procedure its context space runs"
+										>
+											procedure <span class="mono">{proc.text}</span> (from context space)
+										</span>{/if}
+								</td>
+								<td data-label="Outcome">
+									<Status word={c.outcome ?? 'open'} label={outcomeLabel(c.outcome)} />
+								</td>
+								<td class="r" data-label="Work items">
+									{c.work_items}{c.retries ? ` (+${c.retries} retry)` : ''}
+								</td>
+								<td class="r" data-label="Time">{fmt.ms(c.duration_ms)}</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+		</Card>
+	{/if}
 {/if}
 
 {#if list.value.state === 'ok' || (list.value.state === 'empty' && list.value.data.next)}<Pagination

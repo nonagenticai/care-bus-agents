@@ -334,24 +334,24 @@
 						<p class="empty-row muted">No questions at this point.</p>
 					{:else}
 						<div class="tbl-wrap">
-							<table class="tbl">
+							<table class="tbl stack-phone">
 								<thead>
 									<tr><th>Key</th><th>Type</th><th>Instructions</th><th>Rule</th><th>Enabled</th></tr>
 								</thead>
 								<tbody>
 									{#each grouped[step.point] as q (q.key)}
 										<tr class:off={!q.enabled}>
-											<td class="mono">
+											<td class="mono" data-label="Key">
 												<button type="button" class="table-action" onclick={() => edit(q)}>{q.key}</button>
 											</td>
-											<td><Chip text={q.type} variant="accent" /></td>
-											<td class="instr">{q.instructions}</td>
-											<td class="rule">
+											<td data-label="Type"><Chip text={q.type} variant="accent" /></td>
+											<td class="instr" data-label="Instructions">{q.instructions}</td>
+											<td class="rule" data-label="Rule">
 												{ruleSummary(q)}{#if q.point === 'tool' && q.tools?.length}<div class="muted mono">
 														tools: {q.tools.join(', ')}
 													</div>{/if}
 											</td>
-											<td>
+											<td data-label="Enabled">
 												<label class="toggle">
 													<input
 														type="checkbox"
@@ -474,7 +474,7 @@
 		<div class="empty">No verdicts yet.</div>
 	{:else}
 		<div class="tbl-wrap">
-			<table class="tbl dense" data-testid="verdicts">
+			<table class="tbl dense stack-phone" data-testid="verdicts">
 				<thead>
 					<tr>
 						<th>Time</th><th>Point</th><th>Outcome</th><th>Fired</th><th>Action</th><th class="r">
@@ -485,15 +485,15 @@
 				<tbody>
 					{#each verdicts.value.data as v (v.id)}
 						<tr>
-							<td class="nowrap">{time(v.created_at)}</td>
-							<td>{v.point}</td>
-							<td>
+							<td class="nowrap" data-label="Time">{time(v.created_at)}</td>
+							<td data-label="Point">{v.point}</td>
+							<td data-label="Outcome">
 								<Status
 									word={OUTCOME_WORD[v.outcome] ?? 'idle'}
 									label={OUTCOME_LABEL[v.outcome] ?? v.outcome}
 								/>
 							</td>
-							<td class="mono">
+							<td class="mono" data-label="Fired">
 								{v.fired_keys?.length ? v.fired_keys.join(', ') : '—'}{#if skippedKeys(v.answers).length}<div
 										class="muted"
 										data-testid="verdict-skipped"
@@ -501,9 +501,9 @@
 										skipped (precheck): {skippedKeys(v.answers).join(', ')}
 									</div>{/if}
 							</td>
-							<td>{v.action ?? '—'}</td>
-							<td class="r">{fmt.ms(v.latency_ms)}</td>
-							<td class="mono">
+							<td data-label="Action">{v.action ?? '—'}</td>
+							<td class="r" data-label="Latency">{fmt.ms(v.latency_ms)}</td>
+							<td class="mono" data-label="Conversation / case">
 								{#if v.conversation_id || v.case_id}
 									{#if v.conversation_id}<a
 											href={`/console?conversation=${encodeURIComponent(v.conversation_id)}`}
@@ -515,7 +515,7 @@
 										</a>{/if}
 								{:else}<span class="muted">playground</span>{/if}
 							</td>
-							<td class="err-cell">{v.error ?? ''}</td>
+							<td class="err-cell" data-label="Error">{v.error ?? ''}</td>
 						</tr>
 					{/each}
 				</tbody>

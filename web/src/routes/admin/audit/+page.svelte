@@ -154,14 +154,14 @@
 		</div>
 	{:else}
 		<div class="tbl-wrap">
-			<table class="tbl clickable dense">
+			<table class="tbl clickable dense stack-phone">
 				<thead>
 					<tr><th>When</th><th>Actor</th><th>Action</th><th>Resource</th><th>Status</th></tr>
 				</thead>
 				<tbody>
 					{#each view.state === 'ok' ? view.data.items : [] as r (r.id)}
 						<tr onclick={() => select(r)}>
-							<td>
+							<td data-label="When">
 								<button
 									type="button"
 									class="table-action mono"
@@ -173,10 +173,16 @@
 									{when(r.timestamp)}
 								</button>
 							</td>
-							<td>{actorTypeLabel(r.actor_type)}<span class="cell-sub mono">{r.actor_id}</span></td>
-							<td class="mono">{r.action_type}</td>
-							<td>{resourceTypeLabel(r.resource_type)}<span class="cell-sub mono">{r.resource_id}</span></td>
-							<td><Status word={r.status} label={r.status === 'success' ? 'Success' : 'Failure'} /></td>
+							<td data-label="Actor">
+								{actorTypeLabel(r.actor_type)}<span class="cell-sub mono">{r.actor_id}</span>
+							</td>
+							<td class="mono" data-label="Action">{r.action_type}</td>
+							<td data-label="Resource">
+								{resourceTypeLabel(r.resource_type)}<span class="cell-sub mono">{r.resource_id}</span>
+							</td>
+							<td data-label="Status">
+								<Status word={r.status} label={r.status === 'success' ? 'Success' : 'Failure'} />
+							</td>
 						</tr>
 					{/each}
 				</tbody>

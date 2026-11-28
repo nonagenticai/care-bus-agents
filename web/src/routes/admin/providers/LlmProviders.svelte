@@ -378,7 +378,7 @@
 			<div class="empty">No LLM providers yet.</div>
 		{:else}
 			<div class="tbl-wrap">
-				<table class="tbl" aria-label="LLM providers">
+				<table class="tbl stack-phone" aria-label="LLM providers">
 					<thead>
 						<tr><th>Name</th><th>Kind</th><th>Base URL</th><th>Token</th><th>Updated</th><th>Test</th></tr>
 					</thead>
@@ -386,10 +386,12 @@
 						{#each data.providers as p (p.id)}
 							{@const t = tests[p.id]}
 							<tr>
-								<td><button class="table-action" onclick={() => edit(p)}>{p.name}</button></td>
-								<td>{KIND_LABELS[p.kind] ?? p.kind}</td>
-								<td class="mono">{p.base_url}</td>
-								<td>
+								<td data-label="Name">
+									<button class="table-action" onclick={() => edit(p)}>{p.name}</button>
+								</td>
+								<td data-label="Kind">{KIND_LABELS[p.kind] ?? p.kind}</td>
+								<td class="mono" data-label="Base URL">{p.base_url}</td>
+								<td data-label="Token">
 									{p.has_token ? 'Set' : 'Not set'}
 									{#if p.secret_fpr}
 										<div class="muted mono" title="Fingerprint of the stored token">{p.secret_fpr}</div>
@@ -400,11 +402,11 @@
 										</div>
 									{/if}
 								</td>
-								<td>
+								<td data-label="Updated">
 									{stamp(p.updated_at)}{#if p.updated_by}
 										· {p.updated_by}{/if}
 								</td>
-								<td>
+								<td data-label="Test">
 									<button
 										class="btn sm"
 										type="button"
@@ -526,13 +528,17 @@
 		{/snippet}
 		{#if data.platform_default.configured}
 			<div class="tbl-wrap">
-				<table class="tbl" aria-label="Platform default">
+				<table class="tbl stack-phone" aria-label="Platform default">
 					<tbody>
-						<tr><th>Base URL</th><td class="mono">{data.platform_default.base_url}</td></tr>
-						<tr><th>Model</th><td class="mono">{data.platform_default.model}</td></tr>
+						<tr>
+							<th>Base URL</th><td class="mono" data-label="">{data.platform_default.base_url}</td>
+						</tr>
+						<tr>
+							<th>Model</th><td class="mono" data-label="">{data.platform_default.model}</td>
+						</tr>
 						<tr>
 							<th>Token</th>
-							<td>
+							<td data-label="">
 								{data.platform_default.has_token ? 'Set' : 'Not set'}
 								{#if data.platform_default.secret_fpr}
 									<span class="muted mono"> · {data.platform_default.secret_fpr}</span>
@@ -544,7 +550,7 @@
 						</tr>
 						<tr>
 							<th>Updated</th>
-							<td>
+							<td data-label="">
 								{data.platform_default.updated_at
 									? stamp(data.platform_default.updated_at)
 									: '—'}{#if data.platform_default.updated_by}

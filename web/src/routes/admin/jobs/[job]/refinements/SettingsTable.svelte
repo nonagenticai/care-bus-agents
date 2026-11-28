@@ -41,7 +41,7 @@
 	{@const v = settings.value.data}
 	<Card cls="flush">
 		<div class="tbl-wrap">
-			<table class="tbl" data-testid="job-settings">
+			<table class="tbl stack-phone" data-testid="job-settings">
 				<thead>
 					<tr>
 						<th>Setting</th><th>Base (release)</th><th>Yours</th><th>Effective</th><th aria-label="Actions"
@@ -51,9 +51,9 @@
 				<tbody>
 					{#each KEYS as k}
 						<tr data-key={k}>
-							<td class="mono">{k}</td>
-							<td>{fmtValue(v.base[k])}</td>
-							<td>
+							<td class="mono" data-label="Setting">{k}</td>
+							<td data-label="Base (release)">{fmtValue(v.base[k])}</td>
+							<td data-label="Yours">
 								<input
 									class="input"
 									aria-label={`Your ${k}`}
@@ -67,8 +67,8 @@
 									oninput={(e) => (drafts[k] = e.currentTarget.value)}
 								/>
 							</td>
-							<td>{fmtValue(v.effective[k])}</td>
-							<td class="r">
+							<td data-label="Effective">{fmtValue(v.effective[k])}</td>
+							<td class="r" data-label="">
 								<button
 									class="btn sm primary"
 									type="button"
