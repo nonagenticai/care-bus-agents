@@ -66,6 +66,14 @@ const obj = (v: unknown): Record<string, unknown> =>
 const str = (v: unknown) => (typeof v === 'string' || typeof v === 'number' ? String(v) : '');
 
 /** One-line summary of the payload, built from the fields carebus actually publishes (domain.rs). */
+/**
+ * A summary is one line in a trace row: a long argument (a prompt, a document body) must not
+ * reflow the row. The full value stays one click away in EventDetail's payload tab.
+ */
+const CLIP_ARG = 40;
+const CLIP_NOTE = 160;
+const clip = (s: string, max: number) => (s.length > max ? `${s.slice(0, max - 1)}…` : s);
+
 export function summary(e: Entry): string {
 	const p = obj(e.envelope.payload);
 	const work = obj(p.work);
@@ -73,7 +81,7 @@ export function summary(e: Entry): string {
 		case 'request.qualified': {
 			const slots = obj(p.slots);
 			const key = str(slots.order_id) || str(slots.question);
-			return [str(p.request_type), key].filter(Boolean).join(' · ');
+			return clip([str(p.request_type), key].filter(Boolean).join(' · '), CLIP_NOTE);
 		}
 		case 'request.resolved':
 			return [str(p.outcome), str(p.reason)].filter(Boolean).join(' · ');
@@ -87,12 +95,12 @@ export function summary(e: Entry): string {
 			return `${str(p.worker)}.${str(p.action)} → ${str(p.error) || 'failed'}`;
 		case 'tool.call': {
 			const args = Object.entries(obj(p.arguments))
-				.map(([k, v]) => `${k}=${v !== null && typeof v === 'object' ? '[…]' : String(v)}`)
+				.map(([k, v]) => `${k}=${v !== null && typeof v === 'object' ? '[…]' : clip(String(v), CLIP_ARG)}`)
 				.join(', ');
-			return `${str(p.mcp_tool) || str(work.action)}(${args})`;
+			return clip(`${str(p.mcp_tool) || str(work.action)}(${args})`, CLIP_NOTE);
 		}
 		case 'tool.response':
-			if (p.ok === false) return `error · ${str(p.error) || 'unknown'}`;
+			if (p.ok === false) return clip(`error · ${str(p.error) || 'unknown'}`, CLIP_NOTE);
 			return [p.ok === true ? 'ok' : '', p.latency_ms !== undefined ? `${str(p.latency_ms)} ms` : '']
 				.filter(Boolean)
 				.join(' · ');

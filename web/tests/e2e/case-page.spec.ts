@@ -82,7 +82,8 @@ const detail = {
 			worker: 'faq',
 		}),
 		event('bus:tool:faq', 'faq.general.tool.call', 'worker:faq', '1792065600600-0', {
-			question: 'what is care bus?',
+			mcp_tool: 'faq_ask',
+			arguments: { question: 'what is care bus?', instructions: 'x'.repeat(600) },
 		}),
 		event('bus:worker:faq', 'faq.general.work.done', 'orchestrator', '1792065600700-0', {
 			outcome: 'completed',
@@ -133,6 +134,17 @@ test('the answer reads first, the trace fills the page, and the hash stays shut'
 		}),
 	).toBe(true);
 
+	// A long argument is clipped in the row; the full prompt stays in the payload tab.
+	const longRow = page.locator('.seq-row').filter({ hasText: 'instructions=' });
+	await expect(longRow).toHaveCount(1);
+	const note = await longRow.locator('.note').textContent();
+	expect(note && note.length).toBeLessThanOrEqual(160);
+	expect(note).toContain('…');
+	await longRow.click();
+	const longDetail = page.getByRole('complementary', { name: 'Event detail' });
+	await longDetail.getByRole('tab', { name: 'Payload' }).click();
+	expect(await longDetail.locator('pre.code').textContent()).toContain('x'.repeat(600));
+
 	// The raw hash is collapsed: present for the audit, not in the way. Its text is in the DOM (a closed
 	// <details> keeps it) but never painted.
 	const hashBand = page.locator('details.band.raw');
@@ -155,6 +167,13 @@ test('the answer reads first, the trace fills the page, and the hash stays shut'
 	await page.screenshot({ path: testInfo.outputPath('case-page.png'), fullPage: true });
 	// A phone must not scroll sideways on it.
 	expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
+});
+
+test('the old ?case= deep link forwards to the case page', async ({ page }) => {
+	await mockApi(page, { override: { '/api/cases/CASE-1': detail } });
+	await page.goto(`/admin/jobs/${E2E_JOB}/cases?case=CASE-1`);
+	await expect(page).toHaveURL(new RegExp(`/admin/jobs/${E2E_JOB}/cases/CASE-1$`));
+	await expect(page.locator('p.answer')).toContainText('Care Bus is George’s customer-care project');
 });
 
 test('the case list stacks its columns on a phone instead of scrolling sideways', async ({
