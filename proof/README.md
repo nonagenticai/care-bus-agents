@@ -7,15 +7,30 @@ the 3-message escalation floor).
 
 ## Run
 
+The four in-cluster service endpoints are deployment facts and stay out of this
+public repository (CI's `no-private-refs` refuses them). The Job reads them from
+a ConfigMap created from an untracked env file:
+
 ```bash
+# proof/.env.proof — required keys, values from the service manifests:
+#   BDD_URL, LEAN_URL, KEYCLOAK_TOKEN_URL, LICENSES_URL
+kubectl -n care-bus create configmap carebus-proof-env \
+  --from-env-file=proof/.env.proof --dry-run=client -o yaml | kubectl apply -f -
+
 kubectl apply -k proof/                       # Job + its mounted sources
 kubectl -n care-bus logs -f job/carebus-proof # look for ATTESTATION {...}
 kubectl -n care-bus delete job/carebus-proof  # the TTL would also reap it
 ```
 
+`kubectl apply -k proof/` renders without the env file; only the run needs it.
+A missing or empty ConfigMap fails at module load, naming every missing key.
+
 `ATTESTATION <json>` (schema `carebus-proof/2`) is the result; the Job exits 0
 only when every gating check passes. Delete the Job and its ConfigMap
-(`kubectl delete -k proof/`) afterwards.
+(`kubectl delete -k proof/`), and `kubectl -n care-bus delete configmap
+carebus-proof-env`, afterwards.
+
+Before pushing, run `bash scripts/ci/no-private-refs.sh` (CI runs it too).
 
 The login-gated admin case page is a **host** check, not part of the Job: a
 super-admin password does not belong in a pod that executes LLM-generated test

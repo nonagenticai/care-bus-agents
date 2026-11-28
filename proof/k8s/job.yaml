@@ -45,6 +45,10 @@ spec:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities: {drop: ["ALL"]}
+          envFrom:
+            # BDD_URL, LEAN_URL, KEYCLOAK_TOKEN_URL, LICENSES_URL. Created out of band from
+            # proof/.env.proof (untracked) so this public repository carries no cluster DNS.
+            - configMapRef: {name: carebus-proof-env}
           env:
             # The trusted-network lane: a bare tenant id from a pod in
             # TRUSTED_CIDRS. netcare holds the active bdd_playwright licence.

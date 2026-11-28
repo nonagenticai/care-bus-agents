@@ -33,17 +33,27 @@ const env = (name, fallback) => {
   return value && value.trim() ? value.trim() : fallback;
 };
 
-const BDD_URL = env('BDD_URL', 'http://bdd-playwright-service.bdd-playwright.svc.cluster.local:6313');
+/**
+ * The in-cluster service endpoints are deployment facts, not source: this repository is public and
+ * the CI guard refuses cluster-internal DNS names in tracked files. They are supplied by the Job's
+ * `carebus-proof-env` ConfigMap; a direct run must export them. Fail once, naming all missing keys.
+ */
+const requireEnv = (...names) => {
+  const missing = names.filter((name) => !process.env[name]?.trim());
+  if (missing.length) throw new Error(`missing required env: ${missing.join(', ')}`);
+  return Object.fromEntries(names.map((name) => [name, process.env[name].trim()]));
+};
+
+const { BDD_URL, LEAN_URL, KEYCLOAK_TOKEN_URL, LICENSES_URL } = requireEnv(
+  'BDD_URL',
+  'LEAN_URL',
+  'KEYCLOAK_TOKEN_URL',
+  'LICENSES_URL',
+);
 const BDD_TENANT = env('BDD_TENANT', '01a1ff14-338d-7293-93ea-28e5e17ac4b0');
 const BDD_TARGET = env('BDD_TARGET', 'https://nonagentic.ai');
 const BDD_JOB_ID = env('BDD_JOB_ID', '');
 const BDD_MAX_WAIT_MS = Number(env('BDD_MAX_WAIT_MS', String(45 * 60 * 1000)));
-const LEAN_URL = env('LEAN_URL', 'http://lean4-prover.lean4-prover.svc.cluster.local:8812');
-const KEYCLOAK_TOKEN_URL = env(
-  'KEYCLOAK_TOKEN_URL',
-  'http://keycloak.keycloak.svc.cluster.local:8080/realms/secure-apps/protocol/openid-connect/token',
-);
-const LICENSES_URL = env('LICENSES_URL', 'http://licenses.licenses.svc.cluster.local:8544');
 const CLIENT_ID = env('CLIENT_ID', 'care-bus-bundle-minter');
 const CLIENT_SECRET_FILE = env('CLIENT_SECRET_FILE', '/secrets/client-secret');
 const MINT_TENANT = env('MINT_TENANT', '0195f48b-d000-7000-8000-000000000099');
