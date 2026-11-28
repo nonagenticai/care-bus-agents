@@ -253,5 +253,5 @@ fieldset.editor-fields { border:0; padding:0; margin:0; min-width:0; }
   .tbl.stack-phone td::before { content:attr(data-label); flex:0 0 84px; color:var(--muted); font:600 11px/1.3 var(--cond); letter-spacing:.06em; text-transform:uppercase; }
   .tbl.stack-phone td[data-label='']::before { display:none; }
   .tbl.stack-phone .r { text-align:left; }
-  .tbl.stack-phone td .cell-sub { flex-basis:100%; margin-left:94px; }
+  .tbl.stack-phone td .cell-sub { flex-basis:100%; padding-left:94px; }
 }
