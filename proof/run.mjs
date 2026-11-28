@@ -20,7 +20,7 @@
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 const env = (name, fallback) => {
@@ -135,8 +135,17 @@ async function bddProof(work) {
   // the run rather than silently stubbing the scenario.
   await mkdir(path.join(pkg, 'features'), { recursive: true });
   await mkdir(path.join(pkg, 'steps'), { recursive: true });
-  await cp(path.join(PROOF_ROOT, 'website-chat.feature'), path.join(pkg, 'features/website-chat.feature'));
-  await cp(path.join(PROOF_ROOT, 'website-chat.steps.ts'), path.join(pkg, 'steps/website-chat.steps.ts'));
+  // readFile/writeFile, NOT cp: the k8s ConfigMap mount exposes each key as a
+  // symlink, and a copied symlink makes Node resolve `playwright-bdd` from
+  // /proof/src instead of the package's node_modules.
+  await writeFile(
+    path.join(pkg, 'features/website-chat.feature'),
+    await readFile(path.join(PROOF_ROOT, 'website-chat.feature')),
+  );
+  await writeFile(
+    path.join(pkg, 'steps/website-chat.steps.ts'),
+    await readFile(path.join(PROOF_ROOT, 'website-chat.steps.ts')),
+  );
 
   // The Job runs as a non-root user under the restricted Pod Security profile,
   // where Chromium's setuid sandbox cannot start. This is a container fact, not
