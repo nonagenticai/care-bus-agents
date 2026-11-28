@@ -567,13 +567,20 @@ async fn list_jobs(
         .filter(|j| q.get("status").is_none_or(|s| j["status"] == s.as_str()))
         .cloned()
         .collect();
-    let start = match q.get("before") {
-        None => 0,
-        Some(b) if g.jobs.contains_key(b) => all
+    // A sorted page's `before` is `o:<offset>` (strata_ingest's list contract); the default order
+    // takes a job id. The fake only needs to accept both and page the same way.
+    let start = match (q.get("sort"), q.get("before")) {
+        (Some(_), Some(b)) => b
+            .strip_prefix("o:")
+            .and_then(|n| n.parse().ok())
+            .unwrap_or(0),
+        (Some(_), None) => 0,
+        (None, None) => 0,
+        (None, Some(b)) if g.jobs.contains_key(b) => all
             .iter()
             .position(|j| j["id"] == b.as_str())
             .map_or(all.len(), |p| p + 1),
-        Some(_) => {
+        (None, Some(_)) => {
             return err(
                 StatusCode::BAD_REQUEST,
                 "bad_request",

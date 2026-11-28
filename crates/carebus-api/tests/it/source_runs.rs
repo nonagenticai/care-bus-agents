@@ -1255,8 +1255,9 @@ async fn the_run_list_searches_status_and_started_by_and_never_wildcards() {
         vec![r2_id.clone(), r1_id.clone()],
         "by started_by, newest first"
     );
+    // `comple%25ted` is `comple%ted` once decoded; stripping the literal `%` must leave `completed`.
     assert_eq!(
-        item_ids(&runs_page(&e, &id, "?q=compl%25ed").await),
+        item_ids(&runs_page(&e, &id, "?q=comple%25ted").await),
         vec![r1_id.clone()],
         "% is dropped from a token, never sent to LIKE"
     );
