@@ -204,3 +204,36 @@ async fn put_validates_shape_secret_ref_and_non_objects() {
     .await;
     assert_eq!(s, StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn connectors_q_filters_the_list() {
+    let e = crate::common::env("conn-q").await;
+    let admin = crate::common::admin();
+    let payments = json!({"id":"psp","name":"Payments","system":"PSP","base_url":"https://psp.example/api",
+                          "auth_type":"none","secret_ref":null,"timeout_ms":2000,"rate_limit":null,"mappings":[]});
+    for body in [oms(), payments] {
+        let (s, _) = crate::common::send(
+            &e.app,
+            crate::common::json("POST", &crate::common::j("/connectors"), Some(&admin), body),
+        )
+        .await;
+        assert_eq!(s, StatusCode::CREATED);
+    }
+    let list =
+        |q: &str| crate::common::get(&crate::common::j(&format!("/connectors{q}")), Some(&admin));
+    let (s, b) = crate::common::send(&e.app, list("?q=payments")).await;
+    assert_eq!(s, StatusCode::OK);
+    let ids: Vec<&str> = b["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|c| c["id"].as_str().unwrap())
+        .collect();
+    assert_eq!(ids, ["psp"]);
+    // Both tokens must occur; the system name matches too.
+    let (_, both) = crate::common::send(&e.app, list("?q=order%20oms")).await;
+    assert_eq!(both["items"].as_array().unwrap().len(), 1);
+    assert_eq!(both["items"][0]["id"], "oms");
+    let (_, none) = crate::common::send(&e.app, list("?q=zzz")).await;
+    assert_eq!(none["items"], json!([]));
+}

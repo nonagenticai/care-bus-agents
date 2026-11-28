@@ -19,8 +19,8 @@ use sqlx::PgConnection;
 use crate::{
     audit,
     error::{ApiError, ApiJson, ApiPath, ApiQuery, ApiResult},
-    page::Paged,
-    refine::{self, Layer, LayerQ, ObjectKind, RowKind},
+    page::{Paged, search_tokens},
+    refine::{self, Layer, ObjectKind, RowKind},
     secrets,
     state::AppState,
     tenancy::{JobAdmin, JobMember},
@@ -91,18 +91,35 @@ async fn load(conn: &mut PgConnection, id: &str) -> ApiResult<Value> {
     .ok_or_else(|| ApiError::NotFound(format!("connector {id}")))
 }
 
+#[derive(Deserialize)]
+struct ConnectorListQ {
+    layer: Option<Layer>,
+    /// Free text over id, name, system, base URL, auth type and health; every whitespace token must occur.
+    q: Option<String>,
+}
+
 async fn list(
     JobMember(ctx): JobMember,
     State(s): State<AppState>,
-    ApiQuery(q): ApiQuery<LayerQ>,
+    ApiQuery(q): ApiQuery<ConnectorListQ>,
 ) -> ApiResult<Json<Paged<Value>>> {
+    let tokens = search_tokens(q.q.as_deref());
+    // The layer views predate the search columns (`t.*` is expanded when a view is created), so the
+    // concatenation is built here from the view's own columns; a tenant's connector list is short.
+    let mut sql = format!("{} WHERE true", select(q.layer.unwrap_or_default()));
+    for i in 0..tokens.len() {
+        sql.push_str(&format!(
+            " AND lower(c.id || ' ' || c.name || ' ' || c.system || ' ' || c.base_url || ' ' || c.auth_type || ' ' || COALESCE(h.health, 'unknown')) LIKE ${}",
+            i + 1
+        ));
+    }
+    sql.push_str(" ORDER BY c.id");
+    let mut query = sqlx::query_scalar::<_, Value>(sqlx::AssertSqlSafe(sql));
+    for token in &tokens {
+        query = query.bind(format!("%{token}%"));
+    }
     let mut tx = ctx.begin(&s.db).await?;
-    let items: Vec<Value> = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
-        "{} ORDER BY c.id",
-        select(q.layer.unwrap_or_default())
-    )))
-    .fetch_all(&mut *tx)
-    .await?;
+    let items: Vec<Value> = query.fetch_all(&mut *tx).await?;
     Ok(Json(Paged { items, next: None }))
 }
 

@@ -1,7 +1,10 @@
 <script lang="ts">
+	import { page } from '$app/state';
+	import { goto } from '$app/navigation';
 	import { api } from '$lib/app.svelte';
 	import { Resource } from '$lib/load.svelte';
 	import { fmt } from '$lib/format';
+	import { jobPath } from '$lib/scope';
 	import { analyticsKpis, kpiDelta, toolBudgetMs, toSeries, type KpiView } from './series';
 	import type { Analytics } from '$lib/api/types';
 	import Freshness from '$lib/ui/Freshness.svelte';
@@ -13,6 +16,7 @@
 	import Unavailable from '$lib/ui/Unavailable.svelte';
 	import Kpi from '$lib/ui/Kpi.svelte';
 
+	const job = $derived(page.params.job ?? '');
 	let range = $state('28');
 	const data = new Resource<Analytics>(
 		() => api().analytics(range === '7' ? 7 : 28),
@@ -20,6 +24,13 @@
 	);
 	const show = (k: KpiView) =>
 		k.value == null ? null : k.unit === 'pct' ? fmt.pct(k.value) : fmt.n(k.value);
+	/** A bar opens the case list filtered to that request type. */
+	function openType(i: number) {
+		const v = data.value;
+		if (v.state !== 'ok') return;
+		const t = v.data.by_type[i];
+		if (t) void goto(jobPath(job, `/cases?request_type=${encodeURIComponent(t.request_type)}`));
+	}
 	const OUTCOMES = [
 		{ cls: 's-ok', label: 'Resolved by agents' },
 		{ cls: 's-warn', label: 'Not eligible' },
@@ -90,6 +101,8 @@
 						{ v: t.failed, cls: 's-err', label: 'Handed to a person' },
 					],
 				}))}
+				onClick={openType}
+				ariaLabel="Request types by outcome"
 			/>
 			<div class="legend">
 				{#each OUTCOMES as o}<span><i class="sw {o.cls}"></i>{o.label}</span>{/each}

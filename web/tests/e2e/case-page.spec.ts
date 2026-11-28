@@ -122,6 +122,16 @@ test('the answer reads first, the trace fills the page, and the hash stays shut'
 			return row.top >= box.top - 1 && row.bottom <= box.bottom + 1;
 		}),
 	).toBe(true);
+	// The lane header is outside the scroller: when it is shown (desktop) it cannot cover a row; on a
+	// phone it is deliberately hidden and each row names its lane instead.
+	expect(
+		await page.evaluate(() => {
+			const header = document.querySelector('.seq-h')?.getBoundingClientRect();
+			const wrap = document.querySelector('.seq-wrap')?.getBoundingClientRect();
+			if (!header || !wrap) return false;
+			return header.height === 0 || header.bottom <= wrap.top + 1;
+		}),
+	).toBe(true);
 
 	// The raw hash is collapsed: present for the audit, not in the way. Its text is in the DOM (a closed
 	// <details> keeps it) but never painted.

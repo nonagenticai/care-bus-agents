@@ -59,6 +59,15 @@ describe('Kpi and BarsH fix round', () => {
 		await fireEvent.click(screen.getByText('B', { selector: '.bar-label' }).closest('button') as HTMLElement);
 		expect(clicked).toBe(1);
 	});
+	it('BarsH draws a value axis ending at a round maximum', () => {
+		const items = [{ label: 'A', parts: [{ v: 3, cls: 'x', label: 'a' }] }];
+		const { container } = render(BarsH, { items });
+		const axis = container.querySelector('.barsh-axis');
+		expect(axis).toBeTruthy();
+		expect(axis?.textContent).toContain('0');
+		// 3 rounds up to a 5-wide axis, not a 3-wide one whose ticks would be fractions.
+		expect(axis?.textContent).toContain('5');
+	});
 });
 
 describe('Drawer dialog semantics', () => {

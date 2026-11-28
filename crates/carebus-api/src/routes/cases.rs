@@ -5,7 +5,9 @@ use serde_json::{Map, Value, json};
 
 use crate::{
     error::{ApiError, ApiPath, ApiQuery, ApiResult},
-    page::{Page, Paged, ts_cursor},
+    page::{
+        Page, Paged, descending, offset_next, search_tokens, sort_expr, sort_offset, ts_cursor,
+    },
     redis_admin as ra,
     state::AppState,
     tenancy::JobMember,
@@ -59,8 +61,34 @@ impl CaseRow {
 struct CaseQuery {
     outcome: Option<String>,
     area: Option<String>,
+    /// Exact request type (`return`, `escalation`, …); never a prefix.
+    request_type: Option<String>,
+    /// Free text: every whitespace-separated token must occur in the case's `search_text`.
+    q: Option<String>,
+    /// Header column to order by: `case`, `area`, `request`, `outcome`, `work` or `time`.
+    /// Absent keeps the newest-first `before` cursor order.
+    sort: Option<String>,
+    /// `asc` (default) or `desc`; only the literal ASC/DESC derived from this ever enters the SQL.
+    dir: Option<String>,
     limit: Option<i64>,
     before: Option<String>,
+}
+
+/// Sort keys of the console header, mapped to their allowlisted SQL expressions (never caller text).
+const CASE_SORTS: &[(&str, &str)] = &[
+    ("case", "lower(case_id)"),
+    ("area", "lower(area)"),
+    ("request", "lower(request_type)"),
+    ("outcome", "lower(outcome)"),
+    ("work", "work_items"),
+    ("time", "duration_ms"),
+];
+
+/// One bind of the list query, kept in placeholder order while the SQL text is assembled.
+enum Param {
+    Text(Option<String>),
+    Timestamp(Option<DateTime<Utc>>),
+    Int(i64),
 }
 
 pub fn routes() -> Router<AppState> {
@@ -88,33 +116,90 @@ async fn list(
             "outcome must be open, completed, not_eligible or failed.".into(),
         ));
     }
-    // cursor is `{started_at}|{case_id}`; the pair is the full sort key
-    let (before_ts, before_id) = match page.before.as_deref() {
-        None => (None, None),
-        Some(b) => {
-            let (t, id) = b.split_once('|').ok_or_else(invalid_cursor)?;
-            let ts = Page::new(None, Some(t.into())).before_ts()?;
-            (ts, Some(id.to_string()))
+    // Sort key and direction are validated before any SQL is built; unknown values are 400s.
+    let sort = sort_expr(q.sort.as_deref(), CASE_SORTS)?;
+    let dir = if descending(q.dir.as_deref())? {
+        "DESC"
+    } else {
+        "ASC"
+    };
+    // WHERE fragments shared by both paths; placeholders are numbered in `params` bind order.
+    let mut conds = vec![
+        "($1::text IS NULL OR ($1 = 'open' AND outcome IS NULL) OR outcome = $1)".to_string(),
+        "($2::text IS NULL OR area = $2)".to_string(),
+        "($3::text IS NULL OR request_type = $3)".to_string(),
+    ];
+    let mut params = vec![
+        Param::Text(q.outcome),
+        Param::Text(q.area),
+        Param::Text(q.request_type),
+    ];
+    let mut n = 3;
+    for token in search_tokens(q.q.as_deref()) {
+        n += 1;
+        conds.push(format!("search_text LIKE ${n}"));
+        params.push(Param::Text(Some(format!("%{token}%"))));
+    }
+    let mut tx = ctx.begin(&s.db).await?;
+    let (rows, next): (Vec<CaseRow>, Option<String>) = match sort {
+        Some(expr) => {
+            // Sorted pages page by offset (`before=o:<n>`), so the order survives the next request.
+            let offset = sort_offset(page.before.as_deref())?;
+            let (limit_n, offset_n) = (n + 1, n + 2);
+            let sql = format!(
+                "SELECT * FROM case_history WHERE {} ORDER BY ({expr} IS NULL) ASC, {expr} {dir}, case_id {dir} LIMIT ${limit_n} OFFSET ${offset_n}",
+                conds.join(" AND ")
+            );
+            params.push(Param::Int(limit));
+            params.push(Param::Int(offset));
+            let mut query = sqlx::query_as::<_, CaseRow>(sqlx::AssertSqlSafe(sql));
+            for p in params {
+                query = match p {
+                    Param::Text(v) => query.bind(v),
+                    Param::Timestamp(v) => query.bind(v),
+                    Param::Int(v) => query.bind(v),
+                };
+            }
+            let rows: Vec<CaseRow> = query.fetch_all(&mut *tx).await?;
+            let next = offset_next(offset, limit, rows.len() as i64 == limit);
+            (rows, next)
+        }
+        None => {
+            // keyset cursor `{started_at}|{case_id}`; the pair is the full sort key
+            let (before_ts, before_id) = match page.before.as_deref() {
+                None => (None, None),
+                Some(b) => {
+                    let (t, id) = b.split_once('|').ok_or_else(invalid_cursor)?;
+                    let ts = Page::new(None, Some(t.into())).before_ts()?;
+                    (ts, Some(id.to_string()))
+                }
+            };
+            let (ts_n, id_n, limit_n) = (n + 1, n + 2, n + 3);
+            let sql = format!(
+                "SELECT * FROM case_history WHERE {} AND (${ts_n}::timestamptz IS NULL OR (started_at, case_id) < (${ts_n}, ${id_n}))
+                  ORDER BY started_at DESC, case_id DESC LIMIT ${limit_n}",
+                conds.join(" AND ")
+            );
+            params.push(Param::Timestamp(before_ts));
+            params.push(Param::Text(before_id));
+            params.push(Param::Int(limit));
+            let mut query = sqlx::query_as::<_, CaseRow>(sqlx::AssertSqlSafe(sql));
+            for p in params {
+                query = match p {
+                    Param::Text(v) => query.bind(v),
+                    Param::Timestamp(v) => query.bind(v),
+                    Param::Int(v) => query.bind(v),
+                };
+            }
+            let rows: Vec<CaseRow> = query.fetch_all(&mut *tx).await?;
+            let paged = Paged::new(rows, limit, |r| {
+                format!("{}|{}", ts_cursor(r.started_at), r.case_id)
+            });
+            (paged.items, paged.next)
         }
     };
-    let mut tx = ctx.begin(&s.db).await?;
-    let rows: Vec<CaseRow> = sqlx::query_as(
-        "SELECT * FROM case_history
-          WHERE ($1::text IS NULL OR ($1 = 'open' AND outcome IS NULL) OR outcome = $1) AND ($2::text IS NULL OR area = $2)
-            AND ($3::timestamptz IS NULL OR (started_at, case_id) < ($3, $4))
-          ORDER BY started_at DESC, case_id DESC LIMIT $5",
-    )
-    .bind(q.outcome)
-    .bind(q.area)
-    .bind(before_ts)
-    .bind(before_id)
-    .bind(limit)
-    .fetch_all(&mut *tx)
-    .await?;
-    let rows: Vec<CaseRow> = rows.into_iter().map(CaseRow::with_procedure).collect();
-    Ok(Json(Paged::new(rows, limit, |r| {
-        format!("{}|{}", ts_cursor(r.started_at), r.case_id)
-    })))
+    let items: Vec<CaseRow> = rows.into_iter().map(CaseRow::with_procedure).collect();
+    Ok(Json(Paged { items, next }))
 }
 
 /// The row is read under RLS (404 outside the job); the hash and trace come from this job's bus scope only.

@@ -252,25 +252,91 @@ pub async fn view(s: &AppState, ctx: &JobCtx, id: Uuid) -> ApiResult<SourceView>
         .into_view()
 }
 
+/// The list's `sort` keys and the SQL expression each orders by. Allowlisted: a request's `sort` only
+/// selects a row here, its text is never spliced into the SQL. `documents` counts the last run's
+/// documents (`run_document_count` is only an output alias, which ORDER BY cannot use in an expression).
+pub const SORTS: &[(&str, &str)] = &[
+    ("name", "lower(s.name)"),
+    ("type", "lower(s.type)"),
+    ("documents", "cardinality(r.document_ids)"),
+    ("enabled", "s.enabled"),
+];
+
+/// A caller-sorted list page: the allowlisted expression, its direction, and the offset the page
+/// starts at (the sorted cursor, `o:<n>`).
+#[derive(Clone, Copy)]
+pub struct Sort<'a> {
+    pub expr: &'a str,
+    pub desc: bool,
+    pub offset: i64,
+}
+
+/// `AND <column> LIKE $<first> ...` for every token (each bound as `%token%`, all of them required);
+/// no tokens, no predicate. Bind the tokens in order starting at parameter `first`.
+pub(crate) fn like_and(column: &str, tokens: &[String], first: usize) -> String {
+    (0..tokens.len())
+        .map(|i| format!(" AND {column} LIKE ${}", first + i))
+        .collect::<String>()
+}
+
 /// Sources ordered by name; `after` is the previous page's last name (the `before` cursor of D1).
-/// `hidden`: target stores the caller may not see (crate::walls); their sources are left out.
+/// `tokens` are `crate::page::search_tokens` of the caller's `q`: every one must occur in the
+/// source's `search_text`. `hidden`: target stores the caller may not see (crate::walls); their
+/// sources are left out.
 pub async fn page(
     s: &AppState,
     ctx: &JobCtx,
+    tokens: &[String],
     after: Option<&str>,
     limit: i64,
     hidden: &[Uuid],
 ) -> ApiResult<Vec<SourceView>> {
     let mut tx = ctx.begin(&s.db).await?;
-    let rows: Vec<ViewRow> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
-        "{VIEW_SELECT} WHERE ($1::text IS NULL OR s.name > $1) AND NOT (s.target_store_id = ANY($3))
-          ORDER BY s.name LIMIT $2"
+    let mut query = sqlx::query_as::<_, ViewRow>(sqlx::AssertSqlSafe(format!(
+        "{VIEW_SELECT} WHERE ($1::text IS NULL OR s.name > $1) AND NOT (s.target_store_id = ANY($3)){}
+          ORDER BY s.name LIMIT $2",
+        like_and("s.search_text", tokens, 4)
     )))
     .bind(after)
     .bind(limit)
-    .bind(hidden)
-    .fetch_all(&mut *tx)
-    .await?;
+    .bind(hidden);
+    for t in tokens {
+        query = query.bind(format!("%{t}%"));
+    }
+    let rows: Vec<ViewRow> = query.fetch_all(&mut *tx).await?;
+    rows.into_iter().map(ViewRow::into_view).collect()
+}
+
+/// A page of the caller-sorted list (`sort`, `dir`): `by.expr` is one of `SORTS`. Missing values (a
+/// source with no last run) go LAST in both directions, and name/id break ties so offset pages are
+/// stable. Sorted pages page by offset (crate::page::sort_offset), not by a value cursor.
+pub async fn sorted_page(
+    s: &AppState,
+    ctx: &JobCtx,
+    tokens: &[String],
+    by: &Sort<'_>,
+    limit: i64,
+    hidden: &[Uuid],
+) -> ApiResult<Vec<SourceView>> {
+    let mut tx = ctx.begin(&s.db).await?;
+    let dir = if by.desc { "DESC" } else { "ASC" };
+    let expr = by.expr;
+    let (limit_at, offset_at) = (2 + tokens.len(), 3 + tokens.len());
+    let mut query = sqlx::query_as::<_, ViewRow>(sqlx::AssertSqlSafe(format!(
+        "{VIEW_SELECT} WHERE NOT (s.target_store_id = ANY($1)){}
+          ORDER BY ({expr} IS NULL) ASC, {expr} {dir}, s.name {dir}, s.id {dir}
+          LIMIT ${limit_at} OFFSET ${offset_at}",
+        like_and("s.search_text", tokens, 2)
+    )))
+    .bind(hidden);
+    for t in tokens {
+        query = query.bind(format!("%{t}%"));
+    }
+    let rows: Vec<ViewRow> = query
+        .bind(limit)
+        .bind(by.offset)
+        .fetch_all(&mut *tx)
+        .await?;
     rows.into_iter().map(ViewRow::into_view).collect()
 }
 

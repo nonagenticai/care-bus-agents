@@ -47,10 +47,24 @@ async fn jobs_list_and_detail_pass_strata_ingest_through_as_paged_views() {
         "limit capped at 200"
     );
 
+    // q, sort, dir and a sorted offset cursor are forwarded; q is re-encoded, never reshaped.
+    let upload = "/api/ingest/jobs?q=invoice%20acme%26co&sort=status&dir=desc&before=o:20";
+    let (s, _) = crate::common::send(&e.app, crate::common::get(upload, Some(&viewer))).await;
+    assert_eq!(s, StatusCode::OK);
+    let seen = fake.lock().unwrap().list_queries.last().cloned().unwrap();
+    assert_eq!(
+        seen,
+        "limit=50&q=invoice%20acme%26co&sort=status&dir=desc&before=o:20"
+    );
     for bad in [
         "/api/ingest/jobs?before=x",
         "/api/ingest/jobs?status=paused",
         "/api/ingest/jobs?store_id=nope",
+        "/api/ingest/jobs?sort=bogus",
+        "/api/ingest/jobs?dir=sideways",
+        "/api/ingest/jobs?sort=created&before=5",
+        "/api/ingest/jobs?before=o:5",
+        "/api/ingest/jobs?q=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     ] {
         let (s, b) = crate::common::send(&e.app, crate::common::get(bad, Some(&viewer))).await;
         assert_eq!(s, StatusCode::BAD_REQUEST, "{bad}: {b}");

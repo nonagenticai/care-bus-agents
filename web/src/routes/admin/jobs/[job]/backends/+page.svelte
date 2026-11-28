@@ -28,7 +28,8 @@
 	import Unavailable from '$lib/ui/Unavailable.svelte';
 	import ReconcileStatus from '$lib/ui/ReconcileStatus.svelte';
 	import Chip from '$lib/ui/Chip.svelte';
-	import { matchesQuery, nextSort, sortRows, type SortState } from '$lib/sort';
+	import { nextSort, sortRows, type SortState } from '$lib/sort';
+	import { debounce } from '$lib/debounce';
 	import { fmtValue } from '$lib/refinements';
 
 	const FAULT_FIELDS: ConnectorFaultField[] = [
@@ -39,35 +40,46 @@
 		'mappings',
 	];
 
-	const conns = new Resource<Paged<Connector>>(() => api().connectors());
-	conns.refresh();
 	let filter = $state('');
+	let search = $state('');
+	const pushSearch = debounce(() => (search = filter.trim()), 300);
+	$effect(() => {
+		// Clearing the box applies at once; typing waits out the debounce.
+		if (filter.trim() === '') search = '';
+		else pushSearch();
+	});
+	const conns = new Resource<Paged<Connector>>(() => api().connectors(undefined, search || undefined));
+	$effect(() => {
+		// The API filters the list, so a new search reloads it.
+		void search;
+		conns.refresh();
+	});
 	let sort = $state<SortState | null>(null);
 	const toggleSort = (key: string) => (sort = nextSort(sort, key));
 	const rows = $derived(conns.value.state === 'ok' ? conns.value.data.items : []);
 	const shown = $derived(
-		sortRows(
-			rows.filter((c) => matchesQuery(filter, [c.name, c.system, c.base_url, c.auth_type, c.health])),
-			sort,
-			(c, key) => {
-				switch (key) {
-					case 'name':
-						return c.name;
-					case 'system':
-						return c.system;
-					case 'auth':
-						return c.auth_type;
-					case 'timeout':
-						return c.timeout_ms;
-					case 'health':
-						return c.health;
-					default:
-						return null;
-				}
-			},
-		),
+		sortRows(rows, sort, (c, key) => {
+			switch (key) {
+				case 'name':
+					return c.name;
+				case 'system':
+					return c.system;
+				case 'auth':
+					return c.auth_type;
+				case 'timeout':
+					return c.timeout_ms;
+				case 'health':
+					return c.health;
+				default:
+					return null;
+			}
+		}),
 	);
 	const canWrite = $derived(session.can('tenant_admin'));
+	function clearSearch() {
+		filter = '';
+		search = '';
+	}
 	let open = $state(false);
 	let draft = $state<Connector | null>(null);
 	/** The key a NEW connector is created with; kept out of `draft.id` so a failed create stays a create. */
@@ -259,7 +271,7 @@
 	<p class="muted">Loading…</p>
 {:else if conns.value.state === 'unavailable'}
 	<Unavailable reason={conns.value.reason} retry={() => conns.refresh()} />
-{:else if conns.value.state === 'empty'}
+{:else if conns.value.state === 'empty' && !search}
 	<div class="empty">
 		No connectors yet.
 		<button
@@ -273,16 +285,11 @@
 		</button>
 	</div>
 {:else}
-	<FilterInput
-		bind:value={filter}
-		label="Search connectors"
-		placeholder="Search name, system or URL"
-		count={filter ? `${shown.length} of ${rows.length}` : ''}
-	/>
-	{#if filter && shown.length === 0}
+	<FilterInput bind:value={filter} label="Search connectors" placeholder="Search id, name or system" />
+	{#if conns.value.state === 'empty'}
 		<div class="empty">
-			No connectors match “{filter}”.
-			<button class="btn" onclick={() => (filter = '')}>Clear search</button>
+			No connectors match “{search}”.
+			<button class="btn" onclick={clearSearch}>Clear search</button>
 		</div>
 	{:else}
 		<Card cls="flush">

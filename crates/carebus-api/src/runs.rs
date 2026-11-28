@@ -94,24 +94,30 @@ pub async fn running_of(s: &AppState, ctx: &JobCtx, source: Uuid) -> ApiResult<O
     )
 }
 
-/// Newest first; `before` is the previous page's last `started_at`.
+/// Newest first; `before` is the previous page's last `started_at`. `tokens` are
+/// `crate::page::search_tokens` of the caller's `q`: every one must occur in the run's `search_text`
+/// (its id, status, started_by and error).
 pub async fn page(
     s: &AppState,
     ctx: &JobCtx,
     source: Uuid,
     before: Option<DateTime<Utc>>,
     limit: i64,
+    tokens: &[String],
 ) -> ApiResult<Vec<SourceRun>> {
     let mut tx = ctx.begin(&s.db).await?;
-    Ok(sqlx::query_as(sqlx::AssertSqlSafe(format!(
-        "SELECT {RUN_COLUMNS} FROM source_runs WHERE source_id = $1 AND ($2::timestamptz IS NULL OR started_at < $2)
-         ORDER BY started_at DESC, id DESC LIMIT $3"
+    let mut query = sqlx::query_as::<_, SourceRun>(sqlx::AssertSqlSafe(format!(
+        "SELECT {RUN_COLUMNS} FROM source_runs WHERE source_id = $1 AND ($2::timestamptz IS NULL OR started_at < $2){}
+         ORDER BY started_at DESC, id DESC LIMIT $3",
+        sources::like_and("search_text", tokens, 4)
     )))
     .bind(source)
     .bind(before)
-    .bind(limit)
-    .fetch_all(&mut *tx)
-    .await?)
+    .bind(limit);
+    for t in tokens {
+        query = query.bind(format!("%{t}%"));
+    }
+    Ok(query.fetch_all(&mut *tx).await?)
 }
 
 /// `running` → final, only if still running. True for the one caller that won.
