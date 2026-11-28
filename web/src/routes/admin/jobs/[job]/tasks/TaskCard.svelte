@@ -1,7 +1,8 @@
 <script lang="ts">
 	// One MCP task: status, its open questions as forms generated from each question's JSON Schema, decline and
 	// cancel, and the result once it ended. Text from the task or its questions is always rendered as text.
-	import { api } from '$lib/app.svelte';
+	import { api, app } from '$lib/app.svelte';
+	import { jobPath } from '$lib/scope';
 	import { ApiError } from '$lib/api/client';
 	import { toast } from '$lib/ui/toaster.svelte';
 	import {
@@ -113,6 +114,9 @@
 		<span class="mono">{task.task_id}</span>
 		{#if task.created_by}· by {task.created_by}{/if}
 		{#if task.terminal_at}· ended {when(task.terminal_at)}{/if}
+		{#if task.case_id}· <a href={jobPath(app.job, `/cases/${encodeURIComponent(task.case_id)}`)}>
+				case {task.case_id}
+			</a>{/if}
 	</p>
 
 	{#if notice}<Callout kind="info" title="Already answered">{notice}</Callout>{/if}

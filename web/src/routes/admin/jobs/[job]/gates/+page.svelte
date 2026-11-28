@@ -4,6 +4,7 @@
 	import { getToken } from '$lib/auth/keycloak';
 	import { session } from '$lib/auth/session.svelte';
 	import { readConfig } from '$lib/config';
+	import { jobPath } from '$lib/scope';
 	import { Resource } from '$lib/load.svelte';
 	import { fmt } from '$lib/format';
 	import { ApiError } from '$lib/api/client';
@@ -503,8 +504,16 @@
 							<td>{v.action ?? '—'}</td>
 							<td class="r">{fmt.ms(v.latency_ms)}</td>
 							<td class="mono">
-								{#if v.conversation_id || v.case_id}{v.conversation_id ?? '—'}{#if v.case_id}
-										/ {v.case_id}{/if}{:else}<span class="muted">playground</span>{/if}
+								{#if v.conversation_id || v.case_id}
+									{#if v.conversation_id}<a
+											href={`/console?conversation=${encodeURIComponent(v.conversation_id)}`}
+										>
+											{v.conversation_id}
+										</a>{:else}—{/if}{#if v.case_id}
+										/ <a href={jobPath(app.job, `/cases/${encodeURIComponent(v.case_id)}`)}>
+											{v.case_id}
+										</a>{/if}
+								{:else}<span class="muted">playground</span>{/if}
 							</td>
 							<td class="err-cell">{v.error ?? ''}</td>
 						</tr>

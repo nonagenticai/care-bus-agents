@@ -21,8 +21,9 @@
 	let authError = $state('');
 	let navOpen = $state(false);
 	let collapsed = $state(false);
-	// Deployment labels come from runtime PUBLIC_* settings; never hardcode a job or environment.
-	const environment = env.PUBLIC_CAREBUS_ENVIRONMENT || 'Environment not configured';
+	// Deployment labels come from runtime PUBLIC_* settings; never hardcode a job or environment. An unset
+	// environment is simply omitted — only a missing API/Keycloak setting is a configuration error.
+	const environment = env.PUBLIC_CAREBUS_ENVIRONMENT;
 	// The current job (the URL's on job pages, else the one last picked); its label, else the deployment's label.
 	const job = $derived(
 		app.jobs.find((j) => j.key === app.job)?.label || env.PUBLIC_CAREBUS_JOB_LABEL || app.job,
@@ -112,12 +113,22 @@
 		],
 		['Demo', [['/demo', 'Demo data', 'demo']]],
 		['Governance', [['/admin/audit', 'Audit log', 'audit']]],
-		// super_admin only: the early-access signup queue (routes::signups answers 403 to everyone else).
-		...(session.superAdmin
-			? ([['Platform', [['/admin/onboarding', 'Onboarding', 'onboarding']]]] as [
-					string,
-					[string, string, string][],
-				][])
+		// Platform: Onboarding is super_admin only (routes::signups answers 403 to everyone else); Users was
+		// reachable only by typing its URL and is the tenant_admin's own user list, so both roles see it.
+		...(session.superAdmin || session.can('tenant_admin')
+			? ([
+					[
+						'Platform',
+						[
+							...(session.superAdmin
+								? ([['/admin/onboarding', 'Onboarding', 'onboarding']] as [string, string, string][])
+								: []),
+							...(session.can('tenant_admin')
+								? ([['/admin/users', 'Users', 'agents']] as [string, string, string][])
+								: []),
+						],
+					],
+				] as [string, [string, string, string][]][])
 			: []),
 	]);
 	/** Exact match for section roots that have sub-pages listed beside them in the nav. */
@@ -300,7 +311,10 @@
 				>
 					<Icon name="menu" />
 				</button>
-				<span class="deployment">{environment} · {job}</span>
+				<span class="deployment">
+					{#if environment}{environment} ·
+					{/if}{job}
+				</span>
 				{#if app.jobs.length > 1}
 					<select
 						class="input job-pick"

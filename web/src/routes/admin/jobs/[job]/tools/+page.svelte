@@ -36,7 +36,9 @@
 {:else if tools.value.state === 'unavailable'}
 	<Unavailable reason={tools.value.reason} retry={() => tools.refresh()} />
 {:else if tools.value.state === 'empty'}
-	<div class="empty">The MCP server lists no tools.</div>
+	<div class="empty">
+		The MCP server lists no tools for this job. Tools come from the job's release and MCP bridge.
+	</div>
 {:else}
 	<Card cls="flush">
 		<div class="tbl-wrap">

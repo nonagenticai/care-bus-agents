@@ -119,7 +119,11 @@
 	{:else if phase === 'unavailable'}
 		<Unavailable reason={loadError} retry={reload} />
 	{:else if tasks.length === 0}
-		<div class="empty">{view === 'open' ? 'No open tasks.' : 'No tasks yet.'}</div>
+		<div class="empty">
+			{view === 'open'
+				? 'No open tasks. A task appears when a tool needs a person to answer or approve something.'
+				: 'No tasks yet. A task appears when a tool needs a person to answer or approve something.'}
+		</div>
 	{:else}
 		{#each tasks as t (t.task_id)}
 			<TaskCard task={t} {canWrite} onchange={changed} onrefresh={reload} />

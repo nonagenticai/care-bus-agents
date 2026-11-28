@@ -53,7 +53,7 @@ describe('/admin/knowledge/jobs', () => {
 		} as unknown as Api;
 		render(JobsPage);
 		expect(await screen.findByText('Stores: strata_rag down')).toBeTruthy();
-		expect(screen.getByText('Showing the first 100 jobs.')).toBeTruthy();
+		expect(screen.getByText('Showing the newest 100 jobs.')).toBeTruthy();
 		await fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
 		expect(stores).toHaveBeenCalledTimes(2);
 	});

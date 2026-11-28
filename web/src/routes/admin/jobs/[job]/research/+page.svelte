@@ -355,7 +355,9 @@
 	{:else if listState === 'unavailable'}
 		<Unavailable reason={listError} retry={loadRuns} />
 	{:else if rows.length === 0}
-		<div class="empty">{status ? 'No runs with this status.' : 'No research runs yet.'}</div>
+		<div class="empty">
+			{status ? 'No runs with this status.' : 'No research runs yet. Start a run above.'}
+		</div>
 	{:else}
 		<div class="tbl-wrap">
 			<table class="tbl" aria-label="Research runs">

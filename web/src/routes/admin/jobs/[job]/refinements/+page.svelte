@@ -85,6 +85,7 @@
 			summary={(i) => i.label}
 			{conflicts}
 			onchange={loadConflicts}
+			edit={editSpace}
 		/>
 	{:else if tab === 'entities'}
 		<OverlayTable

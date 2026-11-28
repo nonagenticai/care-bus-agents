@@ -344,7 +344,7 @@
 {#if entities.value.state === 'unavailable'}
 	<Unavailable reason={entities.value.reason} retry={() => entities.refresh()} />
 {:else if entities.value.state === 'empty'}
-	<div class="empty">No entities yet. Import a seed or add one.</div>
+	<div class="empty">No entities yet. Add one with Add entity.</div>
 {:else if entities.value.state === 'loading'}
 	<p class="muted">Loading…</p>
 {:else if view === 'graph'}

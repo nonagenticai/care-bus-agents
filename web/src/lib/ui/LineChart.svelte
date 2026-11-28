@@ -40,6 +40,13 @@
 			});
 		return { x, y, ticks, step, paths, n };
 	});
+	const ih = $derived(height - T - B);
+	/** The band around one point that answers a hover; clamped to the plot at both ends. */
+	const band = $derived((W - L - R) / Math.max(1, labels.length - 1));
+	const hover = (i: number) => {
+		const x = Math.max(L, Math.min(W - R - band, geo.x(i) - band / 2));
+		return { x, w: band };
+	};
 </script>
 
 <div class="chart">
@@ -61,6 +68,12 @@
 		{#each geo.paths as p}<g class={p.cls}>
 				<path class="area" d={p.area} /><path class="line" d={p.line} />
 			</g>{/each}
+		{#each labels as l, i}
+			{@const h = hover(i)}
+			<rect class="hover" x={h.x} y={T} width={h.w} height={ih} fill="transparent">
+				<title>{l}: {series.map((s) => `${s.label} ${fmt.n(s.values[i] ?? 0)}`).join(' · ')}</title>
+			</rect>
+		{/each}
 	</svg>
 	<div class="legend">
 		{#each series as s}<span><i class="sw {s.cls}"></i>{s.label}</span>{/each}
