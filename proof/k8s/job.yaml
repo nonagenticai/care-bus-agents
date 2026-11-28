@@ -1,0 +1,88 @@
+# One-off proof Job. NOT reconciled by Flux: it is applied with
+#   kubectl apply -k proof/
+# and deleted by its TTL. Re-running it is a deliberate act.
+#
+# It runs from the care-bus namespace because that is where the bundle-minter
+# credential lives and because the bdd-playwright / lean4-prover allow-lists
+# name this namespace (gitops #5470). Both calls are in-cluster.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: carebus-proof
+  namespace: care-bus
+  labels:
+    app: carebus-proof
+spec:
+  backoffLimit: 0
+  # The bdd generation polls for up to 45 min and the Playwright run has its own
+  # 20-minute cap; 90 minutes bounds the whole Job without racing either.
+  activeDeadlineSeconds: 5400
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: carebus-proof
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: proof
+          # Same @playwright/test line the bdd generator emits (1.64.1 at the
+          # time of writing). The runner also installs that package's own
+          # Chromium into /work/browsers, so a generator bump cannot silently
+          # run the suite on a mismatched browser.
+          image: mcr.microsoft.com/playwright:v1.64.1-noble
+          command:
+            - sh
+            - -c
+            - mkdir -p /tmp/home /work/npm-cache && HOME=/tmp/home npm_config_cache=/work/npm-cache node /proof/src/run.mjs
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          env:
+            # The trusted-network lane: a bare tenant id from a pod in
+            # TRUSTED_CIDRS. netcare holds the active bdd_playwright licence.
+            - {name: BDD_TENANT, value: "01a1ff14-338d-7293-93ea-28e5e17ac4b0"}
+            - {name: BDD_TARGET, value: "https://nonagentic.ai"}
+            - {name: PROOF_ROOT, value: "/proof/src"}
+            - {name: WORK_DIR, value: "/work"}
+            # A short-lived licence token for lean4-prover, minted on care-bus's
+            # own bundle. lean4-prover introspects the bearer and checks `active`
+            # only; the app key below is a bundle member, not a prover setting.
+            - {name: CLIENT_ID, value: "care-bus-bundle-minter"}
+            - {name: CLIENT_SECRET_FILE, value: "/secrets/client-secret"}
+            - {name: MINT_TENANT, value: "0195f48b-d000-7000-8000-000000000099"}
+            - {name: MINT_APP, value: "strata-rag"}
+            - {name: MINT_BUNDLE, value: "care-bus"}
+            - {name: PW_TEST_TIMEOUT_MS, value: "180000"}
+          volumeMounts:
+            - {name: src, mountPath: /proof/src, readOnly: true}
+            - {name: work, mountPath: /work}
+            - {name: tmp, mountPath: /tmp}
+            - {name: dshm, mountPath: /dev/shm}
+            - {name: minter, mountPath: /secrets, readOnly: true}
+          resources:
+            requests: {cpu: 500m, memory: 1Gi}
+            limits: {cpu: "2", memory: 3Gi}
+      volumes:
+        - name: src
+          configMap:
+            name: carebus-proof-src
+        - name: work
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+        # Chromium's shared memory; without it the renderer can crash on a real page.
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Gi
+        - name: minter
+          secret:
+            secretName: care-bus-bundle-minter
