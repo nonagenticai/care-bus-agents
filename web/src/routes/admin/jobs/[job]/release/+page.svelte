@@ -84,7 +84,8 @@
 		<KeyValues
 			pairs={[
 				['Release', r.release_id],
-				['Applied', `${when(r.applied_at)} by ${r.applied_by}`],
+				['Hash', r.hash],
+				['Applied', r.applied ? `${when(r.applied_at)} by ${r.applied_by}` : 'Not applied'],
 				['Previous release', r.previous_release_id ?? '—'],
 				['Open conflicts', fmt.n(r.conflicts.length)],
 				[
@@ -101,6 +102,7 @@
 
 <Card title="Conflicts" sub="Release objects that collide with your refinements">
 	{#snippet actions()}
+		<Freshness resource={conflicts} />
 		<Seg
 			items={[
 				['open', 'Open'],
@@ -134,6 +136,11 @@
 							<td>
 								<Chip text={c.kind.replaceAll('_', ' ')} variant={c.resolved_at ? 'muted' : 'warn'} />
 								{conflictText(c)}
+								{#if c.base_hash_before || c.base_hash_after}<span class="cell-sub mono">
+										base {c.base_hash_before ? c.base_hash_before.slice(0, 10) : '—'} → {c.base_hash_after
+											? c.base_hash_after.slice(0, 10)
+											: '—'}
+									</span>{/if}
 							</td>
 							<td class="mono">{c.release_id}</td>
 							<td>{when(c.detected_at)}</td>

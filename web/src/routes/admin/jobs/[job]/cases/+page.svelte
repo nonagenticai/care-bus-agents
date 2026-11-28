@@ -108,13 +108,13 @@
 				Clear filters
 			</button>
 		{:else}
-			No cases yet.
+			No cases yet. A case appears here when a customer request reaches the bus.
 		{/if}
 	</div>
 {:else}
 	<Card cls="flush">
 		<div class="tbl-wrap">
-			<table class="tbl clickable">
+			<table class="tbl clickable stack-phone">
 				<thead>
 					<tr>
 						<th>Case</th><th>Area</th><th>Request</th><th>Outcome</th><th class="r">Work items</th><th
@@ -128,7 +128,7 @@
 					{#each rows as c (c.case_id)}
 						{@const proc = caseProcedure(c, labels.procedure)}
 						<tr onclick={() => openCase(c.case_id)}>
-							<td>
+							<td data-label="Case">
 								<button
 									type="button"
 									class="table-action mono"
@@ -140,8 +140,8 @@
 									{c.case_id}
 								</button><span class="cell-sub mono">{c.customer_id}</span>
 							</td>
-							<td>{areaLabel(c.area)}</td>
-							<td>
+							<td data-label="Area">{areaLabel(c.area)}</td>
+							<td data-label="Request">
 								{labels.type(c.request_type)}{#if proc?.recorded}<span
 										class="cell-sub"
 										title="Procedure version this case ran"
@@ -154,9 +154,13 @@
 										procedure <span class="mono">{proc.text}</span> (from context space)
 									</span>{/if}
 							</td>
-							<td><Status word={c.outcome ?? 'open'} label={outcomeLabel(c.outcome)} /></td>
-							<td class="r">{c.work_items}{c.retries ? ` (+${c.retries} retry)` : ''}</td>
-							<td class="r">{fmt.ms(c.duration_ms)}</td>
+							<td data-label="Outcome">
+								<Status word={c.outcome ?? 'open'} label={outcomeLabel(c.outcome)} />
+							</td>
+							<td class="r" data-label="Work items">
+								{c.work_items}{c.retries ? ` (+${c.retries} retry)` : ''}
+							</td>
+							<td class="r" data-label="Time">{fmt.ms(c.duration_ms)}</td>
 						</tr>
 					{/each}
 				</tbody>

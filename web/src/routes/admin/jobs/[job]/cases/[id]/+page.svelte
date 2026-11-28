@@ -318,6 +318,13 @@
 		flex-direction: column;
 		overflow: hidden;
 	}
+	/* Card renders its children inside `.card-body`; the column must start there, or `.seq-wrap` never gets a
+	   bounded height and the card's overflow:hidden clips every event past the fold. */
+	:global(.trace-card) :global(.card-body) {
+		display: flex;
+		flex-direction: column;
+		min-height: 0;
+	}
 	.trace-head {
 		display: flex;
 		justify-content: space-between;

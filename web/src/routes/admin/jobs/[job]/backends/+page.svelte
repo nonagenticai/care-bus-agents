@@ -41,6 +41,8 @@
 	const canWrite = $derived(session.can('tenant_admin'));
 	let open = $state(false);
 	let draft = $state<Connector | null>(null);
+	/** The key a NEW connector is created with; kept out of `draft.id` so a failed create stays a create. */
+	let newKey = $state('');
 	let original = $state('');
 	const dirty = $derived(draft !== null && JSON.stringify(toConnectorInput(draft)) !== original);
 	let testMsg = $state('');
@@ -96,6 +98,34 @@
 		}
 	}
 
+	/** A blank draft for POST /connectors; Save creates it because the input carries no id. */
+	const blankConnector = (): Connector => ({
+		id: '',
+		name: '',
+		system: '',
+		base_url: '',
+		auth_type: 'none',
+		secret_ref: null,
+		timeout_ms: 10000,
+		rate_limit: null,
+		health: 'unknown',
+		health_checked_at: null,
+		mappings: [],
+		origin: 'tenant',
+		overridden: false,
+		hidden: false,
+	});
+	function add() {
+		baseConn = null;
+		newKey = '';
+		draft = blankConnector();
+		original = JSON.stringify(toConnectorInput(draft));
+		testMsg = '';
+		fault = null;
+		check = null;
+		pending = null;
+		open = true;
+	}
 	function edit(c: Connector) {
 		baseConn = null;
 		if (c.overridden || c.origin === 'base') void loadBase(c.id);
@@ -128,10 +158,18 @@
 		fault = null;
 		check = null;
 		const name = draft.name;
-		const input = toConnectorInput($state.snapshot(draft) as Connector);
-		const r = await guardOutcome(() => api().saveConnector(input), `Saved ${name}.`, 'Not saved', {
-			reconcile: true,
-		});
+		// A new connector POSTs with the key typed in the form; an existing one PUTs with its id.
+		const create = !draft.id;
+		const input = {
+			...toConnectorInput($state.snapshot(draft) as Connector),
+			...(create ? { id: newKey.trim() } : {}),
+		};
+		const r = await guardOutcome(
+			() => (create ? api().createConnector(input) : api().saveConnector(input)),
+			`Saved ${name}.`,
+			'Not saved',
+			{ reconcile: true },
+		);
 		if (r.kind === 'ok') {
 			saving = false;
 			open = false;
@@ -174,6 +212,17 @@
 		<h1>Backend systems</h1>
 		<p>Connectors the MCP tools call. In the demo these point at demo-backends.</p>
 	</div>
+	<div class="actions">
+		<button
+			class="btn primary"
+			type="button"
+			disabled={!canWrite}
+			title={canWrite ? '' : 'Needs the tenant_admin role'}
+			onclick={add}
+		>
+			Add connector
+		</button>
+	</div>
 </header>
 <Freshness resource={conns} />
 
@@ -182,7 +231,18 @@
 {:else if conns.value.state === 'unavailable'}
 	<Unavailable reason={conns.value.reason} retry={() => conns.refresh()} />
 {:else if conns.value.state === 'empty'}
-	<div class="empty">No connectors yet.</div>
+	<div class="empty">
+		No connectors yet.
+		<button
+			class="btn primary"
+			type="button"
+			disabled={!canWrite}
+			title={canWrite ? '' : 'Needs the tenant_admin role'}
+			onclick={add}
+		>
+			Add connector
+		</button>
+	</div>
 {:else}
 	<Card cls="flush">
 		<div class="tbl-wrap">
@@ -226,7 +286,7 @@
 	</Card>
 {/if}
 
-<Drawer bind:open title={draft?.name ?? ''} wide {dirty}>
+<Drawer bind:open title={draft?.id ? draft.name || 'Connector' : 'New connector'} wide {dirty}>
 	{#if draft}
 		{#if !canWrite}
 			<Callout kind="info" title="Read only">
@@ -246,6 +306,28 @@
 		{/if}
 		<fieldset class="be-fields" disabled={!canWrite || saving}>
 			<div class="form-grid">
+				{#if !draft.id}
+					<label class="field">
+						<span class="label">Key</span><input
+							class="input mono"
+							bind:value={newKey}
+							placeholder="orders-api"
+							autocomplete="off"
+							spellcheck="false"
+						/>
+					</label>
+				{/if}
+				<label class="field">
+					<span class="label">Name</span><input class="input" bind:value={draft.name} autocomplete="off" />
+				</label>
+				<label class="field">
+					<span class="label">System</span><input
+						class="input mono"
+						bind:value={draft.system}
+						placeholder="oms"
+						autocomplete="off"
+					/>
+				</label>
 				<label class="field">
 					<span class="label">Base URL</span><input
 						class="input mono"
@@ -364,8 +446,8 @@
 			<button
 				class="btn"
 				type="button"
-				disabled={!canWrite || saving || testing}
-				title={canWrite ? '' : 'Needs the tenant_admin role'}
+				disabled={!canWrite || saving || testing || !draft.id}
+				title={!canWrite ? 'Needs the tenant_admin role' : draft.id ? '' : 'Save it first'}
 				onclick={test}
 			>
 				Test saved connector
@@ -386,8 +468,10 @@
 			<button
 				class="btn primary"
 				type="button"
-				disabled={!canWrite || saving || secretError !== ''}
-				title={!canWrite ? 'Needs the tenant_admin role' : secretError}
+				disabled={!canWrite || saving || secretError !== '' || (!draft.id && !newKey.trim())}
+				title={!canWrite
+					? 'Needs the tenant_admin role'
+					: secretError || (!draft.id && !newKey.trim() ? 'Give the connector a key first' : '')}
 				onclick={save}
 			>
 				{saving ? 'Saving…' : 'Save'}

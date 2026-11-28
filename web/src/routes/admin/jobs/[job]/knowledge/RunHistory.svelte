@@ -8,11 +8,25 @@
 	import Unavailable from '$lib/ui/Unavailable.svelte';
 
 	let { source, canWrite, onchange }: { source: Source; canWrite: boolean; onchange: () => void } = $props();
-	const runs = new Resource<Paged<SourceRun>>(() => api().sourceRuns(source.id, { limit: 20 }));
+	/** Older-runs cursor: `''` is the newest page. */
+	let before = $state('');
+	const runs = new Resource<Paged<SourceRun>>(() =>
+		api().sourceRuns(source.id, { limit: 20, before: before || undefined }),
+	);
 	$effect(() => {
 		void source.id;
+		before = '';
 		runs.refresh();
 	});
+	function older(next: string) {
+		before = next;
+		runs.refresh();
+	}
+	function newer() {
+		before = '';
+		runs.refresh();
+	}
+	const next = $derived(runs.value.state === 'ok' ? runs.value.data.next : null);
 	let files = $state<File[]>([]);
 	let busy = $state(false);
 	const running = $derived(
@@ -100,6 +114,22 @@
 					{/each}
 				</tbody>
 			</table>
+		</div>
+		<div class="row">
+			<button class="btn" type="button" disabled={!before || runs.refreshing} onclick={newer}>
+				Newer results
+			</button>
+			<span class="muted" role="status">
+				{runs.value.data.items.length} runs on this page{next ? ' · more available' : ' · end'}
+			</span>
+			<button
+				class="btn"
+				type="button"
+				disabled={!next || runs.refreshing}
+				onclick={() => next && older(next)}
+			>
+				Older results
+			</button>
 		</div>
 	{:else}
 		<p class="muted">Loading…</p>

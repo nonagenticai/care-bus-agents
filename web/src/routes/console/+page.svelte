@@ -4,7 +4,8 @@
 	import { page } from '$app/state';
 	import { setQuery } from '$lib/query';
 	import Tabs from '$lib/ui/Tabs.svelte';
-	import { api, guard } from '$lib/app.svelte';
+	import { api, app, guard } from '$lib/app.svelte';
+	import { jobPath } from '$lib/scope';
 	import { getToken } from '$lib/auth/keycloak';
 	import { session } from '$lib/auth/session.svelte';
 	import type { AgentView } from '$lib/api/types';
@@ -363,8 +364,11 @@
 				</span>
 				{#if store.trimmed > 0}
 					<span role="status">
-						Showing the last {MAX_PER_LANE} events per bus; {store.trimmed} older not shown (open the case for its
-						full trace).
+						Showing the last {MAX_PER_LANE} events per bus; {store.trimmed} older not shown ({#if act}<a
+								href={jobPath(app.job, `/cases/${encodeURIComponent(act.caseId)}`)}
+							>
+								open the case
+							</a>{:else}open the case{/if} for its full trace).
 					</span>
 				{/if}
 			</div>
@@ -374,7 +378,11 @@
 					<dl>
 						<div>
 							<dt>Case</dt>
-							<dd class="mono">{act.caseId}{caseFilter ? '' : ' (latest seen)'}</dd>
+							<dd class="mono">
+								<a href={jobPath(app.job, `/cases/${encodeURIComponent(act.caseId)}`)}>
+									{act.caseId}
+								</a>{caseFilter ? '' : ' (latest seen)'}
+							</dd>
 						</div>
 						<div>
 							<dt>Last observed step</dt>

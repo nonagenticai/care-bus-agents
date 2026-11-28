@@ -479,6 +479,7 @@ export function createClient(o: Opts) {
 			actor_type?: string;
 			status?: string;
 			resource_type?: string;
+			job?: string;
 			limit?: number;
 			before?: string;
 		}) => req<T.Paged<T.AuditRow>>('GET', `/api/audit${qs(q)}`),

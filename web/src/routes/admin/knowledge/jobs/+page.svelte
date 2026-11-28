@@ -1,5 +1,7 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import { jobPath } from '$lib/scope';
+	import { setQuery } from '$lib/query';
 	import { onDestroy, untrack } from 'svelte';
 	import { api, app, guard, guardOutcome } from '$lib/app.svelte';
 	import { session } from '$lib/auth/session.svelte';
@@ -20,6 +22,7 @@
 	import Freshness from '$lib/ui/Freshness.svelte';
 	import Card from '$lib/ui/Card.svelte';
 	import Drawer from '$lib/ui/Drawer.svelte';
+	import Pagination from '$lib/ui/Pagination.svelte';
 	import Status from '$lib/ui/Status.svelte';
 	import Unavailable from '$lib/ui/Unavailable.svelte';
 
@@ -38,16 +41,28 @@
 	const POLL_MS = 5000;
 	let status = $state('');
 	let store = $state('');
+	/** Older-results cursor from the URL (`?before=`), shared with the Pagination control. */
+	const before = $derived(page.url.searchParams.get('before') ?? '');
 	const jobs = new Resource<Paged<IngestJob>>(() =>
-		api().ingestJobs({ status: status || undefined, store_id: store || undefined, limit: LIMIT }),
+		api().ingestJobs({
+			status: status || undefined,
+			store_id: store || undefined,
+			limit: LIMIT,
+			before: before || undefined,
+		}),
 	);
 	const stores = new Resource<Paged<StoreNode>>(() => api().stores());
 	stores.refresh();
 	$effect(() => {
 		void status;
 		void store;
+		void before;
 		jobs.refresh();
 	});
+	/** A filter change always means page one: a cursor from the other filter would skip the newest jobs. */
+	function refilter() {
+		if (before) void setQuery({ before: '', previous: '' });
+	}
 	const canWrite = $derived(session.can('tenant_admin'));
 	const why = $derived(canWrite ? '' : 'Needs the tenant_admin role');
 	let open = $state(false);
@@ -310,14 +325,14 @@
 <div class="row">
 	<label class="field">
 		<span class="label">Status</span>
-		<select class="input" bind:value={status}>
+		<select class="input" value={status} onchange={(e) => ((status = e.currentTarget.value), refilter())}>
 			<option value="">All</option>
 			{#each STATUSES as s}<option value={s}>{s}</option>{/each}
 		</select>
 	</label>
 	<label class="field">
 		<span class="label">Store</span>
-		<select class="input" bind:value={store}>
+		<select class="input" value={store} onchange={(e) => ((store = e.currentTarget.value), refilter())}>
 			<option value="">All</option>
 			{#if stores.value.state === 'ok'}
 				{#each stores.value.data.items.filter((s) => s.kind === 'leaf') as s}<option value={s.id}>
@@ -334,9 +349,10 @@
 	<Unavailable reason={jobs.value.reason} retry={() => jobs.refresh()} />
 {:else if jobs.value.state === 'empty'}
 	<div class="empty">No ingest jobs match.</div>
+	{#if before}<Pagination escape next={null} count={0} busy={jobs.refreshing} />{/if}
 {:else}
-	{#if jobs.value.data.next}
-		<p class="muted" role="status">Showing the first {LIMIT} jobs.</p>
+	{#if jobs.value.data.next && !before}
+		<p class="muted" role="status">Showing the newest {LIMIT} jobs.</p>
 	{/if}
 	{#if polling}
 		<p class="muted" role="status">Jobs in progress: this list refreshes every {POLL_MS / 1000} seconds.</p>
@@ -381,6 +397,7 @@
 			</table>
 		</div>
 	</Card>
+	<Pagination next={jobs.value.data.next} count={jobs.value.data.items.length} busy={jobs.refreshing} />
 {/if}
 
 <Drawer bind:open title={cur ? jobSourceLabel(cur) : ''} wide>

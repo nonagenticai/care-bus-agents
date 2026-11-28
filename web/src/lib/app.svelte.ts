@@ -76,19 +76,20 @@ export function selectJob(key: string) {
 	writeStored(JOB_KEY, key);
 }
 
-async function loadJobs(a: Api) {
+/** Loads the job list and picks the job; returns the state a jobs() refusal puts the caller in, if any. */
+async function loadJobs(a: Api): Promise<Blocked> {
 	try {
 		app.jobs = (await a.jobs()).items;
 	} catch (e) {
 		if (!(e instanceof ApiError)) throw e;
-		if (e.code === 'not_provisioned' || e.code === 'tenant_suspended') app.blocked = e.code;
-		else if (e.code === 'active_tenant_required') app.blocked = 'pick_tenant';
-		else throw e;
 		app.jobs = [];
-		return;
+		if (e.code === 'not_provisioned' || e.code === 'tenant_suspended') return e.code;
+		if (e.code === 'active_tenant_required') return 'pick_tenant';
+		throw e;
 	}
 	app.job = pickJob(app.jobs, readStored(JOB_KEY));
 	writeStored(JOB_KEY, app.job);
+	return null;
 }
 
 /** A super_admin's tenant list (`GET /api/tenants`). Resolves an error message instead of throwing. */
@@ -119,9 +120,12 @@ export async function bootstrapScope(a: Api, user: User): Promise<void> {
 		}
 	}
 	session.set(user, me);
-	app.blocked = blockedFor(me);
+	// Keep `blocked` set until the job list is known: clearing it first lets LegacyRedirect run with the
+	// bootstrap job (`DEFAULT_JOB`) and an empty list, landing a picked tenant on a job it does not have.
+	let blocked = blockedFor(me);
 	if (me.super_admin) await loadTenants();
-	if (!app.blocked) await loadJobs(a);
+	if (!blocked) blocked = await loadJobs(a);
+	app.blocked = blocked;
 }
 
 /**
@@ -147,8 +151,11 @@ export async function switchTenant(tenantId: string): Promise<string | null> {
 	}
 	writeStored(TENANT_KEY, id);
 	session.set(session.user, me);
-	app.blocked = blockedFor(me);
-	if (!app.blocked) await loadJobs(a);
+	// Same ordering as bootstrapScope: the new tenant's jobs must be known before the shell renders, or a
+	// pick from the tenant picker can still route to the previous/default job.
+	let blocked = blockedFor(me);
+	if (!blocked) blocked = await loadJobs(a);
+	app.blocked = blocked;
 	return null;
 }
 

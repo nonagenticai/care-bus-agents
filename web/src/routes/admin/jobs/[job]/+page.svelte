@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { jobPath } from '$lib/scope';
 	import Freshness from '$lib/ui/Freshness.svelte';
-	import * as env from '$app/env/public';
 	import { api, app } from '$lib/app.svelte';
 	import { Resource } from '$lib/load.svelte';
 	import { fmt } from '$lib/format';
@@ -32,7 +31,7 @@
 <header class="page-head">
 	<div>
 		<h1>Dashboard</h1>
-		<p>{env.PUBLIC_CAREBUS_JOB_LABEL || 'Configured job'} · today.</p>
+		<p>{app.jobs.find((j) => j.key === app.job)?.label ?? app.job} · today.</p>
 	</div>
 	<div class="actions">
 		<a class="btn" href="/console">Open live console</a>

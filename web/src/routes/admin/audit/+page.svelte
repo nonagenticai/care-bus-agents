@@ -3,7 +3,7 @@
 	import { page } from '$app/state';
 	import { setQuery } from '$lib/query';
 	import Pagination from '$lib/ui/Pagination.svelte';
-	import { api } from '$lib/app.svelte';
+	import { api, app } from '$lib/app.svelte';
 	import { Resource } from '$lib/load.svelte';
 	import { debounce } from '$lib/debounce';
 	import type { AuditRow, Paged } from '$lib/api/types';
@@ -21,9 +21,10 @@
 	const actorType = $derived(page.url.searchParams.get('actor_type') ?? '');
 	const status = $derived(page.url.searchParams.get('status') ?? '');
 	const resourceType = $derived(page.url.searchParams.get('resource_type') ?? '');
+	const job = $derived(page.url.searchParams.get('job') ?? '');
 	const before = $derived(page.url.searchParams.get('before') ?? '');
 	const filtered = $derived(
-		q !== '' || actorType !== '' || status !== '' || resourceType !== '' || before !== '',
+		q !== '' || actorType !== '' || status !== '' || resourceType !== '' || job !== '' || before !== '',
 	);
 	// The search box keeps its own text; the URL (and so the request) follows it after a pause.
 	let text = $state(untrack(() => q));
@@ -36,6 +37,7 @@
 		actor_type: actorType || undefined,
 		status: status || undefined,
 		resource_type: resourceType || undefined,
+		job: job || undefined,
 		before: before || undefined,
 		limit: PAGE,
 	});
@@ -55,6 +57,7 @@
 		void actorType;
 		void status;
 		void resourceType;
+		void job;
 		void before;
 		run();
 	});
@@ -77,9 +80,11 @@
 	const set_status = (v: string) => void setQuery({ status: v });
 	const get_resourceType = () => resourceType;
 	const set_resourceType = (v: string) => void setQuery({ resource_type: v });
+	const get_job = () => job;
+	const set_job = (v: string) => void setQuery({ job: v });
 	function clear() {
 		text = '';
-		void setQuery({ q: '', actor_type: '', status: '', resource_type: '' });
+		void setQuery({ q: '', actor_type: '', status: '', resource_type: '', job: '' });
 	}
 </script>
 
@@ -127,6 +132,13 @@
 			<option value="">All resources</option>
 			{#each RESOURCE_TYPES as [k, l]}<option value={k}>{l}</option>{/each}
 		</select>
+		{#if app.jobs.length > 1}
+			<!-- prettier-ignore -->
+			<select class="input" style="width:auto" bind:value={get_job, set_job} aria-label="Job">
+				<option value="">All jobs</option>
+				{#each app.jobs as j (j.key)}<option value={j.key}>{j.label}</option>{/each}
+			</select>
+		{/if}
 		{#if filtered}<button class="btn sm" type="button" onclick={clear}>Clear filters</button>{/if}
 	</div>
 

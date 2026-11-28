@@ -481,7 +481,7 @@ describe('/admin/jobs/[job]/research', () => {
 			within(table).getByRole('button', { name: 'Czy najemca może wypowiedzieć umowę?' }),
 		);
 		expect(await screen.findByText(LEGAL_BANNER)).toBeTruthy();
-		expect(api.researchRun).toHaveBeenCalledWith(RUN_ID);
+		expect(api.researchRun).toHaveBeenCalledWith(RUN_ID, { stepsFull: true });
 	});
 
 	it('the status filter is sent to the server', async () => {
@@ -521,7 +521,7 @@ describe('/admin/jobs/[job]/research', () => {
 			budget: { max_steps: 30 },
 		});
 		// the new run opens in the drawer
-		expect(api.researchRun).toHaveBeenCalledWith('new-run');
+		expect(api.researchRun).toHaveBeenCalledWith('new-run', { stepsFull: true });
 	});
 
 	it('an empty question is refused in the form; unknown_store is explained', async () => {

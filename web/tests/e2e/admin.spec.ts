@@ -108,3 +108,42 @@ test('a super_admin without a tenant picks one; every call then names it', async
 	expect(overview?.tenant).toBe(E2E_TENANT);
 	expect(overview?.job).toBe('customer_care_agent');
 });
+
+// The pick must land on the tenant's first job. `DEFAULT_JOB` is the bootstrap key, not a target: the mock's
+// default job is `customer_care_agent`, which masked this race — the redirect fired before `GET /api/jobs`
+// returned and sent a picked tenant to a job it does not have.
+test("a tenant pick lands on that tenant's first job, not the bootstrap job", async ({ page }) => {
+	const sent = await mockApi(page, {
+		me: {
+			sub: 'e2e',
+			actor: 'e2e',
+			super_admin: true,
+			release_writer: false,
+			tenant: null,
+			active_tenant: null,
+		},
+		jobs: [{ key: 'acme_job', label: 'Acme care' }],
+	});
+	await page.route('**/api/me', (route) => {
+		const t = route.request().headers()['x-active-tenant-id'] ?? null;
+		return route.fulfill({
+			contentType: 'application/json',
+			body: JSON.stringify({
+				sub: 'e2e',
+				actor: 'e2e',
+				super_admin: true,
+				release_writer: false,
+				tenant: null,
+				active_tenant: t === E2E_TENANT ? t : null,
+			}),
+		});
+	});
+	await page.goto('/admin');
+	await expect(page.getByText('Choose a tenant to act in')).toBeVisible();
+	await page.getByLabel('Tenant id').fill(E2E_TENANT);
+	await page.getByRole('button', { name: 'Act in tenant' }).click();
+	await expect(page).toHaveURL(/\/admin\/jobs\/acme_job$/);
+	await expect(page.getByRole('heading', { name: 'Unknown job' })).toHaveCount(0);
+	await expect(page.getByText('Cases today')).toBeVisible();
+	expect(sent.find((r) => r.path === '/api/overview')?.job).toBe('acme_job');
+});

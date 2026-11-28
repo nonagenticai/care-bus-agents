@@ -279,3 +279,41 @@ test('a tenant_user reads the users with every control disabled', async ({ page 
 	await expect(row.getByRole('combobox')).toBeDisabled();
 	await expect(page.getByRole('button', { name: 'Add user' })).toBeDisabled();
 });
+
+test('an empty backend list offers Add connector and creates one', async ({ page }) => {
+	await mockApi(page);
+	const posts: Record<string, unknown>[] = [];
+	await page.route(
+		(u) => u.href.startsWith(apiUrl('/api/connectors')),
+		(route) => {
+			if (route.request().method() === 'POST') {
+				const body = route.request().postDataJSON();
+				posts.push(body);
+				return route.fulfill({
+					status: 201,
+					contentType: 'application/json',
+					body: JSON.stringify({ ...body, id: 'orders-api', health: 'unknown' }),
+				});
+			}
+			return route.fulfill({
+				contentType: 'application/json',
+				body: JSON.stringify({ items: [], next: null }),
+			});
+		},
+	);
+	await page.goto(`/admin/jobs/${E2E_JOB}/backends`);
+	await expect(page.getByText('No connectors yet.')).toBeVisible();
+	await page.getByRole('button', { name: 'Add connector' }).first().click();
+	await page.getByRole('textbox', { name: 'Key', exact: true }).fill('orders-api');
+	await page.getByRole('textbox', { name: 'Name', exact: true }).fill('Orders API');
+	await page.getByRole('textbox', { name: 'System', exact: true }).fill('orders');
+	await page.getByRole('textbox', { name: 'Base URL', exact: true }).fill('https://orders.example/api');
+	await page.getByRole('button', { name: 'Save', exact: true }).click();
+	await expect.poll(() => posts.length).toBe(1);
+	expect(posts[0]).toMatchObject({
+		id: 'orders-api',
+		name: 'Orders API',
+		system: 'orders',
+		base_url: 'https://orders.example/api',
+	});
+});

@@ -77,6 +77,16 @@ const detail = {
 			outcome: 'completed',
 		}),
 		event('bus:customer:faq', 'faq.general.answer.ready', 'interaction', '1792065600400-0', { cited: 1 }),
+		// More events than fit the trace card: the card is a scroller, never a clip (the live case had 8).
+		event('bus:worker:faq', 'faq.general.work.requested', 'orchestrator', '1792065600500-0', {
+			worker: 'faq',
+		}),
+		event('bus:tool:faq', 'faq.general.tool.call', 'worker:faq', '1792065600600-0', {
+			question: 'what is care bus?',
+		}),
+		event('bus:worker:faq', 'faq.general.work.done', 'orchestrator', '1792065600700-0', {
+			outcome: 'completed',
+		}),
 	],
 };
 
@@ -95,8 +105,23 @@ test('the answer reads first, the trace fills the page, and the hash stays shut'
 	await expect(page.locator('p.answer')).not.toContainText('[2]');
 
 	// Every event has its own row, and the empty-lane cells do not push the event out of its column.
-	await expect(page.locator('.seq-row')).toHaveCount(5);
+	await expect(page.locator('.seq-row')).toHaveCount(8);
 	await expect(page.locator('.seq-row').first()).toContainText('request.qualified');
+
+	// The trace is a scroller, not a clip: the card must not overflow, and the last row must be reachable
+	// inside `.seq-wrap`. Asserting only the DOM row count missed the live 406/809 px clip.
+	const traceCard = page.locator('.trace-card');
+	expect(await traceCard.evaluate((el) => el.scrollHeight <= el.clientHeight + 1)).toBe(true);
+	expect(
+		await page.locator('.seq-wrap').evaluate((wrap) => {
+			wrap.scrollTop = wrap.scrollHeight;
+			const last = wrap.querySelector('.seq-row:last-of-type');
+			if (!last) return false;
+			const row = last.getBoundingClientRect();
+			const box = wrap.getBoundingClientRect();
+			return row.top >= box.top - 1 && row.bottom <= box.bottom + 1;
+		}),
+	).toBe(true);
 
 	// The raw hash is collapsed: present for the audit, not in the way. Its text is in the DOM (a closed
 	// <details> keeps it) but never painted.
@@ -119,5 +144,18 @@ test('the answer reads first, the trace fills the page, and the hash stays shut'
 	await page.getByRole('button', { name: 'Show summary' }).click();
 	await page.screenshot({ path: testInfo.outputPath('case-page.png'), fullPage: true });
 	// A phone must not scroll sideways on it.
+	expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
+});
+
+test('the case list stacks its columns on a phone instead of scrolling sideways', async ({
+	page,
+}, testInfo) => {
+	test.skip(testInfo.project.name !== 'phone', 'phone layout');
+	await mockApi(page);
+	await page.goto(`/admin/jobs/${E2E_JOB}/cases`);
+	// The header row is replaced by per-cell labels; outcome and time stay readable without a sideways swipe.
+	await expect(page.locator('.tbl thead')).toBeHidden();
+	await expect(page.locator('tbody tr').first()).toContainText('Completed');
+	expect(await page.locator('.tbl-wrap').evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
 	expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
 });

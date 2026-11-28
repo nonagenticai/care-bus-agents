@@ -121,6 +121,15 @@
 
 	function show(f: Filter) {
 		filter = f;
+		// The tab is a shareable view: keep `?status=` in step (the default tab keeps the URL clean).
+		try {
+			const u = new URL(page.url.href);
+			if (f === 'pending') u.searchParams.delete('status');
+			else u.searchParams.set('status', f);
+			replaceState(u, {});
+		} catch {
+			/* before the router is ready: the URL just stays */
+		}
 		void load();
 	}
 

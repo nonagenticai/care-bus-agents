@@ -42,6 +42,8 @@
 	} = $props();
 
 	let detail = $state<ResearchRunDetail | null>(null);
+	/** The step whose request/response is expanded (steps_full). */
+	let openStep = $state<number | null>(null);
 	let loadError = $state('');
 	/** Why following the run stopped before it ended. */
 	let pollErr = $state('');
@@ -55,7 +57,8 @@
 	async function read(g: number) {
 		let d: ResearchRunDetail;
 		try {
-			d = await api().researchRun(id);
+			// steps_full carries each step's request/response; the timeline row expands to it.
+			d = await api().researchRun(id, { stepsFull: true });
 		} catch (e) {
 			if (g !== gen) return;
 			if (!detail) {
@@ -261,10 +264,15 @@
 			<div class="tbl-wrap">
 				<table class="tbl" aria-label="Steps">
 					<thead>
-						<tr><th class="r">#</th><th>Kind</th><th>Tool</th><th>Status</th><th class="r">Duration</th></tr>
+						<tr>
+							<th class="r">#</th><th>Kind</th><th>Tool</th><th>Status</th><th class="r">Duration</th><th
+								aria-label="Detail"
+							></th>
+						</tr>
 					</thead>
 					<tbody>
 						{#each detail.steps as s (s.ordinal)}
+							{@const hasDetail = s.request !== undefined || s.response !== undefined}
 							<tr>
 								<td class="r">{s.ordinal}</td>
 								<td>{s.kind}</td>
@@ -276,7 +284,30 @@
 									/>
 								</td>
 								<td class="r">{fmt.ms(s.duration_ms)}</td>
+								<td class="r">
+									{#if hasDetail}
+										<button
+											class="btn sm"
+											type="button"
+											aria-expanded={openStep === s.ordinal}
+											onclick={() => (openStep = openStep === s.ordinal ? null : s.ordinal)}
+										>
+											{openStep === s.ordinal ? 'Hide' : 'Detail'}
+										</button>
+									{/if}
+								</td>
 							</tr>
+							{#if openStep === s.ordinal}
+								<tr>
+									<td colspan="6">
+										<pre class="code">{JSON.stringify(
+												{ request: s.request ?? null, response: s.response ?? null },
+												null,
+												2,
+											)}</pre>
+									</td>
+								</tr>
+							{/if}
 						{/each}
 					</tbody>
 				</table>

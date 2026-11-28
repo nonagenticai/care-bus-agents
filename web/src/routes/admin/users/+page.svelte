@@ -52,8 +52,20 @@
 			`${u.display_name ?? u.sub} is now ${r}.`,
 			'Role not changed',
 		);
-	const remove = (u: TenantUser) =>
-		run(() => api().removeTenantUser(tenant, u.sub), `Removed ${u.display_name ?? u.sub}.`, 'Not removed');
+	/** Two-step removal: the first click arms the row, the second removes. */
+	let confirmSub = $state<string | null>(null);
+	async function remove(u: TenantUser) {
+		if (confirmSub !== u.sub) {
+			confirmSub = u.sub;
+			return;
+		}
+		confirmSub = null;
+		await run(
+			() => api().removeTenantUser(tenant, u.sub),
+			`Removed ${u.display_name ?? u.sub}.`,
+			'Not removed',
+		);
+	}
 	const lastAdmin = (u: TenantUser) => guardLast && isLastAdmin(list, u.sub);
 	const when = (iso: string) => new Date(iso).toLocaleString('en-GB');
 </script>
@@ -108,15 +120,25 @@
 							</td>
 							<td>{when(u.updated_at)} · {u.updated_by}</td>
 							<td class="r">
-								<button
-									class="btn sm"
-									type="button"
-									disabled={!canWrite || busy || lastAdmin(u)}
-									title={!canWrite ? 'Needs the tenant_admin role' : lastAdmin(u) ? LAST : ''}
-									onclick={() => remove(u)}
-								>
-									Remove
-								</button>
+								{#if confirmSub === u.sub}
+									<span class="muted">Remove?</span>
+									<button class="btn sm danger" type="button" disabled={busy} onclick={() => remove(u)}>
+										Remove
+									</button>
+									<button class="btn sm" type="button" disabled={busy} onclick={() => (confirmSub = null)}>
+										Keep
+									</button>
+								{:else}
+									<button
+										class="btn sm"
+										type="button"
+										disabled={!canWrite || busy || lastAdmin(u)}
+										title={!canWrite ? 'Needs the tenant_admin role' : lastAdmin(u) ? LAST : ''}
+										onclick={() => (confirmSub = u.sub)}
+									>
+										Remove
+									</button>
+								{/if}
 							</td>
 						</tr>
 					{/each}
