@@ -96,16 +96,16 @@
 {:else}
 	<Card cls="flush">
 		<div class="tbl-wrap">
-			<table class="tbl" data-testid="tenant-users">
+			<table class="tbl stack-phone" data-testid="tenant-users">
 				<thead>
 					<tr><th>User</th><th>Name</th><th>Role</th><th>Updated</th><th aria-label="Actions"></th></tr>
 				</thead>
 				<tbody>
 					{#each list as u (u.sub)}
 						<tr data-sub={u.sub}>
-							<td class="mono">{u.sub}</td>
-							<td>{u.display_name ?? '—'}</td>
-							<td>
+							<td class="mono" data-label="User">{u.sub}</td>
+							<td data-label="Name">{u.display_name ?? '—'}</td>
+							<td data-label="Role">
 								<select
 									class="input"
 									aria-label={`Role of ${u.sub}`}
@@ -118,8 +118,8 @@
 									<option value="tenant_user">tenant_user</option>
 								</select>
 							</td>
-							<td>{when(u.updated_at)} · {u.updated_by}</td>
-							<td class="r">
+							<td data-label="Updated">{when(u.updated_at)} · {u.updated_by}</td>
+							<td class="r" data-label="">
 								{#if confirmSub === u.sub}
 									<span class="muted">Remove?</span>
 									<button class="btn sm danger" type="button" disabled={busy} onclick={() => remove(u)}>

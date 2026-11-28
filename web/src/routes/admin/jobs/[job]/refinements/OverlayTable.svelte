@@ -81,7 +81,7 @@
 {:else}
 	<Card cls="flush">
 		<div class="tbl-wrap">
-			<table class="tbl" data-testid="side-by-side-{object}">
+			<table class="tbl stack-phone" data-testid="side-by-side-{object}">
 				<thead>
 					<tr>
 						<th>Key</th><th>State</th><th>Base (release)</th><th>Yours</th><th aria-label="Actions"></th>
@@ -90,8 +90,8 @@
 				<tbody>
 					{#each rows as row (row.keyText)}
 						<tr data-key={row.keyText}>
-							<td class="mono">{row.keyText}</td>
-							<td>
+							<td class="mono" data-label="Key">{row.keyText}</td>
+							<td data-label="State">
 								<Chip text={STATE_LABEL[row.state]} variant={VARIANT[row.state]} />
 								{#if row.conflict}<Chip
 										text="Release conflict"
@@ -100,29 +100,31 @@
 									/>{/if}
 							</td>
 							{#if row.state === 'override'}
-								<td>
+								<td data-label="Base (release)">
 									{#each row.diff as d}<div>
 											<span class="muted">{d.field}:</span> <span class="mono">{d.base}</span>
 										</div>
 									{:else}<span class="muted">Same as yours</span>{/each}
 								</td>
-								<td>
+								<td data-label="Yours">
 									{#each row.diff as d}<div>
 											<span class="muted">{d.field}:</span> <span class="mono">{d.tenant}</span>
 										</div>
 									{:else}<span class="muted">No changes</span>{/each}
 								</td>
 							{:else if row.state === 'base'}
-								<td class="mono">{fmtValue(summary(row.base!))}</td>
-								<td class="muted">Uses the base</td>
+								<td class="mono" data-label="Base (release)">{fmtValue(summary(row.base!))}</td>
+								<td class="muted" data-label="Yours">Uses the base</td>
 							{:else if row.state === 'extension'}
-								<td class="muted">Not in the release</td>
-								<td class="mono">{fmtValue(summary(row.tenant!))}</td>
+								<td class="muted" data-label="Base (release)">Not in the release</td>
+								<td class="mono" data-label="Yours">{fmtValue(summary(row.tenant!))}</td>
 							{:else}
-								<td class="mono">{row.base ? fmtValue(summary(row.base)) : 'Gone from the release'}</td>
-								<td class="muted">Hidden by you</td>
+								<td class="mono" data-label="Base (release)">
+									{row.base ? fmtValue(summary(row.base)) : 'Gone from the release'}
+								</td>
+								<td class="muted" data-label="Yours">Hidden by you</td>
 							{/if}
-							<td class="r">
+							<td class="r" data-label="">
 								{#if edit && row.state !== 'tombstone'}
 									<button
 										class="btn sm"

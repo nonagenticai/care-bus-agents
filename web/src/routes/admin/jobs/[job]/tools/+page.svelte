@@ -7,15 +7,44 @@
 	import Card from '$lib/ui/Card.svelte';
 	import Chip from '$lib/ui/Chip.svelte';
 	import Drawer from '$lib/ui/Drawer.svelte';
+	import FilterInput from '$lib/ui/FilterInput.svelte';
 	import JsonView from '$lib/ui/JsonView.svelte';
+	import SortTh from '$lib/ui/SortTh.svelte';
 	import Unavailable from '$lib/ui/Unavailable.svelte';
+	import { matchesQuery, nextSort, sortRows, type SortState } from '$lib/sort';
 	import { schemaFields } from './schema';
 
 	const tools = new Resource<Paged<ToolInfo>>(() => api().tools());
 	tools.refresh();
 	let open = $state(false);
 	let sel = $state<ToolInfo | null>(null);
+	let filter = $state('');
+	let sort = $state<SortState | null>(null);
+	const toggleSort = (key: string) => (sort = nextSort(sort, key));
 	const group = (name: string) => name.split('_')[0] ?? name;
+	const rows = $derived(tools.value.state === 'ok' ? tools.value.data.items : []);
+	const shown = $derived(
+		sortRows(
+			rows.filter((t) => matchesQuery(filter, [t.name, group(t.name), t.description])),
+			sort,
+			(t, key) => {
+				switch (key) {
+					case 'tool':
+						return t.name;
+					case 'group':
+						return group(t.name);
+					case 'calls':
+						return t.calls_24h;
+					case 'errors':
+						return t.error_rate;
+					case 'p95':
+						return t.p95_ms;
+					default:
+						return null;
+				}
+			},
+		),
+	);
 
 	function select(t: ToolInfo) {
 		sel = t;
@@ -40,33 +69,49 @@
 		The MCP server lists no tools for this job. Tools come from the job's release and MCP bridge.
 	</div>
 {:else}
-	<Card cls="flush">
-		<div class="tbl-wrap">
-			<table class="tbl clickable">
-				<thead>
-					<tr>
-						<th>Tool</th><th>Group</th><th>Description</th><th class="r">Calls 24h</th><th class="r">
-							Error rate
-						</th><th class="r">p95</th>
-					</tr>
-				</thead>
-				<tbody>
-					{#each tools.value.data.items as t}
-						<tr>
-							<td class="mono">
-								<button type="button" class="table-action" onclick={() => select(t)}>{t.name}</button>
-							</td>
-							<td><Chip text={group(t.name)} variant="tool" /></td>
-							<td>{t.description ?? 'No description'}</td>
-							<td class="r">{fmt.n(t.calls_24h)}</td>
-							<td class="r">{fmt.pct(t.error_rate)}</td>
-							<td class="r">{fmt.ms(t.p95_ms)}</td>
-						</tr>
-					{/each}
-				</tbody>
-			</table>
+	<FilterInput
+		bind:value={filter}
+		label="Search tools"
+		placeholder="Search tool or description"
+		count={filter ? `${shown.length} of ${rows.length}` : ''}
+	/>
+	{#if filter && shown.length === 0}
+		<div class="empty">
+			No tools match “{filter}”.
+			<button class="btn" onclick={() => (filter = '')}>Clear search</button>
 		</div>
-	</Card>
+	{:else}
+		<Card cls="flush">
+			<div class="tbl-wrap">
+				<table class="tbl clickable stack-phone">
+					<thead>
+						<tr>
+							<SortTh key="tool" label="Tool" {sort} onSort={toggleSort} />
+							<SortTh key="group" label="Group" {sort} onSort={toggleSort} />
+							<th>Description</th>
+							<SortTh key="calls" label="Calls 24h" cls="r" {sort} onSort={toggleSort} />
+							<SortTh key="errors" label="Error rate" cls="r" {sort} onSort={toggleSort} />
+							<SortTh key="p95" label="p95" cls="r" {sort} onSort={toggleSort} />
+						</tr>
+					</thead>
+					<tbody>
+						{#each shown as t}
+							<tr>
+								<td class="mono" data-label="Tool">
+									<button type="button" class="table-action" onclick={() => select(t)}>{t.name}</button>
+								</td>
+								<td data-label="Group"><Chip text={group(t.name)} variant="tool" /></td>
+								<td data-label="Description">{t.description ?? 'No description'}</td>
+								<td class="r" data-label="Calls 24h">{fmt.n(t.calls_24h)}</td>
+								<td class="r" data-label="Error rate">{fmt.pct(t.error_rate)}</td>
+								<td class="r" data-label="p95">{fmt.ms(t.p95_ms)}</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+		</Card>
+	{/if}
 {/if}
 
 <Drawer bind:open title={sel?.name ?? ''} wide>
@@ -76,15 +121,15 @@
 		<h3>Inputs</h3>
 		{#if fields.length}
 			<div class="tbl-wrap">
-				<table class="tbl dense">
+				<table class="tbl dense stack-phone">
 					<thead><tr><th>Name</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
 					<tbody>
 						{#each fields as f (f.name)}
 							<tr>
-								<td class="mono">{f.name}</td>
-								<td class="mono">{f.type}</td>
-								<td>{f.required ? 'Required' : 'Optional'}</td>
-								<td>{f.description || '—'}</td>
+								<td class="mono" data-label="Name">{f.name}</td>
+								<td class="mono" data-label="Type">{f.type}</td>
+								<td data-label="Required">{f.required ? 'Required' : 'Optional'}</td>
+								<td data-label="Description">{f.description || '—'}</td>
 							</tr>
 						{/each}
 					</tbody>

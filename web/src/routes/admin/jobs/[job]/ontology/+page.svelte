@@ -367,18 +367,24 @@
 	<Card title="Relations" cls="flush">
 		{#if relations.value.state === 'ok'}
 			<div class="tbl-wrap">
-				<table class="tbl dense">
+				<table class="tbl dense stack-phone">
 					<thead><tr><th>Subject</th><th>Predicate</th><th>Object</th><th>Cardinality</th></tr></thead>
 					<tbody>
 						{#each graph.edges as e (e.id)}
 							{@const r = e.data!.relation}
 							<tr>
-								<td>{labelOf(r.subject)}</td><td class="mono">{r.predicate}</td><td>
+								<td data-label="Subject">{labelOf(r.subject)}</td><td class="mono" data-label="Predicate">
+									{r.predicate}
+								</td><td data-label="Object">
 									{labelOf(r.object)}
-								</td><td class="mono">{r.cardinality}</td>
+								</td><td class="mono" data-label="Cardinality">{r.cardinality}</td>
 							</tr>
 						{:else}
-							<tr><td colspan="4" class="muted">No relations between the entities in this filter.</td></tr>
+							<tr>
+								<td colspan="4" class="muted" data-label="">
+									No relations between the entities in this filter.
+								</td>
+							</tr>
 						{/each}
 					</tbody>
 				</table>
@@ -399,7 +405,7 @@
 	>
 		{#if spaces.value.state === 'ok'}
 			<div class="tbl-wrap">
-				<table class="tbl dense">
+				<table class="tbl dense stack-phone">
 					<thead>
 						<tr>
 							<th>Key</th><th>Topic prefix</th><th>Entities</th><th>Required fields</th><th>Streams</th><th>
@@ -410,18 +416,18 @@
 					<tbody>
 						{#each spaces.value.data.items as s}
 							<tr>
-								<td class="mono">{s.key}</td>
-								<td class="mono">{s.topic_prefix}</td>
-								<td>{s.entities.map(labelOf).join(', ')}</td>
-								<td>{s.required.join(', ')}</td>
-								<td>
+								<td class="mono" data-label="Key">{s.key}</td>
+								<td class="mono" data-label="Topic prefix">{s.topic_prefix}</td>
+								<td data-label="Entities">{s.entities.map(labelOf).join(', ')}</td>
+								<td data-label="Required fields">{s.required.join(', ')}</td>
+								<td data-label="Streams">
 									<div class="chips">
 										<Chip text={s.streams.customer} variant="cust" />
 										{#each s.streams.worker as st}<Chip text={st} variant="work" />{/each}
 										<Chip text={s.streams.worker_results} variant="work" />
 									</div>
 								</td>
-								<td class="mono">{s.procedure}</td>
+								<td class="mono" data-label="Procedure">{s.procedure}</td>
 							</tr>
 						{/each}
 					</tbody>
@@ -469,22 +475,22 @@
 		<section>
 			<h3>Attributes</h3>
 			<div class="tbl-wrap">
-				<table class="tbl dense">
+				<table class="tbl dense stack-phone">
 					<thead><tr><th>Name</th><th>Type</th><th>Personal data</th><th>Synonyms</th></tr></thead>
 					<tbody>
 						{#each sel.attributes as a (a.name)}
 							<tr>
-								<td class="mono">{a.name}</td>
-								<td class="mono">{a.data_type}</td>
-								<td>
+								<td class="mono" data-label="Name">{a.name}</td>
+								<td class="mono" data-label="Type">{a.data_type}</td>
+								<td data-label="Personal data">
 									{#if a.pii}<Chip text="personal data" variant="err" />{:else}<span class="muted">
 											no
 										</span>{/if}
 								</td>
-								<td>{a.synonyms.join(', ')}</td>
+								<td data-label="Synonyms">{a.synonyms.join(', ')}</td>
 							</tr>
 						{:else}
-							<tr><td colspan="4" class="muted">No attributes.</td></tr>
+							<tr><td colspan="4" class="muted" data-label="">No attributes.</td></tr>
 						{/each}
 					</tbody>
 				</table>
@@ -685,13 +691,15 @@
 		<div>
 			<h3>Attributes</h3>
 			<div class="tbl-wrap">
-				<table class="tbl dense attrs">
+				<table class="tbl dense attrs stack-phone">
 					<thead><tr><th>Name</th><th>Type</th><th>Personal data</th><th>Synonyms</th><th></th></tr></thead>
 					<tbody>
 						{#each draft.attributes as a, i}
 							<tr>
-								<td><input class="input mono" aria-label="Attribute {i + 1} name" bind:value={a.name} /></td>
-								<td>
+								<td data-label="Name">
+									<input class="input mono" aria-label="Attribute {i + 1} name" bind:value={a.name} />
+								</td>
+								<td data-label="Type">
 									<input
 										class="input mono"
 										aria-label="Attribute {i + 1} type"
@@ -699,17 +707,17 @@
 										bind:value={a.data_type}
 									/>
 								</td>
-								<td class="c">
+								<td class="c" data-label="Personal data">
 									<input
 										type="checkbox"
 										aria-label="Attribute {i + 1} is personal data"
 										bind:checked={a.pii}
 									/>
 								</td>
-								<td>
+								<td data-label="Synonyms">
 									<input class="input" aria-label="Attribute {i + 1} synonyms" bind:value={a.synonyms} />
 								</td>
-								<td>
+								<td data-label="">
 									<button
 										type="button"
 										class="btn sm"
@@ -721,7 +729,7 @@
 								</td>
 							</tr>
 						{:else}
-							<tr><td colspan="5" class="muted">No attributes.</td></tr>
+							<tr><td colspan="5" class="muted" data-label="">No attributes.</td></tr>
 						{/each}
 					</tbody>
 				</table>

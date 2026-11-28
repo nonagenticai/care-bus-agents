@@ -209,7 +209,7 @@
 	{/each}
 	<Card cls="flush">
 		<div class="tbl-wrap">
-			<table class="tbl clickable">
+			<table class="tbl clickable stack-phone">
 				<thead>
 					<tr>
 						<th>Capability</th><th>Service</th><th>Source</th><th>Model</th><th>Endpoint</th><th>Key</th><th>
@@ -221,19 +221,23 @@
 					{#each data.capabilities as c (c.capability)}
 						{@const st = sourceLabel(c)}
 						<tr>
-							<td><button class="table-action" onclick={() => edit(c)}>{labelOf(c)}</button></td>
-							<td class="mono">{c.owner}</td>
-							<td><Status word={st.word} label={st.label} /></td>
-							<td class="mono">
+							<td data-label="Capability">
+								<button class="table-action" onclick={() => edit(c)}>{labelOf(c)}</button>
+							</td>
+							<td class="mono" data-label="Service">{c.owner}</td>
+							<td data-label="Source"><Status word={st.word} label={st.label} /></td>
+							<td class="mono" data-label="Model">
 								{#if c.provider}{c.provider.dialect} · {c.provider.model}{#if c.provider.dims != null}
 										· {c.provider.dims}d{/if}
 								{:else if c.default}{c.default.dialect} · {c.default.model}{#if c.default.dims != null}
 										· {c.default.dims}d{/if}
 								{:else}—{/if}
 							</td>
-							<td class="mono">{c.provider?.base_url ?? '—'}</td>
-							<td>{c.provider ? (c.provider.has_api_key ? 'Stored' : 'None') : '—'}</td>
-							<td>{c.provider?.updated_at ? c.provider.updated_at.slice(0, 16).replace('T', ' ') : '—'}</td>
+							<td class="mono" data-label="Endpoint">{c.provider?.base_url ?? '—'}</td>
+							<td data-label="Key">{c.provider ? (c.provider.has_api_key ? 'Stored' : 'None') : '—'}</td>
+							<td data-label="Updated">
+								{c.provider?.updated_at ? c.provider.updated_at.slice(0, 16).replace('T', ' ') : '—'}
+							</td>
 						</tr>
 					{/each}
 				</tbody>

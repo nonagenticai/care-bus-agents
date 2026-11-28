@@ -360,7 +360,7 @@
 		</div>
 	{:else}
 		<div class="tbl-wrap">
-			<table class="tbl" aria-label="Research runs">
+			<table class="tbl stack-phone" aria-label="Research runs">
 				<thead>
 					<tr>
 						<th>Status</th><th>Profile</th>{#if MATTERS_ENABLED}<th>Matter</th>{/if}<th>Question</th><th
@@ -373,17 +373,19 @@
 				<tbody>
 					{#each rows as r (r.id)}
 						<tr>
-							<td><Status word={statusWord(r.status)} label={STATUS_LABEL[r.status] ?? r.status} /></td>
-							<td>{PROFILE_LABEL[r.profile] ?? r.profile}</td>
-							{#if MATTERS_ENABLED}<td>{matterName(r.matter_id)}</td>{/if}
-							<td>
+							<td data-label="Status">
+								<Status word={statusWord(r.status)} label={STATUS_LABEL[r.status] ?? r.status} />
+							</td>
+							<td data-label="Profile">{PROFILE_LABEL[r.profile] ?? r.profile}</td>
+							{#if MATTERS_ENABLED}<td data-label="Matter">{matterName(r.matter_id)}</td>{/if}
+							<td data-label="Question">
 								<button class="table-action" type="button" onclick={() => show(r.id)}>
 									{questionSnippet(r.question)}
 								</button>
 							</td>
-							<td class="r">{fmt.n(r.steps_used)}</td>
-							<td class="r">{fmt.n(r.tokens_used)}</td>
-							<td>{when(r.created_at)}</td>
+							<td class="r" data-label="Steps">{fmt.n(r.steps_used)}</td>
+							<td class="r" data-label="Tokens">{fmt.n(r.tokens_used)}</td>
+							<td data-label="Created">{when(r.created_at)}</td>
 						</tr>
 					{/each}
 				</tbody>

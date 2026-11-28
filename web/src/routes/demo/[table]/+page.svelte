@@ -68,7 +68,7 @@
 	{@const p = rows.value.data}
 	<Card cls="flush">
 		<div class="tbl-wrap">
-			<table class="tbl clickable dense">
+			<table class="tbl clickable dense stack-phone">
 				<thead>
 					<tr>
 						{#each p.columns as c (c)}
@@ -83,7 +83,7 @@
 					{#each p.rows as r (rowKey(p, r))}
 						<tr tabindex="0" onclick={() => open(p, r)} onkeydown={(e) => e.key === 'Enter' && open(p, r)}>
 							{#each p.columns as c (c)}
-								<td class:mono={c.endsWith('_id') || c === p.primary_key}>{cellText(r[c])}</td>
+								<td class:mono={c.endsWith('_id') || c === p.primary_key} data-label={c}>{cellText(r[c])}</td>
 							{/each}
 						</tr>
 					{/each}

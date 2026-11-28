@@ -120,7 +120,7 @@
 		<div class="empty">{status === 'open' ? 'No open conflicts.' : 'No conflicts yet.'}</div>
 	{:else}
 		<div class="tbl-wrap">
-			<table class="tbl" data-testid="release-conflicts">
+			<table class="tbl stack-phone" data-testid="release-conflicts">
 				<thead>
 					<tr>
 						<th>Object</th><th>Key</th><th>Conflict</th><th>Release</th><th>Detected</th><th>
@@ -131,9 +131,9 @@
 				<tbody>
 					{#each conflicts.value.data.items as c (c.id)}
 						<tr data-conflict={c.id}>
-							<td>{OBJECT_LABEL[c.object] ?? c.object}</td>
-							<td class="mono">{conflictKeyText(c)}</td>
-							<td>
+							<td data-label="Object">{OBJECT_LABEL[c.object] ?? c.object}</td>
+							<td class="mono" data-label="Key">{conflictKeyText(c)}</td>
+							<td data-label="Conflict">
 								<Chip text={c.kind.replaceAll('_', ' ')} variant={c.resolved_at ? 'muted' : 'warn'} />
 								{conflictText(c)}
 								{#if c.base_hash_before || c.base_hash_after}<span class="cell-sub mono">
@@ -142,10 +142,12 @@
 											: '—'}
 									</span>{/if}
 							</td>
-							<td class="mono">{c.release_id}</td>
-							<td>{when(c.detected_at)}</td>
-							<td>{c.resolution ? `${c.resolution} by ${c.resolved_by ?? '—'}` : 'Open'}</td>
-							<td class="r">
+							<td class="mono" data-label="Release">{c.release_id}</td>
+							<td data-label="Detected">{when(c.detected_at)}</td>
+							<td data-label="Resolution">
+								{c.resolution ? `${c.resolution} by ${c.resolved_by ?? '—'}` : 'Open'}
+							</td>
+							<td class="r" data-label="">
 								{#each conflictActions(c, true) as op}
 									<button
 										class="btn sm"

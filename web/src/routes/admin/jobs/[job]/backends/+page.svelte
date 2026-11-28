@@ -23,9 +23,12 @@
 	import Status from '$lib/ui/Status.svelte';
 	import Drawer from '$lib/ui/Drawer.svelte';
 	import Callout from '$lib/ui/Callout.svelte';
+	import FilterInput from '$lib/ui/FilterInput.svelte';
+	import SortTh from '$lib/ui/SortTh.svelte';
 	import Unavailable from '$lib/ui/Unavailable.svelte';
 	import ReconcileStatus from '$lib/ui/ReconcileStatus.svelte';
 	import Chip from '$lib/ui/Chip.svelte';
+	import { matchesQuery, nextSort, sortRows, type SortState } from '$lib/sort';
 	import { fmtValue } from '$lib/refinements';
 
 	const FAULT_FIELDS: ConnectorFaultField[] = [
@@ -38,6 +41,32 @@
 
 	const conns = new Resource<Paged<Connector>>(() => api().connectors());
 	conns.refresh();
+	let filter = $state('');
+	let sort = $state<SortState | null>(null);
+	const toggleSort = (key: string) => (sort = nextSort(sort, key));
+	const rows = $derived(conns.value.state === 'ok' ? conns.value.data.items : []);
+	const shown = $derived(
+		sortRows(
+			rows.filter((c) => matchesQuery(filter, [c.name, c.system, c.base_url, c.auth_type, c.health])),
+			sort,
+			(c, key) => {
+				switch (key) {
+					case 'name':
+						return c.name;
+					case 'system':
+						return c.system;
+					case 'auth':
+						return c.auth_type;
+					case 'timeout':
+						return c.timeout_ms;
+					case 'health':
+						return c.health;
+					default:
+						return null;
+				}
+			},
+		),
+	);
 	const canWrite = $derived(session.can('tenant_admin'));
 	let open = $state(false);
 	let draft = $state<Connector | null>(null);
@@ -244,46 +273,62 @@
 		</button>
 	</div>
 {:else}
-	<Card cls="flush">
-		<div class="tbl-wrap">
-			<table class="tbl clickable">
-				<thead>
-					<tr>
-						<th>Name</th><th>System</th><th>Base URL</th><th>Auth</th><th class="r">Timeout</th><th>
-							Health
-						</th>
-					</tr>
-				</thead>
-				<tbody>
-					{#each conns.value.data.items as c}
-						<tr>
-							<td>
-								<button type="button" class="table-action" onclick={() => edit(c)}>
-									{c.name}
-								</button>{#if c.overridden}
-									<Chip
-										text="Refined"
-										variant="accent"
-										title="Your values override the release's"
-									/>{:else if c.origin === 'tenant'}
-									<Chip text="Added" variant="ok" title="Not in the release" />{/if}
-							</td>
-							<td>{c.system}</td>
-							<td class="mono">{c.base_url}</td>
-							<td>{c.auth_type}</td>
-							<td class="r">{fmt.ms(c.timeout_ms)}</td>
-							<td>
-								<Status
-									word={c.health}
-									label={c.health === 'unknown' ? 'Not tested' : c.health === 'ok' ? 'Healthy' : 'Down'}
-								/>
-							</td>
-						</tr>
-					{/each}
-				</tbody>
-			</table>
+	<FilterInput
+		bind:value={filter}
+		label="Search connectors"
+		placeholder="Search name, system or URL"
+		count={filter ? `${shown.length} of ${rows.length}` : ''}
+	/>
+	{#if filter && shown.length === 0}
+		<div class="empty">
+			No connectors match “{filter}”.
+			<button class="btn" onclick={() => (filter = '')}>Clear search</button>
 		</div>
-	</Card>
+	{:else}
+		<Card cls="flush">
+			<div class="tbl-wrap">
+				<table class="tbl clickable stack-phone">
+					<thead>
+						<tr>
+							<SortTh key="name" label="Name" {sort} onSort={toggleSort} />
+							<SortTh key="system" label="System" {sort} onSort={toggleSort} />
+							<th>Base URL</th>
+							<SortTh key="auth" label="Auth" {sort} onSort={toggleSort} />
+							<SortTh key="timeout" label="Timeout" cls="r" {sort} onSort={toggleSort} />
+							<SortTh key="health" label="Health" {sort} onSort={toggleSort} />
+						</tr>
+					</thead>
+					<tbody>
+						{#each shown as c}
+							<tr>
+								<td data-label="Name">
+									<button type="button" class="table-action" onclick={() => edit(c)}>
+										{c.name}
+									</button>{#if c.overridden}
+										<Chip
+											text="Refined"
+											variant="accent"
+											title="Your values override the release's"
+										/>{:else if c.origin === 'tenant'}
+										<Chip text="Added" variant="ok" title="Not in the release" />{/if}
+								</td>
+								<td data-label="System">{c.system}</td>
+								<td class="mono" data-label="Base URL">{c.base_url}</td>
+								<td data-label="Auth">{c.auth_type}</td>
+								<td class="r" data-label="Timeout">{fmt.ms(c.timeout_ms)}</td>
+								<td data-label="Health">
+									<Status
+										word={c.health}
+										label={c.health === 'unknown' ? 'Not tested' : c.health === 'ok' ? 'Healthy' : 'Down'}
+									/>
+								</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+		</Card>
+	{/if}
 {/if}
 
 <Drawer bind:open title={draft?.id ? draft.name || 'Connector' : 'New connector'} wide {dirty}>
@@ -383,14 +428,14 @@
 			{#if secretError}<Callout kind="err" title="Secret reference">{secretError}</Callout>{/if}
 			<h3>Field mapping</h3>
 			<div class="tbl-wrap">
-				<table class="tbl dense">
+				<table class="tbl dense stack-phone">
 					<thead>
 						<tr><th>Backend field</th><th>Ontology attribute</th><th aria-label="Remove"></th></tr>
 					</thead>
 					<tbody>
 						{#each draft.mappings as m, i}
 							<tr>
-								<td>
+								<td data-label="Backend field">
 									<input
 										class="input mono"
 										bind:value={m.backend_field}
@@ -398,7 +443,7 @@
 										{...rowAttrs(i)}
 									/>
 								</td>
-								<td>
+								<td data-label="Ontology attribute">
 									<input
 										class="input mono"
 										bind:value={m.attribute}
@@ -407,7 +452,7 @@
 										{...rowAttrs(i)}
 									/>
 								</td>
-								<td>
+								<td data-label="">
 									<button
 										class="btn sm"
 										type="button"
@@ -419,7 +464,7 @@
 								</td>
 							</tr>
 						{:else}
-							<tr><td colspan="3" class="muted">No field mappings.</td></tr>
+							<tr><td colspan="3" class="muted" data-label="">No field mappings.</td></tr>
 						{/each}
 					</tbody>
 				</table>

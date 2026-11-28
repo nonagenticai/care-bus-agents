@@ -174,7 +174,7 @@
 		<div class="empty">{mine || openOnly ? 'No matters match.' : 'No legal matters yet.'}</div>
 	{:else}
 		<div class="tbl-wrap">
-			<table class="tbl" aria-label="Legal matters">
+			<table class="tbl stack-phone" aria-label="Legal matters">
 				<thead>
 					<tr>
 						<th>Matter</th><th>Reference</th><th>Your role</th><th class="r">Members</th><th class="r">
@@ -185,15 +185,17 @@
 				<tbody>
 					{#each rows as r (r.id)}
 						<tr>
-							<td><button class="table-action" type="button" onclick={() => show(r.id)}>{r.name}</button></td>
-							<td>{r.reference ?? '—'}</td>
-							<td>
+							<td data-label="Matter">
+								<button class="table-action" type="button" onclick={() => show(r.id)}>{r.name}</button>
+							</td>
+							<td data-label="Reference">{r.reference ?? '—'}</td>
+							<td data-label="Your role">
 								{r.my_role ? MATTER_ROLE_LABEL[r.my_role] : isAdmin ? 'Admin (no access to runs)' : '—'}
 							</td>
-							<td class="r">{r.member_count}</td>
-							<td class="r">{r.store_count}</td>
-							<td>{when(r.created_at)}</td>
-							<td>{r.closed_at ? 'Closed' : 'Open'}</td>
+							<td class="r" data-label="Members">{r.member_count}</td>
+							<td class="r" data-label="Stores">{r.store_count}</td>
+							<td data-label="Created">{when(r.created_at)}</td>
+							<td data-label="State">{r.closed_at ? 'Closed' : 'Open'}</td>
 						</tr>
 					{/each}
 				</tbody>
