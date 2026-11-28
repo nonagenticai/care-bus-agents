@@ -47,7 +47,14 @@ When('I ask {string}', async ({ page }, question: string) => {
   bubblesBefore = await page.locator('.cb-msg.cb-assistant').count();
   askedAt = Date.now();
   await page.locator('#cb-input').fill(question);
+  // The text the visitor sees the widget holding is the text the platform must
+  // receive; assert both ends so a qualifier clarification ("What's your
+  // question?") can never be blamed on the harness sending an empty message.
+  await expect(page.locator('#cb-input')).toHaveValue(question);
   await page.locator('#cb-send').click();
+  await expect(page.locator('.cb-msg.cb-you .cb-bubble').last()).toHaveText(question, {
+    timeout: 10_000,
+  });
 });
 
 Then('I receive a complete answer within {int} seconds', async ({ page }, seconds: number) => {
