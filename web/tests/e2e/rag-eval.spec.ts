@@ -140,7 +140,7 @@ test('questions: add one, refuse a duplicate in the form, import a CSV as text/c
 	await page.goto('/admin/knowledge/eval');
 	await expect(page.getByRole('heading', { name: 'RAG eval' })).toBeVisible();
 	const table = page.getByRole('table', { name: 'Eval questions' });
-	await expect(table.getByRole('row')).toHaveCount(3);
+	await expect(table.locator('tbody tr')).toHaveCount(2);
 	await expect(page.getByText('2 of 200')).toBeVisible();
 
 	await page.getByRole('button', { name: 'Add question' }).first().click();
@@ -152,7 +152,7 @@ test('questions: add one, refuse a duplicate in the form, import a CSV as text/c
 	await form.getByLabel('Question').fill('Can I pay later?');
 	await form.getByRole('button', { name: 'Add question' }).click();
 	await expect(form).toHaveCount(0);
-	await expect(table.getByRole('cell', { name: 'Can I pay later?', exact: true })).toBeVisible();
+	await expect(table.getByText('Can I pay later?', { exact: true }).first()).toBeVisible();
 
 	const csv = 'query,expected_text\nDo you ship abroad?,EU countries\nCan I change my order?,within 1 hour\n';
 	await page.getByLabel('Import CSV').setInputFiles({
@@ -162,7 +162,7 @@ test('questions: add one, refuse a duplicate in the form, import a CSV as text/c
 	});
 	await page.getByRole('button', { name: 'Import', exact: true }).click();
 	await expect(page.getByText('Imported 2 questions; the tenant now has 5.')).toBeVisible();
-	await expect(table.getByRole('cell', { name: 'Do you ship abroad?', exact: true })).toBeVisible();
+	await expect(table.getByText('Do you ship abroad?', { exact: true }).first()).toBeVisible();
 	const imp = calls.find((c) => c.path === '/questions/import')!;
 	expect(imp.contentType).toBe('text/csv');
 	expect(imp.body).toBe(csv);
@@ -172,7 +172,7 @@ test('questions: add one, refuse a duplicate in the form, import a CSV as text/c
 		.getByRole('alertdialog', { name: 'Delete question' })
 		.getByRole('button', { name: 'Delete question' })
 		.click();
-	await expect(table.getByRole('cell', { name: 'Do you ship abroad?', exact: true })).toHaveCount(0);
+	await expect(table.getByText('Do you ship abroad?', { exact: true })).toHaveCount(0);
 	expect(calls.filter((c) => c.method === 'DELETE')).toHaveLength(1);
 });
 
@@ -183,7 +183,7 @@ test('run an eval on a store and modes, read per-question hits, then compare it 
 	const calls = await mockEval(page);
 	await page.goto('/admin/knowledge/eval');
 	const runs = page.getByRole('table', { name: 'Eval runs' });
-	await expect(runs.getByRole('row')).toHaveCount(2);
+	await expect(runs.locator('tbody tr')).toHaveCount(1);
 	const root = fx('knowledge_stores').items.find((s: { kind: string }) => s.kind === 'router');
 	await page.getByLabel('Store').selectOption(root.id);
 	await page.getByLabel('Hybrid').uncheck();
@@ -194,22 +194,22 @@ test('run an eval on a store and modes, read per-question hits, then compare it 
 	await expect(page.getByRole('button', { name: 'Running…' })).toBeDisabled();
 	await expect(runs.getByText('running 0/4')).toBeVisible();
 	const detail = page.getByTestId('run-detail');
-	await expect(detail.getByRole('table', { name: 'Recall per mode' }).getByRole('row')).toHaveCount(3);
+	await expect(detail.getByRole('table', { name: 'Recall per mode' }).locator('tbody tr')).toHaveCount(2);
 	await expect(page.getByTestId('run-progress')).toHaveCount(0);
 	await expect(page.getByRole('button', { name: 'Run eval' })).toBeEnabled();
 	await expect(detail.getByRole('table', { name: 'Per-question hits' }).getByText('hit #1')).toHaveCount(4);
 	const run = calls.find((c) => c.method === 'POST' && c.path === '/runs')!;
 	expect(JSON.parse(run.body!)).toEqual({ root_id: root.id, modes: ['embed', 'laya'] });
-	await expect(runs.getByRole('row')).toHaveCount(3);
+	await expect(runs.locator('tbody tr')).toHaveCount(2);
 
 	for (const box of await runs.getByRole('checkbox').all()) await box.check();
 	await page.getByRole('button', { name: 'Compare selected' }).click();
 	const cmp = page.getByTestId('run-compare');
 	// only embed is in both runs: recall@1 50% → 100%, the second question moved from #2 to #1
-	await expect(cmp.getByRole('table', { name: 'Recall change' }).getByRole('row')).toHaveCount(2);
-	await expect(cmp.getByRole('cell', { name: '50% → 100% +50 pts' })).toBeVisible();
+	await expect(cmp.getByRole('table', { name: 'Recall change' }).locator('tbody tr')).toHaveCount(1);
+	await expect(cmp.getByRole('cell', { name: /50% → 100% \+50 pts/ })).toBeVisible();
 	await expect(cmp).toContainText('1 better, 0 worse');
-	await expect(cmp.getByRole('cell', { name: '#2 → hit #1' })).toBeVisible();
+	await expect(cmp.getByRole('cell', { name: /#2 → hit #1/ })).toBeVisible();
 });
 
 test('a running run survives leaving the page; a failed run shows its error', async ({ page }) => {
@@ -223,7 +223,7 @@ test('a running run survives leaving the page; a failed run shows its error', as
 	const runs = page.getByRole('table', { name: 'Eval runs' });
 	await expect(runs.getByText('failed')).toBeVisible();
 	await expect(page.getByText('Eval failed: laya is unavailable')).toBeVisible();
-	await runs.getByRole('row').nth(1).getByRole('button', { name: 'Open' }).click();
+	await runs.locator('tbody tr').first().getByRole('button', { name: 'Open' }).click();
 	await expect(page.getByTestId('run-detail').getByRole('alert')).toContainText('laya is unavailable');
 });
 
@@ -241,7 +241,7 @@ test('a tenant_user sees questions and runs but cannot change or run them', asyn
 	await mockApi(page, { role: 'tenant_user' });
 	await mockEval(page);
 	await page.goto('/admin/knowledge/eval');
-	await expect(page.getByRole('table', { name: 'Eval questions' }).getByRole('row')).toHaveCount(3);
+	await expect(page.getByRole('table', { name: 'Eval questions' }).locator('tbody tr')).toHaveCount(2);
 	await expect(page.getByRole('button', { name: 'Add question' })).toBeDisabled();
 	await expect(page.getByRole('button', { name: 'Run eval' })).toBeDisabled();
 	await expect(page.getByRole('button', { name: 'Delete How long does a refund take?' })).toBeDisabled();
