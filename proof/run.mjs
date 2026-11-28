@@ -20,6 +20,7 @@
  * `ATTESTATION <json>` and exits non-zero when a gating check fails.
  */
 
+import { realpathSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
@@ -576,8 +577,13 @@ async function main() {
 }
 
 // Importing this file (for the assembly helpers) must not start a proof run.
+// Compare real paths: a Kubernetes ConfigMap volume is a directory of symlinks, so `argv[1]`
+// (/proof/src/run.mjs) and Node's resolved `import.meta.url` (.../..data/run.mjs) differ as
+// strings while naming the same file. A plain string compare made the Job exit 0 in 3 s with
+// no output — a vacuous pass, caught 2026-11-28.
 const invokedDirectly =
-  process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
+  Boolean(process.argv[1]) &&
+  realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
 if (invokedDirectly) {
   main().catch((error) => {
     console.error(`proof runner crashed: ${error.stack ?? error.message}`);
