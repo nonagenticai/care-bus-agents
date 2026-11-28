@@ -46,8 +46,7 @@ pub fn requirements(tool: &str, method: &str) -> Option<&'static [&'static str]>
         ("business-rules", "check_return_window" | "check_warranty") => &["order_id", "category"],
         ("business-rules", "check_payment_issue") => &["order_id", "error_type"],
         ("procedures", "get_procedure") => &["name"],
-        ("faq", "ask" | "search") => &["question"],
-        ("faq", "answer") => &["question", "sources"],
+        ("faq", "ask") => &["question"],
         ("ebook", "request") => &["email", "language"],
         ("early-access", "request") => &["email", "product", "confirm"],
         ("handover", "request") => &["reason"],
@@ -173,25 +172,6 @@ impl FakeTools {
                     Some((_, answer, chunk)) => json!({"answer": answer, "citations": [chunk], "sources": [{"chunk_id": chunk, "document_id": chunk, "store_path": ["faq"]}], "timings_ms": {"total": 1}}),
                     None => json!({"answer": "I do not know; the sources do not cover this.", "citations": [], "sources": [], "timings_ms": {"total": 1}}),
                 }
-            }
-            // Retrieval only: the numbered passages care-bus's answer stage composes from.
-            ("faq", "search") => {
-                let q = s("question").to_lowercase();
-                let hit = [
-                    (["refund", "money back"], "Refunds reach your original payment method within 5 business days after we receive the return.", "kb-refunds"),
-                    (["return policy", "return period"], "Unused items can be returned within 30 days of delivery.", "kb-returns"),
-                    (["warranty", "guarantee"], "Every product has a 2-year warranty from delivery.", "kb-warranty"),
-                ]
-                .into_iter()
-                .find(|(kw, _, _)| kw.iter().any(|k| q.contains(k)));
-                let sources: Vec<Value> = hit
-                    .map(|(_, text, chunk)| vec![json!({"n": 1, "chunk_id": chunk, "text": text, "title": "FAQ", "store_path": ["faq"]})])
-                    .unwrap_or_default();
-                let mut out = json!({"sources": sources, "timings_ms": {"total": 1}});
-                if let Some(ids) = p.get("leaf_ids") {
-                    out["scope"] = json!({"leaf_ids": ids});
-                }
-                out
             }
             // The website actions. Each is idempotent per call key, like the order side effects.
             ("ebook", "request") => {

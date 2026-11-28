@@ -8,7 +8,6 @@ use std::time::Duration;
 use axum::Router;
 use axum::http::{HeaderMap, StatusCode};
 use axum::routing::post;
-use carebus::answer::Answerer;
 use carebus::bus::Envelope;
 use carebus::domain::{
     RequestType, TOOL_CALL, TOOL_RESPONSE, ToolCall, ToolResponse, WORK_FAILED, WORK_REQUESTED,
@@ -16,6 +15,7 @@ use carebus::domain::{
 };
 use carebus::executor::ToolExecutor;
 use carebus::gates::GateClient;
+use carebus::job_prompt::JobPromptClient;
 use carebus::mcp::{FAQ_UNSCOPED, FakeMcp};
 use carebus::spaces::{ContextSpace, SpaceCatalog};
 use carebus::tools::FakeTools;
@@ -218,7 +218,7 @@ async fn an_answer_is_kept_only_when_the_mcp_server_confirms_the_filter() {
     assert!(!done.contains("I do not know"), "{done}");
 }
 
-/// carebus-api's answer-context route answering `status` + `body`; records (Authorization, body).
+/// carebus-api's job-settings route answering `status` + `body`; records (Authorization, body).
 async fn context_stub(
     status: StatusCode,
     body: Value,
@@ -226,7 +226,7 @@ async fn context_stub(
     let seen = Arc::new(Mutex::new(Vec::new()));
     let s = seen.clone();
     let app = Router::new().route(
-        "/api/internal/answer-context",
+        "/api/internal/job-settings",
         post(move |h: HeaderMap, axum::Json(b): axum::Json<Value>| {
             let (s, body) = (s.clone(), body.clone());
             async move {
@@ -246,10 +246,10 @@ async fn context_stub(
     (url, seen)
 }
 
-/// A faq worker with the answerer wired to a carebus-api stub at `url`.
+/// A faq worker with the job-prompt client wired to a carebus-api stub at `url`.
 fn instructed_worker(bus: carebus::Bus, url: &str) -> Worker {
     let mut w = Worker::new(bus, "faq");
-    w.answerer = Answerer::from_vars(|k| match k {
+    w.job_prompt = JobPromptClient::from_vars(|k| match k {
         "CAREBUS_API_URL" => Some(url.to_string()),
         "CAREBUS_API_TOKEN" => Some("svc-token".into()),
         _ => None,
@@ -265,7 +265,6 @@ async fn faq_ask_carries_the_job_persona_and_answer_budget() {
         StatusCode::OK,
         json!({
             "settings": {"preamble": "Site host.", "actor": "the site host", "stance": "Be warm.", "max_tokens": "512"},
-            "provider": null,
         }),
     )
     .await;
